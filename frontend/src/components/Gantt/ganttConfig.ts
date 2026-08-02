@@ -50,8 +50,10 @@ export function applyGanttConfig(gantt: GanttInstance) {
   gantt.config.drag_resize = true
   gantt.config.drag_progress = true
 
-  // 依赖连线：隐藏所有依赖箭头（用户要求不显示）
-  gantt.config.show_links = false
+  // 依赖连线：显示并加粗
+  gantt.config.show_links = true
+  gantt.config.link_line_width = 2.5      // 连线加粗（默认 2px）
+  gantt.config.link_arrow_size = 8        // 箭头稍大
 
   // 左侧列定义
   gantt.config.columns = [
@@ -162,7 +164,7 @@ export function setScale(gantt: GanttInstance, level: 'day' | 'week' | 'month') 
     gantt.config.min_column_width = 120  // 月格子宽
     gantt.config.scale_height = 36
   }
-  // 切换尺度后强制重新渲染（fit_tasks=false 保持紧贴任务范围，不重算）
-  gantt.config.fit_tasks = false
+  // 切换尺度后强制重新渲染
+  gantt.config.fit_tasks = true
   gantt.render()
 }

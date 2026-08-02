@@ -66,25 +66,6 @@ export default function GanttChart({ projectId, scale = 'week', onPhaseClick }: 
         gantt.init(containerRef.current)
         gantt.clearAll()
         gantt.parse({ data: tasks, links: ganttData.links })
-        // 精确设置时间轴范围：从最早任务开始到最晚任务结束，
-        // 消除左侧多余空格（避免时间轴比任务早显示空白列）
-        const validTasks = tasks.filter((t: any) => t.start_date)
-        if (validTasks.length > 0) {
-          const strToDate = gantt.date.str_to_date('%Y-%m-%d')
-          const dates = validTasks.map((t: any) => strToDate(t.start_date))
-          const minStart = new Date(Math.min(...dates.map((d: any) => d.getTime())))
-          let maxEnd = minStart
-          for (const t of validTasks) {
-            const start = strToDate(t.start_date)
-            const end = gantt.date.add(start, t.duration, 'day')
-            if (end.getTime() > maxEnd.getTime()) maxEnd = end
-          }
-          // 关闭自动 fit，用显式范围紧贴任务
-          gantt.config.fit_tasks = false
-          gantt.config.start_date = minStart
-          gantt.config.end_date = maxEnd
-          gantt.render()
-        }
         gantt.markToday()
       } catch (e) {
         console.error('GanttChart 初始化失败:', e)
