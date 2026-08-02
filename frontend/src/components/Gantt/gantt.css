@@ -1,0 +1,97 @@
+/* 甘特图状态着色（与 PROJECT_SPEC §6.3 颜色方案一致）*/
+.pm-gantt-container {
+  border: 1px solid #e8e8e8;
+  border-radius: 4px;
+  overflow: hidden;
+}
+
+/* 已完成 - 绿色 */
+.gantt_task_line.gantt-task-done {
+  background-color: #52c41a;
+  border-color: #389e0d;
+}
+.gantt_task_line.gantt-task-done .gantt_task_progress {
+  background-color: #389e0d;
+}
+
+/* 进行中 - 蓝色 */
+.gantt_task_line.gantt-task-active {
+  background-color: #1890ff;
+  border-color: #096dd9;
+}
+.gantt_task_line.gantt-task-active .gantt_task_progress {
+  background-color: #096dd9;
+}
+
+/* 未开始 - 灰色 */
+.gantt_task_line.gantt-task-pending {
+  background-color: #d9d9d9;
+  border-color: #bfbfbf;
+}
+.gantt_task_line.gantt-task-pending .gantt_task_progress {
+  background-color: #bfbfbf;
+}
+
+/* 延期 - 红色 */
+.gantt_task_line.gantt-task-delayed {
+  background-color: #ff4d4f;
+  border-color: #cf1322;
+}
+.gantt_task_line.gantt-task-delayed .gantt_task_progress {
+  background-color: #cf1322;
+}
+
+/* 已搁置 - 深灰 */
+.gantt_task_line.gantt-task-blocked {
+  background-color: #8c8c8c;
+  border-color: #595959;
+}
+.gantt_task_line.gantt-task-blocked .gantt_task_progress {
+  background-color: #595959;
+}
+
+/* 返工标记 - 橙色左边框（叠加在原状态颜色上）*/
+.gantt_task_line.gantt-task-rework {
+  border-left: 4px solid #fa8c16 !important;
+}
+
+/* 顶层项目行 - 深色 */
+.gantt_task_line.gantt_project {
+  background-color: #001529;
+  border-color: #001529;
+}
+.gantt_task_line.gantt_project .gantt_task_content {
+  color: #fff;
+  font-weight: 600;
+}
+
+/* 阶段文字颜色（深色背景下用白字）*/
+.gantt_task_line.gantt-task-done .gantt_task_content,
+.gantt_task_line.gantt-task-active .gantt_task_content,
+.gantt_task_line.gantt-task-delayed .gantt_task_content,
+.gantt_task_line.gantt-task-blocked .gantt_task_content {
+  color: #fff;
+}
+
+/* 今天标记线 */
+.gantt_today {
+  background-color: rgba(24, 144, 255, 0.15);
+  border-left: 2px solid #1890ff;
+}
+
+/* 依赖连线颜色 */
+.gantt_task_link .gantt_line_wrapper > div {
+  background-color: #ffa940;
+}
+.gantt_link_arrow_right {
+  border-left-color: #ffa940;
+}
+.gantt_link_arrow_left {
+  border-right-color: #ffa940;
+}
+.gantt_link_arrow_up {
+  border-bottom-color: #ffa940;
+}
+.gantt_link_arrow_down {
+  border-top-color: #ffa940;
+}

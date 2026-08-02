@@ -1,0 +1,79 @@
+{
+  "$comment": "智能终端研发项目管理平台 — 3套项目模板种子数据。供 init_db.py 导入使用。",
+  "phase_types": [
+    { "code": "P1", "name_cn": "需求评估", "name_en": "requirement", "description": "客户需求/招标要求分析" },
+    { "code": "P2", "name_cn": "配置评估", "name_en": "configuration", "description": "硬件配置方案确认" },
+    { "code": "P3", "name_cn": "模块选型", "name_en": "selection", "description": "核心模块/器件选型" },
+    { "code": "P4", "name_cn": "工业设计", "name_en": "industrial_design", "description": "外观/造型设计" },
+    { "code": "P5", "name_cn": "结构设计", "name_en": "structure_design", "description": "整机结构设计（含原'整机设计'）" },
+    { "code": "P6", "name_cn": "样机打样", "name_en": "prototyping", "description": "首版样机制作" },
+    { "code": "P7", "name_cn": "联调测试", "name_en": "testing", "description": "功能/性能验证" },
+    { "code": "P8", "name_cn": "交付", "name_en": "delivery", "description": "POC/投标/发货/量产保障" }
+  ],
+  "templates": [
+    {
+      "name": "招标/新品研发标准流程",
+      "category": "新需求研发",
+      "description": "覆盖银行招标项目、新品研发。P1/P2/P3可并行启动，P4-P8串行。",
+      "phases": [
+        { "phase_type": "P1", "name": "需求评估", "sequence": 1, "default_duration_days": 5, "default_assignee_role": "项目管理" },
+        { "phase_type": "P2", "name": "配置评估", "sequence": 2, "default_duration_days": 5, "default_assignee_role": "项目管理" },
+        { "phase_type": "P3", "name": "模块选型", "sequence": 3, "default_duration_days": 7, "default_assignee_role": "结构设计" },
+        { "phase_type": "P4", "name": "工业设计", "sequence": 4, "default_duration_days": 7, "default_assignee_role": "工业设计" },
+        { "phase_type": "P5", "name": "结构设计", "sequence": 5, "default_duration_days": 14, "default_assignee_role": "结构设计" },
+        { "phase_type": "P6", "name": "样机打样", "sequence": 6, "default_duration_days": 15, "default_assignee_role": "结构设计" },
+        { "phase_type": "P7", "name": "联调测试", "sequence": 7, "default_duration_days": 7, "default_assignee_role": "测试" },
+        { "phase_type": "P8", "name": "交付", "sequence": 8, "default_duration_days": 10, "default_assignee_role": "项目管理" }
+      ],
+      "dependencies": [
+        { "from": "P1", "to": "P4", "type": "SS", "lag_days": 0 },
+        { "from": "P2", "to": "P4", "type": "SS", "lag_days": 2 },
+        { "from": "P3", "to": "P4", "type": "SS", "lag_days": 3 },
+        { "from": "P4", "to": "P5", "type": "FS", "lag_days": 0 },
+        { "from": "P5", "to": "P6", "type": "FS", "lag_days": 0 },
+        { "from": "P6", "to": "P7", "type": "FS", "lag_days": 0 },
+        { "from": "P7", "to": "P8", "type": "FS", "lag_days": 0 }
+      ]
+    },
+    {
+      "name": "量产交付流程",
+      "category": "量产交付",
+      "description": "覆盖海外量产项目（俄罗斯/越南/侧柜类）。结构设计完成后直接进入量产交付环节。",
+      "phases": [
+        { "phase_type": "P5", "name": "结构设计", "sequence": 1, "default_duration_days": 14, "default_assignee_role": "结构设计" },
+        { "phase_type": "P8", "name": "图纸归档", "sequence": 2, "default_duration_days": 3, "default_assignee_role": "结构设计" },
+        { "phase_type": "P8", "name": "BOM制作与激活", "sequence": 3, "default_duration_days": 3, "default_assignee_role": "结构设计" },
+        { "phase_type": "P8", "name": "直接投料", "sequence": 4, "default_duration_days": 3, "default_assignee_role": "项目管理" },
+        { "phase_type": "P8", "name": "首批生产保障", "sequence": 5, "default_duration_days": 15, "default_assignee_role": "项目管理" },
+        { "phase_type": "P8", "name": "发货", "sequence": 6, "default_duration_days": 5, "default_assignee_role": "项目管理" }
+      ],
+      "dependencies": [
+        { "from": "P5", "to": "P8", "from_seq": 1, "to_seq": 2, "type": "FS", "lag_days": 0 },
+        { "from": "P8", "to": "P8", "from_seq": 2, "to_seq": 3, "type": "FS", "lag_days": 0 },
+        { "from": "P8", "to": "P8", "from_seq": 3, "to_seq": 4, "type": "FS", "lag_days": 0 },
+        { "from": "P8", "to": "P8", "from_seq": 4, "to_seq": 5, "type": "FS", "lag_days": 0 },
+        { "from": "P8", "to": "P8", "from_seq": 5, "to_seq": 6, "type": "FS", "lag_days": 0 }
+      ]
+    },
+    {
+      "name": "定制/改造流程",
+      "category": "定制改造",
+      "description": "覆盖定制机、小批量改造项目。流程灵活，工业设计可选。",
+      "phases": [
+        { "phase_type": "P1", "name": "需求分析", "sequence": 1, "default_duration_days": 5, "default_assignee_role": "项目管理" },
+        { "phase_type": "P4", "name": "工业设计", "sequence": 2, "default_duration_days": 7, "default_assignee_role": "工业设计" },
+        { "phase_type": "P5", "name": "结构设计", "sequence": 3, "default_duration_days": 14, "default_assignee_role": "结构设计" },
+        { "phase_type": "P6", "name": "样机打样", "sequence": 4, "default_duration_days": 15, "default_assignee_role": "结构设计" },
+        { "phase_type": "P7", "name": "测试", "sequence": 5, "default_duration_days": 7, "default_assignee_role": "测试" },
+        { "phase_type": "P8", "name": "发货", "sequence": 6, "default_duration_days": 5, "default_assignee_role": "项目管理" }
+      ],
+      "dependencies": [
+        { "from": "P1", "to": "P4", "type": "FS", "lag_days": 0 },
+        { "from": "P4", "to": "P5", "type": "FS", "lag_days": 0 },
+        { "from": "P5", "to": "P6", "type": "FS", "lag_days": 0 },
+        { "from": "P6", "to": "P7", "type": "FS", "lag_days": 0 },
+        { "from": "P7", "to": "P8", "type": "FS", "lag_days": 0 }
+      ]
+    }
+  ]
+}
