@@ -1,20 +1,8 @@
 # Phase 5 规划：用户认证 + 权限管理 + 项目录入
 
-> **版本**: v1.1 | **日期**: 2026-08-03
+> **版本**: v1.0 | **日期**: 2026-08-03
 > **前置**: Phase 1-4 已完成（MVP 单人本地工具）
 > **目标**: 升级为团队协作平台，支持用户登录、角色权限、项目录入与审核
-
-## 修订记录（v1.1）
-
-| 决策点 | 原方案 | 修订为 | 理由 |
-|--------|--------|--------|------|
-| 数据库 | SQLite + WAL | **PostgreSQL** | 团队协作多人并发写，SQLite 写锁全局串行会偶发 `database is locked`；PG 天然支持并发 |
-| user/resource 关系 | 分离，resource.user_id 关联 | **一一对应** | 建 user 时自动关联同名 resource，分配负责人=分配给 user，逻辑统一 |
-| Token 存储 | localStorage | **httpOnly Cookie** | 免疫 XSS 窃取，前端完全不接触 token |
-| 5.1 范围 | 仅认证+用户管理 | **含创建项目表单** | 登录后最自然的下一步是建项目，避免 5.1 做完只能看不能建 |
-| 阶段增删交互 | 甘特图右键菜单 | **编辑面板按钮 + 列表操作列** | 右键菜单与 dhtmlxGantt 拖拽冲突，实现成本高 |
-
-**新增内容**：operation_log 审计日志表（§2.3）；PostgreSQL 迁移清单（§3.4）；Phase 5.0 迁移准备阶段。
 
 ---
 
@@ -105,30 +93,7 @@
 | managed_by | INTEGER | FK → user.id，项目负责人（替代 owner 文本字段，保留 owner 兼容） |
 | created_by | INTEGER | FK → user.id，创建者 |
 
-#### resource 表新增字段
-
-| 字段 | 类型 | 说明 |
-|------|------|------|
-| user_id | INTEGER | FK → user.id，关联登录账户（一对一） |
-
-> **resource 与 user 一一对应**（v1.1 修订）：建 user 时自动创建/关联同名 resource。分配阶段负责人（resource）= 分配给谁（user），权限判定统一。现有 27 个 resource 在迁移时按需补建 user 账户。
-
-### 2.3 新增表（v1.1）
-
-#### operation_log（操作日志，审计追溯）
-
-| 字段 | 类型 | 约束 | 说明 |
-|------|------|------|------|
-| id | INTEGER | PK | |
-| user_id | INTEGER | FK → user.id | 操作人 |
-| action | TEXT | NOT NULL | 操作类型：create/update/delete/rework/login |
-| table_name | TEXT | NOT NULL | 被改的表：project/phase/dependency 等 |
-| record_id | INTEGER | | 被改记录的 id |
-| old_value | TEXT | | 旧值（JSON）|
-| new_value | TEXT | | 新值（JSON）|
-| created_at | TIMESTAMP | DEFAULT now | |
-
-> 所有写操作（创建/修改/删除/返工）记录一条日志，便于审计"谁在何时改了什么"。
+> **resource 表与 user 表的关系**：resource 是"人员资源"（甘特图显示用），user 是"登录账户"。通过 resource.user_id 关联（可空）。不是所有 resource 都需要账户。
 
 ---
 
@@ -140,8 +105,7 @@
 |------|------|------|
 | 认证方式 | JWT Token | 无状态，局域网部署足够，后续上云也兼容 |
 | 密码加密 | bcrypt (passlib) | 行业标准 |
-| Token 存储 | **httpOnly Cookie**（v1.1 修订） | 免疫 XSS 窃取，前端完全不接触 token；后端 Set-Cookie 下发 |
-| Cookie 配置 | httpOnly + SameSite=Lax + 24h | 前端 axios `withCredentials: true` 自动携带 |
+| Token 存储 | 前端 localStorage | 局域网安全要求不高 |
 | Token 有效期 | 24 小时 | 平衡安全与便捷 |
 
 **后端依赖新增**：
@@ -149,14 +113,7 @@
 python-jose[cryptography]   # JWT
 passlib[bcrypt]             # 密码加密
 python-multipart            # 已有（表单解析）
-psycopg2-binary             # PostgreSQL 驱动（v1.1 新增）
 ```
-
-**登录 API 设计**（v1.1）：
-- `POST /api/auth/login`：校验账号密码 → 生成 JWT → `Set-Cookie: token=...; HttpOnly; SameSite=Lax; Max-Age=86400` → 返回用户信息
-- `POST /api/auth/logout`：`Set-Cookie: token=; Max-Age=0` 清除 cookie
-- `GET /api/auth/me`：从 cookie 读 token → 返回当前用户
-- 前端 axios 实例设 `withCredentials: true`，所有请求自动带 cookie
 
 ### 3.2 权限控制实现
 
@@ -186,87 +143,48 @@ require_phase_access(phase_id)      # 管理员/项目负责人/该阶段分配�
   viewer   → 看板 / 项目（只读）/ 资源（只读）
 ```
 
-### 3.4 PostgreSQL 迁移清单（v1.1 新增）
-
-Phase 5.0 的核心工作，从 SQLite 迁移到 PostgreSQL：
-
-| 步骤 | 内容 |
-|------|------|
-| 1. 安装 | 本地安装 PostgreSQL（macOS 用 Postgres.app 或 brew） |
-| 2. 建库 | `CREATE DATABASE pm_platform;` |
-| 3. 改连接串 | `DATABASE_URL=postgresql://user:pass@localhost:5432/pm_platform` |
-| 4. 驱动 | `pip install psycopg2-binary`，requirements.txt 加上 |
-| 5. 方言适配 | SQLAlchemy 已屏蔽方言差异，检查 SQLite 特有语法（如 `INTEGER PRIMARY KEY AUTOINCREMENT` 改为 `SERIAL`） |
-| 6. 建表 | `Base.metadata.create_all()` 在 PG 上重建所有表 |
-| 7. 数据迁移 | 写脚本从 SQLite 导出 18 项目/57 阶段/27 人员/3 模板 → 导入 PG |
-| 8. 验证 | 跑全部 40 个测试 + 前端全功能验证 |
-
-> SQLite 的 `database.py` 里 `PRAGMA foreign_keys=ON` 和 `check_same_thread=False` 在 PG 下不需要，迁移时清理。
-
 ---
 
 ## 四、实施计划
 
-### Phase 5.0：PostgreSQL 迁移准备（0.5 天，v1.1 新增）
+### Phase 5.1：用户认证基础（第 1 周）
 
-**目标**：数据库从 SQLite 迁到 PostgreSQL，为团队协作打基础
-
-| # | 任务 | 说明 |
-|---|------|------|
-| 1 | 安装 PostgreSQL | 本地装 PG，建库 pm_platform |
-| 2 | 改 DATABASE_URL | database.py 连接串改 PG，清理 SQLite 特有配置 |
-| 3 | 方言适配 | ORM 模型检查（AUTOINCREMENT→SERIAL 等） |
-| 4 | 数据迁移脚本 | 从 SQLite 导出现有数据导入 PG |
-| 5 | 全量验证 | 40 个测试全过 + 前端全功能 |
-
-**验收标准**：
-- [ ] PostgreSQL 启动，pm_platform 库就绪
-- [ ] `Base.metadata.create_all()` 建表成功
-- [ ] 现有 18 项目/57 阶段数据完整迁移到 PG
-- [ ] pytest 40 个全过
-- [ ] 前端看板/项目/甘特图/资源负载正常
-
-### Phase 5.1：用户认证 + 用户管理 + 创建项目（第 1-1.5 周，v1.1 扩展）
-
-**目标**：登录可用、能管用户、能从页面建项目
+**目标**：登录可用，现有 API 加权限保护
 
 | # | 任务 | 说明 |
 |---|------|------|
-| 1 | user 模型 + resource 关联 | 新增 user 表，resource 加 user_id；建 user 时自动关联同名 resource |
-| 2 | 登录/登出 API | `/api/auth/login` 校验密码 → Set-Cookie(httpOnly) 下发 JWT；`/logout` 清除；`/me` 返回当前用户 |
-| 3 | 权限中间件 | FastAPI dependency：get_current_user / require_role（从 cookie 读 token） |
-| 4 | 现有 API 加权限 | 所有写操作要求登录 + 按角色限制（先全量放开再逐个加，每步测前端） |
-| 5 | 登录页面 | 前端登录表单 + axios withCredentials + 路由守卫（未登录跳 /login） |
-| 6 | 用户管理页面 | 管理员创建用户、分配角色、启用/禁用、重置密码 |
-| 7 | **创建项目表单**（v1.1 新增） | 编号/名称/类目/市场/负责人 + 模板选择器，管理员或负责人可创建，应用模板生成阶段+依赖 |
-| 8 | 初始化管理员 | init_db.py 创建超级管理员账户（初始密码，首次登录强制改） |
+| 1 | user 模型 + 迁移 | 新增 user 表，初始化超级管理员账户 |
+| 2 | 注册/登录 API | `/api/auth/login` 返回 JWT，`/api/auth/me` 获取当前用户 |
+| 3 | 权限中间件 | FastAPI dependency：get_current_user / require_role |
+| 4 | 现有 API 加权限 | 所有写操作要求登录 + 按角色限制 |
+| 5 | 登录页面 | 前端登录表单 + token 管理 + 路由守卫 |
+| 6 | 用户管理页面 | 管理员创建用户、分配角色、启用/禁用 |
 
 **验收标准**：
-- [ ] 超级管理员可登录，httpOnly Cookie 下发 JWT
+- [ ] 超级管理员可登录，获取 JWT
 - [ ] 未登录访问 API 返回 401
-- [ ] 管理员可创建用户并分配角色（自动建 resource）
+- [ ] 管理员可创建用户并分配角色
 - [ ] 不同角色看到不同导航菜单
-- [ ] **可从页面创建项目并应用模板，创建后跳转甘特图**（v1.1 新增）
 - [ ] 现有功能（看板/项目/甘特图/资源）登录后正常使用
 
-### Phase 5.2：项目编辑完善 + 阶段管理 + 权限细化（第 2 周，v1.1 调整）
+### Phase 5.2：项目录入功能（第 2 周）
 
-**目标**：项目全生命周期可在页面内管理，权限按所有权细化
-
-> 注：创建项目表单已并入 5.1，本阶段聚焦编辑、阶段管理、负责人分配。
+**目标**：页面表单创建项目，替代纯 Excel
 
 | # | 任务 | 说明 |
 |---|------|------|
-| 1 | 项目编辑表单 | 管理员/负责人编辑项目信息（名称/类目/市场/周期等） |
-| 2 | 阶段手动增删 | **编辑面板"添加阶段"按钮 + 项目列表操作列删除**（v1.1：不用右键菜单，避免与甘特图拖拽冲突） |
-| 3 | 负责人分配 | 把阶段分配给具体工程师（resource 已关联 user，直接选人员） |
-| 4 | 权限细化 | 负责人只能改自己的项目，工程师只能改分配给自己的阶段 |
-| 5 | 项目列表操作列 | 编辑/删除按钮（按角色显示），替代纯点击进入 |
+| 1 | 创建项目表单 | 编号/名称/类目/市场/负责人，管理员或负责人可创建 |
+| 2 | 模板选择器 | 选 3 套模板，自动生成阶段+依赖 |
+| 3 | 项目编辑表单 | 管理员/负责人编辑项目信息 |
+| 4 | 阶段手动增删 | 甘特图上右键添加/删除阶段 |
+| 5 | 负责人分配 | 把阶段分配给具体工程师（关联 resource → user） |
+| 6 | 权限细化 | 负责人只能改自己的项目，工程师只能改自己的阶段 |
 
 **验收标准**：
-- [ ] 负责人可编辑自己项目的阶段（增删改）
+- [ ] 表单可创建项目并应用模板
+- [ ] 创建后自动跳转甘特图详情
+- [ ] 负责人可编辑自己项目的阶段
 - [ ] 工程师只能看到/改分配给自己的阶段
-- [ ] 阶段可分配给具体工程师
 - [ ] Excel 导入仍保留（批量场景）
 
 ### Phase 5.3：删除审核 + 工程师工作台（第 3 周）
@@ -309,14 +227,11 @@ Phase 5（本次）        Phase 6              Phase 7
 | 风险 | 对策 |
 |------|------|
 | 现有 API 加权限后破坏前端 | 先全量放开，逐个 API 加权限，每步测前端 |
-| resource 与 user 关联（v1.1 简化） | 一一对应：建 user 自动关联同名 resource，username 直接用中文姓名 |
-| ~~SQLite 并发写入~~（v1.1 已解决） | ~~SQLite WAL~~ → Phase 5.0 已迁 PostgreSQL，天然支持并发 |
+| resource 与 user 关联复杂 | 第一版 user.username 直接用中文姓名，resource.name 同步 |
+| SQLite 并发写入（多人同时改） | 局域网 20 人并发量低，SQLite WAL 模式足够；后续迁 PostgreSQL |
 | 密码安全（局域网） | bcrypt 加密 + 初始密码统一，首次登录强制改密 |
-| PostgreSQL 迁移数据丢失（v1.1 新增） | 迁移前备份 SQLite，迁移脚本校验行数一致，40 个测试验证 |
-| Cookie 跨域（前后端分离）（v1.1 新增） | 开发期 vite proxy 同源，Cookie SameSite=Lax；生产部署同域名 |
 
 ---
 
 > **本文档确认后即作为 Phase 5 开发依据。**
-> v1.1 修订基于实施前评审决策，已锁定技术方向。
 > 🦞 Phoebe | 2026-08-03
