@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { Card, Descriptions, Tag, Button, Space, Segmented, Spin, message, Input } from 'antd'
-import { ArrowLeftOutlined } from '@ant-design/icons'
+import { ArrowLeftOutlined, PlusOutlined } from '@ant-design/icons'
 import { getProject, updateProject } from '../api/projects'
 import type { ProjectDetail } from '../types'
 import GanttChart from '../components/Gantt/GanttChart'
@@ -20,7 +20,7 @@ export default function ProjectDetailPage() {
   const projectId = Number(id)
   const [project, setProject] = useState<ProjectDetail | null>(null)
   const [loading, setLoading] = useState(true)
-  const [editingPhase, setEditingPhase] = useState<number | null>(null)
+  const [editingPhase, setEditingPhase] = useState<number | null | undefined>(undefined)
   const [editingName, setEditingName] = useState(false)
   const [tempName, setTempName] = useState('')
   // 用于强制刷新甘特图组件（数据变更后重新加载）
@@ -48,8 +48,11 @@ export default function ProjectDetailPage() {
     setEditingPhase(phaseId)
   }
 
+  const handleAddPhase = () => {
+    setEditingPhase(null) // null = 创建模式
+  }
+
   const handlePhaseSaved = () => {
-    // 刷新甘特图 + 项目信息
     setGanttKey((k) => k + 1)
     load()
   }
@@ -146,15 +149,20 @@ export default function ProjectDetailPage() {
         size="small"
         title="甘特图"
         extra={
-          <Segmented
-            options={[
-              { label: '日', value: 'day' },
-              { label: '周', value: 'week' },
-              { label: '月', value: 'month' },
-            ]}
-            value={ganttScale}
-            onChange={(val) => setGanttScale(val as 'day' | 'week' | 'month')}
-          />
+          <Space>
+            <Button size="small" type="primary" icon={<PlusOutlined />} onClick={handleAddPhase}>
+              添加阶段
+            </Button>
+            <Segmented
+              options={[
+                { label: '日', value: 'day' },
+                { label: '周', value: 'week' },
+                { label: '月', value: 'month' },
+              ]}
+              value={ganttScale}
+              onChange={(val) => setGanttScale(val as 'day' | 'week' | 'month')}
+            />
+          </Space>
         }
       >
         {loading ? (
@@ -172,7 +180,13 @@ export default function ProjectDetailPage() {
         </div>
       </Card>
 
-      <PhaseEditor phaseId={editingPhase} onClose={() => setEditingPhase(null)} onSaved={handlePhaseSaved} />
+      <PhaseEditor
+        phaseId={editingPhase}
+        projectId={projectId}
+        defaultSequence={(project?.phases?.length ?? 0) + 1}
+        onClose={() => setEditingPhase(undefined)}
+        onSaved={handlePhaseSaved}
+      />
     </div>
   )
 }

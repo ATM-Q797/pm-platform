@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.core.deps import get_current_user, require_role
+from app.core.deps import get_current_user, require_role, check_project_access
 from app.database import get_db
 from app.models import Dependency, Phase, Project, User
 from app.schemas import (
@@ -79,9 +79,8 @@ def update_project(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    project = db.get(Project, project_id)
-    if project is None:
-        raise HTTPException(404, "项目不存在")
+    # 检查项目存在 + 操作权限
+    project = check_project_access(project_id, user, db)
     data = payload.model_dump(exclude_unset=True)
     if "code" in data and data["code"] != project.code:
         dup = db.scalars(select(Project).where(Project.code == data["code"])).first()
@@ -98,11 +97,9 @@ def update_project(
 def delete_project(
     project_id: int,
     db: Session = Depends(get_db),
-    user: User = Depends(require_role("admin", "manager")),
+    user: User = Depends(get_current_user),  # 改：check_project_access 内部判断角色
 ):
-    project = db.get(Project, project_id)
-    if project is None:
-        raise HTTPException(404, "项目不存在")
+    project = check_project_access(project_id, user, db)
     db.delete(project)
     db.commit()
 
@@ -121,9 +118,11 @@ def apply_template_to_project(
     project_id: int,
     template_id: int,
     db: Session = Depends(get_db),
-    user: User = Depends(require_role("admin", "manager")),
+    user: User = Depends(get_current_user),
 ):
     """从模板创建阶段 + 依赖。"""
+    # 检查项目存在 + 操作权限
+    check_project_access(project_id, user, db)
     try:
         apply_template(db, project_id, template_id)
     except ValueError as e:

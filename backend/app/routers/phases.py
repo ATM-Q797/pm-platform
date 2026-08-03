@@ -8,7 +8,7 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.core.deps import get_current_user
+from app.core.deps import get_current_user, check_project_access, check_phase_access
 from app.database import get_db
 from app.models import Dependency, Phase, Project, Resource, ReworkLog, User
 from app.schemas import PhaseCreate, PhaseRead, PhaseUpdate, ReworkLogRead, ReworkRequest
@@ -95,8 +95,8 @@ def create_phase(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    if db.get(Project, project_id) is None:
-        raise HTTPException(404, "项目不存在")
+    # 检查项目存在 + 操作权限
+    check_project_access(project_id, user, db)
     data = payload.model_dump(exclude={"assignee_ids", "depends_on_phase_ids"})
     phase = Phase(**data, project_id=project_id)
     db.add(phase)
@@ -118,9 +118,8 @@ def update_phase(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    phase = db.get(Phase, phase_id)
-    if phase is None:
-        raise HTTPException(404, "阶段不存在")
+    # 检查阶段存在 + 操作权限
+    phase = check_phase_access(phase_id, user, db)
     data = payload.model_dump(exclude_unset=True)
     assignee_ids = data.pop("assignee_ids", None)
     for k, v in data.items():
@@ -138,9 +137,7 @@ def delete_phase(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    phase = db.get(Phase, phase_id)
-    if phase is None:
-        raise HTTPException(404, "阶段不存在")
+    phase = check_phase_access(phase_id, user, db)
     db.delete(phase)
     db.commit()
 
@@ -157,9 +154,7 @@ def rework_phase(
     - 任意阶段可从 进行中/已完成 回退到目标状态（默认未开始）
     - 清空 actual_end，重新走流程
     """
-    phase = db.get(Phase, phase_id)
-    if phase is None:
-        raise HTTPException(404, "阶段不存在")
+    phase = check_phase_access(phase_id, user, db)
     from_status = phase.status
     log = ReworkLog(
         phase_id=phase_id,

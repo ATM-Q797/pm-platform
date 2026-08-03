@@ -13,33 +13,37 @@ import {
   message,
   Divider,
 } from 'antd'
-import { DeleteOutlined, ReloadOutlined, SaveOutlined } from '@ant-design/icons'
+import { DeleteOutlined, ReloadOutlined, SaveOutlined, PlusOutlined } from '@ant-design/icons'
 import dayjs from 'dayjs'
-import { getPhase, updatePhase, deletePhase, reworkPhase } from '../../api/phases'
+import { getPhase, updatePhase, createPhase, deletePhase, reworkPhase } from '../../api/phases'
 import { listResources } from '../../api/resources'
 import type { Phase, Resource } from '../../types'
 
 interface Props {
-  phaseId: number | null
+  /** 编辑模式：阶段 id；创建模式：null；关闭：undefined */
+  phaseId?: number | null
+  /** 创建模式时必需：所属项目 id */
+  projectId?: number
+  /** 默认 sequence（创建模式时自动传入） */
+  defaultSequence?: number
   onClose: () => void
-  onSaved: () => void // 保存/删除/返工后刷新甘特图
+  onSaved: () => void
 }
 
-const STATUS_OPTIONS = ['未开始', '进行中', '已完成', '延期', '已搁置'].map((s) => ({
-  value: s,
-  label: s,
-}))
+const STATUS_OPTIONS = ['未开始', '进行中', '已完成', '延期', '已搁置'].map((s) => ({ value: s, label: s }))
 
-export default function PhaseEditor({ phaseId, onClose, onSaved }: Props) {
-  const [open, setOpen] = useState(false)
+export default function PhaseEditor({ phaseId, projectId, defaultSequence, onClose, onSaved }: Props) {
+  const isCreate = phaseId === null
+  const isOpen = phaseId !== undefined && (phaseId !== null || projectId != null)
+
   const [phase, setPhase] = useState<Phase | null>(null)
   const [resources, setResources] = useState<Resource[]>([])
   const [saving, setSaving] = useState(false)
   const [form] = Form.useForm()
 
   useEffect(() => {
-    if (phaseId != null) {
-      setOpen(true)
+    if (phaseId != null && phaseId > 0) {
+      // 编辑模式
       Promise.all([getPhase(phaseId), listResources()]).then(([ph, res]) => {
         setPhase(ph)
         setResources(res)
@@ -57,35 +61,60 @@ export default function PhaseEditor({ phaseId, onClose, onSaved }: Props) {
           remark: ph.remark,
         })
       })
-    } else {
-      setOpen(false)
+    } else if (isCreate) {
+      // 创建模式：空表单
       setPhase(null)
+      listResources().then(setResources)
+      form.resetFields()
+      form.setFieldsValue({
+        status: '未开始',
+        progress: 0,
+        sequence: defaultSequence ?? 1,
+      })
     }
-  }, [phaseId, form])
+  }, [phaseId, isCreate, defaultSequence, form])
 
   const handleSave = async () => {
     try {
       const values = await form.validateFields()
       setSaving(true)
-      const payload = {
-        name: values.name,
-        phase_type: values.phase_type,
-        status: values.status,
-        progress: values.progress,
-        plan_start: values.plan_start?.format('YYYY-MM-DD') || null,
-        plan_end: values.plan_end?.format('YYYY-MM-DD') || null,
-        actual_start: values.actual_start?.format('YYYY-MM-DD') || null,
-        actual_end: values.actual_end?.format('YYYY-MM-DD') || null,
-        assignee_ids: values.assignee_ids,
-        handover_to: values.handover_to || null,
-        remark: values.remark || null,
+      if (isCreate && projectId) {
+        // 创建新阶段
+        await createPhase(projectId, {
+          phase_type: values.phase_type || '',
+          name: values.name,
+          sequence: values.sequence ?? (defaultSequence ?? 1),
+          plan_start: values.plan_start?.format('YYYY-MM-DD') || null,
+          plan_end: values.plan_end?.format('YYYY-MM-DD') || null,
+          status: values.status || '未开始',
+          progress: values.progress ?? 0,
+          assignee_ids: values.assignee_ids || [],
+          handover_to: values.handover_to || null,
+          remark: values.remark || null,
+        })
+        message.success('阶段已添加')
+      } else if (phase) {
+        // 编辑已有阶段
+        const payload: Record<string, any> = {}
+        if (values.name !== undefined) payload.phase_type = values.phase_type
+        if (values.name !== undefined) payload.name = values.name
+        if (values.sequence !== undefined) payload.sequence = values.sequence
+        if (values.status !== undefined) payload.status = values.status
+        if (values.progress !== undefined) payload.progress = values.progress
+        if (values.plan_start !== undefined) payload.plan_start = values.plan_start?.format('YYYY-MM-DD') || null
+        if (values.plan_end !== undefined) payload.plan_end = values.plan_end?.format('YYYY-MM-DD') || null
+        if (values.actual_start !== undefined) payload.actual_start = values.actual_start?.format('YYYY-MM-DD') || null
+        if (values.actual_end !== undefined) payload.actual_end = values.actual_end?.format('YYYY-MM-DD') || null
+        if (values.assignee_ids !== undefined) payload.assignee_ids = values.assignee_ids
+        if (values.handover_to !== undefined) payload.handover_to = values.handover_to
+        if (values.remark !== undefined) payload.remark = values.remark
+        await updatePhase(phase.id, payload)
+        message.success('已保存')
       }
-      await updatePhase(phase!.id, payload)
-      message.success('已保存')
       onSaved()
       onClose()
     } catch (e) {
-      if ((e as any).errorFields) return // 表单校验失败，不提示
+      if ((e as any).errorFields) return
       message.error('保存失败：' + (e as Error).message)
     } finally {
       setSaving(false)
@@ -100,11 +129,7 @@ export default function PhaseEditor({ phaseId, onClose, onSaved }: Props) {
       content: (
         <div style={{ paddingTop: 8 }}>
           <p style={{ marginBottom: 8 }}>将把阶段「{phase.name}」回退到"未开始"状态，并记录返工日志。</p>
-          <Input.TextArea
-            placeholder="返工原因（必填）"
-            rows={3}
-            onChange={(e) => (reason = e.target.value)}
-          />
+          <Input.TextArea placeholder="返工原因（必填）" rows={3} onChange={(e) => (reason = e.target.value)} />
         </div>
       ),
       okText: '确认返工',
@@ -115,14 +140,10 @@ export default function PhaseEditor({ phaseId, onClose, onSaved }: Props) {
           message.warning('请填写返工原因')
           return Promise.reject()
         }
-        try {
-          await reworkPhase(phase.id, { to_status: '未开始', reason: reason.trim() })
-          message.success('已记录返工')
-          onSaved()
-          onClose()
-        } catch (e) {
-          message.error('返工失败：' + (e as Error).message)
-        }
+        await reworkPhase(phase.id, { to_status: '未开始', reason: reason.trim() })
+        message.success('已记录返工')
+        onSaved()
+        onClose()
       },
     })
   }
@@ -131,61 +152,63 @@ export default function PhaseEditor({ phaseId, onClose, onSaved }: Props) {
     if (!phase) return
     Modal.confirm({
       title: '删除阶段',
-      content: `确定删除阶段「${phase.name}」？此操作不可恢复，关联的依赖也会一并删除。`,
+      content: `确定删除阶段「${phase.name}」？此操作不可恢复。`,
       okText: '删除',
       okType: 'danger',
       cancelText: '取消',
       onOk: async () => {
-        try {
-          await deletePhase(phase.id)
-          message.success('已删除')
-          onSaved()
-          onClose()
-        } catch (e) {
-          message.error('删除失败：' + (e as Error).message)
-        }
+        await deletePhase(phase.id)
+        message.success('已删除')
+        onSaved()
+        onClose()
       },
     })
   }
 
+  if (!isOpen) return null
+
   return (
     <Drawer
       title={
-        phase ? (
+        isCreate ? '添加阶段' : (
           <Space>
             <span>编辑阶段</span>
-            {phase.rework_count > 0 && <Tag color="orange">返工 {phase.rework_count} 次</Tag>}
+            {phase && phase.rework_count > 0 && <Tag color="orange">返工 {phase.rework_count} 次</Tag>}
           </Space>
-        ) : (
-          '编辑阶段'
         )
       }
-      open={open}
+      open={isOpen}
       onClose={onClose}
       width={420}
       destroyOnClose
       footer={
         <Space style={{ float: 'right' }}>
-          <Button danger icon={<DeleteOutlined />} onClick={handleDelete}>
-            删除
-          </Button>
-          <Button icon={<ReloadOutlined />} onClick={handleRework}>
-            返工
-          </Button>
+          {!isCreate && phase && (
+            <>
+              <Button danger icon={<DeleteOutlined />} onClick={handleDelete}>删除</Button>
+              <Button icon={<ReloadOutlined />} onClick={handleRework}>返工</Button>
+            </>
+          )}
+          <Button onClick={onClose}>取消</Button>
           <Button type="primary" icon={<SaveOutlined />} loading={saving} onClick={handleSave}>
-            保存
+            {isCreate ? '添加' : '保存'}
           </Button>
         </Space>
       }
     >
-      <Form form={form} layout="vertical">
-        <Form.Item name="name" label="阶段名称" rules={[{ required: true }]}>
+      <Form form={form} layout="vertical" preserve={false}>
+        <Form.Item name="name" label={isCreate ? '阶段名称' : '阶段名称'} rules={[{ required: true }]}>
           <Input />
         </Form.Item>
         <Form.Item name="phase_type" label="阶段类型">
           <Input placeholder="P1-P8（可留空）" />
         </Form.Item>
-        <Form.Item name="status" label="状态" rules={[{ required: true }]}>
+        {isCreate && (
+          <Form.Item name="sequence" label="顺序">
+            <Input type="number" />
+          </Form.Item>
+        )}
+        <Form.Item name="status" label="状态">
           <Select options={STATUS_OPTIONS} />
         </Form.Item>
         <Form.Item name="progress" label="进度">
@@ -199,19 +222,21 @@ export default function PhaseEditor({ phaseId, onClose, onSaved }: Props) {
             <DatePicker style={{ width: 150 }} />
           </Form.Item>
         </Space>
-        <Space style={{ display: 'flex' }}>
-          <Form.Item name="actual_start" label="实际开始">
-            <DatePicker style={{ width: 150 }} />
-          </Form.Item>
-          <Form.Item name="actual_end" label="实际结束">
-            <DatePicker style={{ width: 150 }} />
-          </Form.Item>
-        </Space>
-        <Form.Item name="assignee_ids" label="负责人">
+        {!isCreate && (
+          <Space style={{ display: 'flex' }}>
+            <Form.Item name="actual_start" label="实际开始">
+              <DatePicker style={{ width: 150 }} />
+            </Form.Item>
+            <Form.Item name="actual_end" label="实际结束">
+              <DatePicker style={{ width: 150 }} />
+            </Form.Item>
+          </Space>
+        )}
+        <Form.Item name="assignee_ids" label="负责人（工程师）">
           <Select
             mode="multiple"
             placeholder="选择负责人"
-            options={resources.map((r) => ({ value: r.id, label: `${r.name}${r.role ? '（' + r.role + '）' : ''}` }))}
+            options={resources.map((r) => ({ value: r.id, label: r.name + (r.role ? `（${r.role}）` : '') }))}
           />
         </Form.Item>
         <Form.Item name="handover_to" label="交接人">

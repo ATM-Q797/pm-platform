@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Table, Card, Select, Input, Button, Space, Tag, Upload, Modal, Form, DatePicker, message, Spin } from 'antd'
-import { UploadOutlined, ReloadOutlined, DownloadOutlined, PlusOutlined } from '@ant-design/icons'
+import { Table, Card, Select, Input, Button, Space, Tag, Upload, Modal, Form, DatePicker, message, Spin, Popconfirm } from 'antd'
+import { UploadOutlined, ReloadOutlined, DownloadOutlined, PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons'
 import dayjs from 'dayjs'
 import type { ColumnsType } from 'antd/es/table'
-import { listProjects, createProject, applyTemplate } from '../api/projects'
+import { listProjects, createProject, updateProject, deleteProject, applyTemplate } from '../api/projects'
 import { listTemplates } from '../api/templates'
 import type { Project, ImportReport, Template } from '../types'
 
@@ -25,8 +25,11 @@ export default function ProjectListPage() {
   // 创建项目
   const [createOpen, setCreateOpen] = useState(false)
   const [creating, setCreating] = useState(false)
+  const [editOpen, setEditOpen] = useState(false)
+  const [editing, setEditing] = useState<Project | null>(null)
   const [templates, setTemplates] = useState<Template[]>([])
   const [form] = Form.useForm()
+  const [editForm] = Form.useForm()
 
   const load = async () => {
     setLoading(true)
@@ -143,6 +146,58 @@ export default function ProjectListPage() {
     }
   }
 
+  const handleEdit = (project: Project) => {
+    setEditing(project)
+    editForm.setFieldsValue({
+      code: project.code,
+      category: project.category,
+      name: project.name,
+      owner: project.owner,
+      market: project.market,
+      status: project.status,
+      priority: project.priority,
+      plan_start: project.plan_start ? dayjs(project.plan_start) : null,
+      plan_end: project.plan_end ? dayjs(project.plan_end) : null,
+      remark: project.remark,
+    })
+    setEditOpen(true)
+  }
+
+  const handleEditSubmit = async () => {
+    if (!editing) return
+    try {
+      const values = await editForm.validateFields()
+      await updateProject(editing.id, {
+        code: values.code,
+        category: values.category,
+        name: values.name,
+        owner: values.owner,
+        market: values.market,
+        status: values.status,
+        priority: values.priority,
+        plan_start: values.plan_start?.format('YYYY-MM-DD') || null,
+        plan_end: values.plan_end?.format('YYYY-MM-DD') || null,
+        remark: values.remark,
+      })
+      message.success('项目信息已更新')
+      setEditOpen(false)
+      load()
+    } catch (e) {
+      if ((e as any).errorFields) return
+      message.error((e as Error).message)
+    }
+  }
+
+  const handleDelete = async (project: Project) => {
+    try {
+      await deleteProject(project.id)
+      message.success(`已删除项目 "${project.name}"`)
+      load()
+    } catch (e) {
+      message.error((e as Error).message)
+    }
+  }
+
   const columns: ColumnsType<Project> = [
     { title: '编号', dataIndex: 'code', width: 70, align: 'center' },
     {
@@ -170,6 +225,22 @@ export default function ProjectListPage() {
     { title: '负责人', dataIndex: 'owner', width: 100 },
     { title: '计划开始', dataIndex: 'plan_start', width: 120, align: 'center' },
     { title: '计划结束', dataIndex: 'plan_end', width: 120, align: 'center' },
+    {
+      title: '操作',
+      width: 140,
+      align: 'center',
+      render: (_: unknown, r: Project) => (
+        <Space size="small">
+          <Button size="small" icon={<EditOutlined />} onClick={(e) => { e.stopPropagation(); handleEdit(r) }}>
+            编辑
+          </Button>
+          <Popconfirm title={`删除项目 "${r.name}"？`} onConfirm={() => handleDelete(r)}
+            okText="删除" okType="danger" cancelText="取消">
+            <Button size="small" danger icon={<DeleteOutlined />} onClick={(e) => e.stopPropagation()} />
+          </Popconfirm>
+        </Space>
+      ),
+    },
   ]
 
   return (
@@ -242,8 +313,6 @@ export default function ProjectListPage() {
           dataSource={projects}
           pagination={{ pageSize: 20, showSizeChanger: false }}
           size="middle"
-          onRow={(r) => ({ onClick: () => navigate(`/projects/${r.id}`) })}
-          style={{ cursor: 'pointer' }}
         />
       </Spin>
     </Card>
@@ -299,6 +368,70 @@ export default function ProjectListPage() {
               placeholder="不选则创建空项目"
               options={templates.map((t) => ({ value: t.id, label: `${t.name}（${t.category}）` }))}
             />
+          </Form.Item>
+        </Form>
+      </Modal>
+
+      {/* 编辑项目 */}
+      <Modal
+        title="编辑项目"
+        open={editOpen}
+        onOk={handleEditSubmit}
+        onCancel={() => { setEditOpen(false); setEditing(null) }}
+        width={520}
+        okText="保存"
+      >
+        <Form form={editForm} layout="vertical" style={{ marginTop: 16 }} preserve={false}>
+          <Form.Item name="code" label="项目编号" rules={[{ required: true }]}>
+            <Input placeholder="项目编号（唯一）" />
+          </Form.Item>
+          <Form.Item name="name" label="项目名称" rules={[{ required: true }]}>
+            <Input placeholder="项目全称" />
+          </Form.Item>
+          <Space style={{ display: 'flex' }}>
+            <Form.Item name="category" label="类目" style={{ flex: 1 }}>
+              <Select options={[
+                { value: '新需求', label: '新需求' },
+                { value: '量产', label: '量产' },
+                { value: '定制', label: '定制' },
+                { value: '改造', label: '改造' },
+              ]} />
+            </Form.Item>
+            <Form.Item name="market" label="市场" style={{ flex: 1 }}>
+              <Select options={[
+                { value: '国内', label: '国内' },
+                { value: '海外', label: '海外' },
+              ]} />
+            </Form.Item>
+          </Space>
+          <Form.Item name="owner" label="项目负责人" rules={[{ required: true }]}>
+            <Input />
+          </Form.Item>
+          <Form.Item name="status" label="状态">
+            <Select options={[
+              { value: '未开始', label: '未开始' },
+              { value: '进行中', label: '进行中' },
+              { value: '已完成', label: '已完成' },
+              { value: '已搁置', label: '已搁置' },
+            ]} />
+          </Form.Item>
+          <Form.Item name="priority" label="优先级">
+            <Select allowClear options={[
+              { value: '高', label: '高' },
+              { value: '中', label: '中' },
+              { value: '低', label: '低' },
+            ]} />
+          </Form.Item>
+          <Space style={{ display: 'flex' }}>
+            <Form.Item name="plan_start" label="计划开始">
+              <DatePicker style={{ width: 200 }} />
+            </Form.Item>
+            <Form.Item name="plan_end" label="计划结束">
+              <DatePicker style={{ width: 200 }} />
+            </Form.Item>
+          </Space>
+          <Form.Item name="remark" label="备注">
+            <Input.TextArea rows={2} />
           </Form.Item>
         </Form>
       </Modal>
