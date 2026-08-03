@@ -8,8 +8,9 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.core.deps import get_current_user
 from app.database import get_db
-from app.models import Dependency, Phase, Project
+from app.models import Dependency, Phase, Project, User
 from app.schemas import DependencyCreate, DependencyRead
 
 router = APIRouter(tags=["依赖关系"])
@@ -56,7 +57,10 @@ def list_dependencies(project_id: int, db: Session = Depends(get_db)):
     status_code=status.HTTP_201_CREATED,
 )
 def create_dependency(
-    project_id: int, payload: DependencyCreate, db: Session = Depends(get_db)
+    project_id: int,
+    payload: DependencyCreate,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
 ):
     _validate(db, payload)
     dep = Dependency(**payload.model_dump())
@@ -67,7 +71,11 @@ def create_dependency(
 
 
 @router.delete("/api/dependencies/{dep_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_dependency(dep_id: int, db: Session = Depends(get_db)):
+def delete_dependency(
+    dep_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
     dep = db.get(Dependency, dep_id)
     if dep is None:
         raise HTTPException(404, "依赖关系不存在")

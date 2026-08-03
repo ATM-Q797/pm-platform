@@ -8,8 +8,9 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.core.deps import get_current_user
 from app.database import get_db
-from app.models import Dependency, Phase, Project, Resource, ReworkLog
+from app.models import Dependency, Phase, Project, Resource, ReworkLog, User
 from app.schemas import PhaseCreate, PhaseRead, PhaseUpdate, ReworkLogRead, ReworkRequest
 
 router = APIRouter(tags=["阶段"])
@@ -88,7 +89,12 @@ def get_phase(phase_id: int, db: Session = Depends(get_db)):
     response_model=PhaseRead,
     status_code=status.HTTP_201_CREATED,
 )
-def create_phase(project_id: int, payload: PhaseCreate, db: Session = Depends(get_db)):
+def create_phase(
+    project_id: int,
+    payload: PhaseCreate,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
     if db.get(Project, project_id) is None:
         raise HTTPException(404, "项目不存在")
     data = payload.model_dump(exclude={"assignee_ids", "depends_on_phase_ids"})
@@ -106,7 +112,12 @@ def create_phase(project_id: int, payload: PhaseCreate, db: Session = Depends(ge
 
 
 @router.put("/api/phases/{phase_id}", response_model=PhaseRead)
-def update_phase(phase_id: int, payload: PhaseUpdate, db: Session = Depends(get_db)):
+def update_phase(
+    phase_id: int,
+    payload: PhaseUpdate,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
     phase = db.get(Phase, phase_id)
     if phase is None:
         raise HTTPException(404, "阶段不存在")
@@ -122,7 +133,11 @@ def update_phase(phase_id: int, payload: PhaseUpdate, db: Session = Depends(get_
 
 
 @router.delete("/api/phases/{phase_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_phase(phase_id: int, db: Session = Depends(get_db)):
+def delete_phase(
+    phase_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
     phase = db.get(Phase, phase_id)
     if phase is None:
         raise HTTPException(404, "阶段不存在")
@@ -131,7 +146,12 @@ def delete_phase(phase_id: int, db: Session = Depends(get_db)):
 
 
 @router.post("/api/phases/{phase_id}/rework", response_model=ReworkLogRead)
-def rework_phase(phase_id: int, payload: ReworkRequest, db: Session = Depends(get_db)):
+def rework_phase(
+    phase_id: int,
+    payload: ReworkRequest,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
     """阶段返工：回退状态 + 写返工日志 + rework_count +1。
 
     - 任意阶段可从 进行中/已完成 回退到目标状态（默认未开始）

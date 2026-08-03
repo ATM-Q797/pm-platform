@@ -1,8 +1,8 @@
 """数据库连接与会话管理。
 
-- SQLite 单文件数据库（pm_platform.db）
+- 默认 PostgreSQL（Phase 5.0 起）；测试时可设 DATABASE_URL=sqlite:///:memory:
 - 同步 SQLAlchemy 2.0 风格
-- 每个连接开启 PRAGMA foreign_keys=ON，使 ON DELETE CASCADE 生效
+- SQLite 连接额外开启 PRAGMA foreign_keys=ON（测试用）；PG 天然强制外键
 """
 from __future__ import annotations
 
@@ -14,18 +14,20 @@ from sqlalchemy import create_engine, event
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
-# 数据库文件路径：backend/pm_platform.db
-_BASE_DIR = os.path.dirname(os.path.dirname(os.path.abspath(__file__)))
-_DB_PATH = os.path.join(_BASE_DIR, "pm_platform.db")
-DATABASE_URL = os.environ.get("DATABASE_URL", f"sqlite:///{_DB_PATH}")
+# 默认连接本地 PostgreSQL（不指定用户，自动用系统用户；跨机器通用）；
+# 可通过环境变量覆盖（如测试用 sqlite:///:memory:）
+DATABASE_URL = os.environ.get(
+    "DATABASE_URL",
+    "postgresql://localhost/pm_platform",
+)
 
 
 def _create_engine() -> Engine:
-    """创建 engine。SQLite 需要 check_same_thread=False 以支持 FastAPI 线程。"""
+    """创建 engine。SQLite 需要 check_same_thread=False；PG 无需特殊参数。"""
     connect_args = {"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {}
     engine = create_engine(DATABASE_URL, connect_args=connect_args, echo=False, future=True)
 
-    # SQLite 默认不强制外键约束，这里在每次连接时开启，使级联删除生效
+    # SQLite 默认不强制外键约束，测试时开启使级联删除生效；PG 天然强制，无需处理
     if DATABASE_URL.startswith("sqlite"):
         @event.listens_for(engine, "connect")
         def _enable_fk(dbapi_connection, _connection_record):  # pragma: no cover

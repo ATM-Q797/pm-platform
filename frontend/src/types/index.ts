@@ -206,3 +206,15 @@ export interface DashboardStats {
   total_rework_count: number
   rework_phases: ReworkPhase[]
 }
+
+// ---------- 用户与认证 ----------
+export interface UserInfo {
+  id: number
+  username: string
+  name: string
+  role: 'admin' | 'manager' | 'engineer' | 'viewer'
+  is_active: boolean
+  must_change_password: boolean
+  resource_id?: number | null
+  created_at?: string | null
+}

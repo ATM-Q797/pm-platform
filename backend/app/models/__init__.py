@@ -4,6 +4,7 @@
 创建/初始化数据库前必须先导入本模块。
 """
 from app.models.resource import Resource
+from app.models.user import User
 from app.models.template import Template, TemplateDependency, TemplatePhase
 from app.models.project import Project
 from app.models.phase import Phase, ReworkLog, phase_assignee
@@ -11,6 +12,7 @@ from app.models.dependency import Dependency
 
 __all__ = [
     "Resource",
+    "User",
     "Template",
     "TemplatePhase",
     "TemplateDependency",

@@ -8,8 +8,9 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.core.deps import require_role
 from app.database import get_db
-from app.models import Template, TemplateDependency, TemplatePhase
+from app.models import Template, TemplateDependency, TemplatePhase, User
 from app.schemas import TemplateCreate, TemplateRead, TemplateUpdate
 
 router = APIRouter(prefix="/api/templates", tags=["模板"])
@@ -30,7 +31,11 @@ def get_template(template_id: int, db: Session = Depends(get_db)):
 
 
 @router.post("", response_model=TemplateRead, status_code=status.HTTP_201_CREATED)
-def create_template(payload: TemplateCreate, db: Session = Depends(get_db)):
+def create_template(
+    payload: TemplateCreate,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_role("admin")),
+):
     if db.scalars(select(Template).where(Template.name == payload.name)).first():
         raise HTTPException(400, f"模板 {payload.name} 已存在")
     tpl = Template(name=payload.name, category=payload.category, description=payload.description)
@@ -65,7 +70,12 @@ def create_template(payload: TemplateCreate, db: Session = Depends(get_db)):
 
 
 @router.put("/{template_id}", response_model=TemplateRead)
-def update_template(template_id: int, payload: TemplateUpdate, db: Session = Depends(get_db)):
+def update_template(
+    template_id: int,
+    payload: TemplateUpdate,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_role("admin")),
+):
     tpl = db.get(Template, template_id)
     if tpl is None:
         raise HTTPException(404, "模板不存在")
@@ -78,7 +88,11 @@ def update_template(template_id: int, payload: TemplateUpdate, db: Session = Dep
 
 
 @router.delete("/{template_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_template(template_id: int, db: Session = Depends(get_db)):
+def delete_template(
+    template_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_role("admin")),
+):
     tpl = db.get(Template, template_id)
     if tpl is None:
         raise HTTPException(404, "模板不存在")

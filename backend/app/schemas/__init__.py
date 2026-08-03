@@ -42,6 +42,14 @@ from app.schemas.dashboard import (
     ReworkPhase,
     StatusCount,
 )
+from app.schemas.user import (
+    LoginRequest,
+    LoginResponse,
+    PasswordChange,
+    UserCreate,
+    UserRead,
+    UserUpdate,
+)
 
 __all__ = [
     "ResourceCreate", "ResourceRead", "ResourceUpdate",
@@ -52,4 +60,5 @@ __all__ = [
     "DependencyCreate", "DependencyRead",
     "ImportReport", "ImportIssue", "ImportWarn",
     "DashboardStats", "DelayedProject", "ReworkPhase", "StatusCount",
+    "UserCreate", "UserRead", "UserUpdate", "LoginRequest", "LoginResponse", "PasswordChange",
 ]

@@ -14,6 +14,7 @@ from app.database import Base
 
 if TYPE_CHECKING:
     from app.models.phase import Phase
+    from app.models.user import User
 
 
 class Resource(Base):
@@ -32,3 +33,5 @@ class Resource(Base):
         back_populates="assignees",
         lazy="select",
     )
+    # 关联的登录账户（一一对应，可空）
+    user: Mapped["User | None"] = relationship(back_populates="resource")

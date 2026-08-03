@@ -8,8 +8,9 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.core.deps import get_current_user, require_role
 from app.database import get_db
-from app.models import Dependency, Phase, Project
+from app.models import Dependency, Phase, Project, User
 from app.schemas import (
     GanttData,
     ProjectCreate,
@@ -43,7 +44,11 @@ def list_projects(
 
 
 @router.post("", response_model=ProjectRead, status_code=status.HTTP_201_CREATED)
-def create_project(payload: ProjectCreate, db: Session = Depends(get_db)):
+def create_project(
+    payload: ProjectCreate,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_role("admin", "manager")),
+):
     if db.scalars(select(Project).where(Project.code == payload.code)).first():
         raise HTTPException(400, f"项目编号 {payload.code} 已存在")
     project = Project(**payload.model_dump())
@@ -68,7 +73,12 @@ def get_project(project_id: int, db: Session = Depends(get_db)):
 
 
 @router.put("/{project_id}", response_model=ProjectRead)
-def update_project(project_id: int, payload: ProjectUpdate, db: Session = Depends(get_db)):
+def update_project(
+    project_id: int,
+    payload: ProjectUpdate,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
     project = db.get(Project, project_id)
     if project is None:
         raise HTTPException(404, "项目不存在")
@@ -85,7 +95,11 @@ def update_project(project_id: int, payload: ProjectUpdate, db: Session = Depend
 
 
 @router.delete("/{project_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_project(project_id: int, db: Session = Depends(get_db)):
+def delete_project(
+    project_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_role("admin", "manager")),
+):
     project = db.get(Project, project_id)
     if project is None:
         raise HTTPException(404, "项目不存在")
@@ -104,7 +118,10 @@ def get_project_gantt(project_id: int, db: Session = Depends(get_db)):
 
 @router.post("/{project_id}/apply-template/{template_id}", response_model=ProjectRead)
 def apply_template_to_project(
-    project_id: int, template_id: int, db: Session = Depends(get_db)
+    project_id: int,
+    template_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_role("admin", "manager")),
 ):
     """从模板创建阶段 + 依赖。"""
     try:

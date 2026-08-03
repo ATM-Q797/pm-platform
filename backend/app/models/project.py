@@ -15,6 +15,7 @@ from app.database import Base
 if TYPE_CHECKING:
     from app.models.phase import Phase
     from app.models.template import Template
+    from app.models.user import User
 
 
 class Project(Base):
@@ -34,12 +35,16 @@ class Project(Base):
     plan_end: Mapped[date | None] = mapped_column(Date)
     template_id: Mapped[int | None] = mapped_column(ForeignKey("template.id"))
     remark: Mapped[str | None] = mapped_column(String)
+    # Phase 5：项目负责人（user 关联）+ 创建者
+    managed_by: Mapped[int | None] = mapped_column(ForeignKey("user_account.id"))
+    created_by: Mapped[int | None] = mapped_column(ForeignKey("user_account.id"))
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.current_timestamp())
     updated_at: Mapped[datetime] = mapped_column(
         DateTime, server_default=func.current_timestamp(), onupdate=func.current_timestamp()
     )
 
     template: Mapped["Template | None"] = relationship(back_populates="projects")
+    manager: Mapped["User | None"] = relationship(foreign_keys=[managed_by])
     phases: Mapped[list["Phase"]] = relationship(
         back_populates="project", cascade="all, delete-orphan", lazy="selectin"
     )

@@ -9,7 +9,9 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, File, HTTPException, UploadFile, status
 from sqlalchemy.orm import Session
 
+from app.core.deps import require_role
 from app.database import get_db
+from app.models import User
 from app.schemas.import_report import ImportReport
 from app.services import get_last_report, import_excel
 
@@ -21,6 +23,7 @@ async def import_excel_file(
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
     default_category: str = "新需求",
+    user: User = Depends(require_role("admin")),
 ):
     """上传 Excel 文件并导入（multipart/form-data）。
 

@@ -4,12 +4,18 @@ import axios from 'axios'
 const client = axios.create({
   baseURL: '/api',
   timeout: 30000,
+  withCredentials: true, // 认证：自动携带 httpOnly Cookie
 })
 
-// 响应拦截：统一错误提示（调用方可捕获）
+// 响应拦截：401 跳登录，其他错误统一提示
 client.interceptors.response.use(
   (resp) => resp,
   (error) => {
+    if (error.response?.status === 401 && !location.pathname.startsWith('/login')) {
+      // 未登录或登录过期，跳转登录页
+      location.href = '/login'
+      return Promise.reject(new Error('请先登录'))
+    }
     const msg = error.response?.data?.detail || error.message || '请求失败'
     return Promise.reject(new Error(msg))
   }

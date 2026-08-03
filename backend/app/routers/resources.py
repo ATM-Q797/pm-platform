@@ -10,8 +10,9 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.core.deps import get_current_user
 from app.database import get_db
-from app.models import Phase, Resource
+from app.models import Phase, Resource, User
 from app.schemas import ResourceCreate, ResourceRead, ResourceUpdate, ResourceWorkload
 
 router = APIRouter(prefix="/api/resources", tags=["资源/人员"])
@@ -64,7 +65,11 @@ def get_all_workloads(db: Session = Depends(get_db)):
 
 
 @router.post("", response_model=ResourceRead, status_code=status.HTTP_201_CREATED)
-def create_resource(payload: ResourceCreate, db: Session = Depends(get_db)):
+def create_resource(
+    payload: ResourceCreate,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
     if db.scalars(select(Resource).where(Resource.name == payload.name)).first():
         raise HTTPException(400, f"人员 {payload.name} 已存在")
     resource = Resource(**payload.model_dump())
@@ -75,7 +80,12 @@ def create_resource(payload: ResourceCreate, db: Session = Depends(get_db)):
 
 
 @router.put("/{resource_id}", response_model=ResourceRead)
-def update_resource(resource_id: int, payload: ResourceUpdate, db: Session = Depends(get_db)):
+def update_resource(
+    resource_id: int,
+    payload: ResourceUpdate,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
     resource = db.get(Resource, resource_id)
     if resource is None:
         raise HTTPException(404, "人员不存在")
@@ -92,7 +102,11 @@ def update_resource(resource_id: int, payload: ResourceUpdate, db: Session = Dep
 
 
 @router.delete("/{resource_id}", status_code=status.HTTP_204_NO_CONTENT)
-def delete_resource(resource_id: int, db: Session = Depends(get_db)):
+def delete_resource(
+    resource_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
     resource = db.get(Resource, resource_id)
     if resource is None:
         raise HTTPException(404, "人员不存在")

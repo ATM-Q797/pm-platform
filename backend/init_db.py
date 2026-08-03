@@ -24,7 +24,8 @@ from sqlalchemy import select  # noqa: E402
 
 from app import models  # noqa: E402,F401  (注册所有模型)
 from app.database import Base, SessionLocal, engine  # noqa: E402
-from app.models import Template, TemplateDependency, TemplatePhase  # noqa: E402
+from app.models import Template, TemplateDependency, TemplatePhase, User  # noqa: E402
+from app.core.security import hash_password  # noqa: E402
 
 # templates.json 路径：backend/../docs/templates.json
 _TEMPLATES_JSON = Path(__file__).resolve().parent.parent / "docs" / "templates.json"
@@ -92,6 +93,25 @@ def seed_templates(db) -> None:
     print(f"✓ 模板种子写入完成：{n_tpl} 个模板 / {n_phase} 个阶段 / {n_dep} 条依赖")
 
 
+def seed_admin(db) -> None:
+    """创建超级管理员账户（幂等：已存在则跳过）。"""
+    ADMIN_USERNAME = "admin"
+    existing = db.scalars(select(User).where(User.username == ADMIN_USERNAME)).first()
+    if existing:
+        print(f"✓ 管理员账户已存在（{ADMIN_USERNAME}），跳过")
+        return
+    admin = User(
+        username=ADMIN_USERNAME,
+        name="超级管理员",
+        role="admin",
+        password_hash=hash_password("admin123"),
+        must_change_password=True,  # 首次登录强制改密
+    )
+    db.add(admin)
+    db.commit()
+    print(f"✓ 已创建超级管理员：用户名 {ADMIN_USERNAME} / 初始密码 admin123（首次登录请修改）")
+
+
 def main() -> None:
     print("=" * 50)
     print("智能终端研发项目管理平台 — 数据库初始化")
@@ -100,6 +120,7 @@ def main() -> None:
     db = SessionLocal()
     try:
         seed_templates(db)
+        seed_admin(db)
     finally:
         db.close()
     # 摘要

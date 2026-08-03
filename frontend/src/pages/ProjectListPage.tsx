@@ -1,10 +1,12 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Table, Card, Select, Input, Button, Space, Tag, Upload, Modal, message, Spin } from 'antd'
-import { UploadOutlined, ReloadOutlined, DownloadOutlined } from '@ant-design/icons'
+import { Table, Card, Select, Input, Button, Space, Tag, Upload, Modal, Form, DatePicker, message, Spin } from 'antd'
+import { UploadOutlined, ReloadOutlined, DownloadOutlined, PlusOutlined } from '@ant-design/icons'
+import dayjs from 'dayjs'
 import type { ColumnsType } from 'antd/es/table'
-import { listProjects } from '../api/projects'
-import type { Project, ImportReport } from '../types'
+import { listProjects, createProject, applyTemplate } from '../api/projects'
+import { listTemplates } from '../api/templates'
+import type { Project, ImportReport, Template } from '../types'
 
 // 状态 → Tag 颜色
 const STATUS_COLOR: Record<string, string> = {
@@ -20,16 +22,25 @@ export default function ProjectListPage() {
   const [projects, setProjects] = useState<Project[]>([])
   const [loading, setLoading] = useState(false)
   const [filters, setFilters] = useState({ status: '', market: '', category: '' })
+  // 创建项目
+  const [createOpen, setCreateOpen] = useState(false)
+  const [creating, setCreating] = useState(false)
+  const [templates, setTemplates] = useState<Template[]>([])
+  const [form] = Form.useForm()
 
   const load = async () => {
     setLoading(true)
     try {
-      const data = await listProjects({
-        status: filters.status || undefined,
-        market: filters.market || undefined,
-        category: filters.category || undefined,
-      })
+      const [data, tpls] = await Promise.all([
+        listProjects({
+          status: filters.status || undefined,
+          market: filters.market || undefined,
+          category: filters.category || undefined,
+        }),
+        listTemplates(),
+      ])
       setProjects(data)
+      setTemplates(tpls)
     } catch (e) {
       message.error((e as Error).message)
     } finally {
@@ -97,6 +108,41 @@ export default function ProjectListPage() {
     return false // 阻止 antd Upload 默认上传行为
   }
 
+  const handleCreate = async () => {
+    try {
+      const values = await form.validateFields()
+      setCreating(true)
+      const project = await createProject({
+        code: values.code,
+        category: values.category,
+        name: values.name,
+        owner: values.owner,
+        market: values.market,
+        plan_start: values.plan_start?.format('YYYY-MM-DD') || null,
+        plan_end: values.plan_end?.format('YYYY-MM-DD') || null,
+      })
+      // 应用模板（如果选了）
+      if (values.template_id) {
+        try {
+          await applyTemplate(project.id, values.template_id)
+          message.success(`项目已创建并应用模板，跳转甘特图`)
+        } catch (e) {
+          message.warning(`项目已创建，但模板应用失败：${(e as Error).message}`)
+        }
+        navigate(`/projects/${project.id}`)
+      } else {
+        message.success('项目已创建')
+        setCreateOpen(false)
+        load()
+      }
+    } catch (e) {
+      if ((e as any).errorFields) return
+      message.error((e as Error).message)
+    } finally {
+      setCreating(false)
+    }
+  }
+
   const columns: ColumnsType<Project> = [
     { title: '编号', dataIndex: 'code', width: 70, align: 'center' },
     {
@@ -127,6 +173,7 @@ export default function ProjectListPage() {
   ]
 
   return (
+    <>
     <Card
       title={
         <Space>
@@ -136,6 +183,9 @@ export default function ProjectListPage() {
       }
       extra={
         <Space>
+          <Button type="primary" icon={<PlusOutlined />} onClick={() => { form.resetFields(); setCreateOpen(true) }}>
+            新建项目
+          </Button>
           <Upload accept=".xlsx,.xls" beforeUpload={handleImport} showUploadList={false}>
             <Button icon={<UploadOutlined />}>导入 Excel</Button>
           </Upload>
@@ -197,5 +247,60 @@ export default function ProjectListPage() {
         />
       </Spin>
     </Card>
-  )
+
+      {/* 新建项目 */}
+      <Modal
+        title="新建项目"
+        open={createOpen}
+        onOk={handleCreate}
+        onCancel={() => setCreateOpen(false)}
+        confirmLoading={creating}
+        width={520}
+        okText="创建"
+      >
+        <Form form={form} layout="vertical" style={{ marginTop: 16 }}
+          initialValues={{ category: '新需求', market: '国内', status: '未开始' }}>
+          <Form.Item name="code" label="项目编号" rules={[{ required: true, message: '请输入项目编号' }]}>
+            <Input placeholder="如 TCM10-015" />
+          </Form.Item>
+          <Form.Item name="name" label="项目名称" rules={[{ required: true, message: '请输入项目名称' }]}>
+            <Input placeholder="项目全称" />
+          </Form.Item>
+          <Space style={{ display: 'flex' }}>
+            <Form.Item name="category" label="类目" style={{ flex: 1 }}>
+              <Select options={[
+                { value: '新需求', label: '新需求' },
+                { value: '量产', label: '量产' },
+                { value: '定制', label: '定制' },
+                { value: '改造', label: '改造' },
+              ]} />
+            </Form.Item>
+            <Form.Item name="market" label="市场" style={{ flex: 1 }}>
+              <Select options={[
+                { value: '国内', label: '国内' },
+                { value: '海外', label: '海外' },
+              ]} />
+            </Form.Item>
+          </Space>
+          <Form.Item name="owner" label="项目负责人" rules={[{ required: true, message: '请输入负责人' }]}>
+            <Input placeholder="负责人姓名" />
+          </Form.Item>
+          <Space style={{ display: 'flex' }}>
+            <Form.Item name="plan_start" label="计划开始">
+              <DatePicker style={{ width: 200 }} />
+            </Form.Item>
+            <Form.Item name="plan_end" label="计划结束">
+              <DatePicker style={{ width: 200 }} />
+            </Form.Item>
+          </Space>
+          <Form.Item name="template_id" label="应用模板" extra="创建后自动生成阶段和依赖（可选）">
+            <Select
+              allowClear
+              placeholder="不选则创建空项目"
+              options={templates.map((t) => ({ value: t.id, label: `${t.name}（${t.category}）` }))}
+            />
+          </Form.Item>
+        </Form>
+      </Modal>
+    </>
 }

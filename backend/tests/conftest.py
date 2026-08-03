@@ -46,6 +46,19 @@ def db_session():
     Base.metadata.create_all(engine)
     TestingSessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False, future=True)
     session = TestingSessionLocal()
+
+    # 创建测试用 admin 用户（写操作 API 要求登录）
+    from app.core.security import hash_password
+    from app.models import User
+    session.add(User(
+        username="testadmin",
+        name="测试管理员",
+        role="admin",
+        password_hash=hash_password("testpass"),
+        must_change_password=False,
+    ))
+    session.commit()
+
     try:
         yield session
     finally:
@@ -55,7 +68,7 @@ def db_session():
 
 @pytest.fixture()
 def client(db_session):
-    """FastAPI TestClient，注入测试 Session。"""
+    """FastAPI TestClient，注入测试 Session，并自动登录拿 Cookie。"""
     # 清空导入报告全局状态，避免测试间污染
     from app.services import excel_importer
     excel_importer._set_last_report(None)
@@ -68,5 +81,7 @@ def client(db_session):
 
     app.dependency_overrides[get_db] = _override_get_db
     with TestClient(app) as c:
+        # 自动登录（写操作要求认证）
+        c.post("/api/auth/login", json={"username": "testadmin", "password": "testpass"})
         yield c
     app.dependency_overrides.clear()
