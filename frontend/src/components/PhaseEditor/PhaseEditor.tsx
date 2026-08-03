@@ -32,6 +32,18 @@ interface Props {
 
 const STATUS_OPTIONS = ['未开始', '进行中', '已完成', '延期', '已搁置'].map((s) => ({ value: s, label: s }))
 
+// 标准阶段类型（PROJECT_SPEC §2.3），含默认显示名称
+const PHASE_TYPE_OPTIONS = [
+  { value: 'P1', label: 'P1 需求评估', name: '需求评估' },
+  { value: 'P2', label: 'P2 配置评估', name: '配置评估' },
+  { value: 'P3', label: 'P3 模块选型', name: '模块选型' },
+  { value: 'P4', label: 'P4 工业设计', name: '工业设计' },
+  { value: 'P5', label: 'P5 结构设计', name: '结构设计' },
+  { value: 'P6', label: 'P6 样机打样', name: '样机打样' },
+  { value: 'P7', label: 'P7 联调测试', name: '联调测试' },
+  { value: 'P8', label: 'P8 交付', name: '交付' },
+]
+
 export default function PhaseEditor({ phaseId, projectId, defaultSequence, onClose, onSaved }: Props) {
   const isCreate = phaseId === null
   const isOpen = phaseId !== undefined && (phaseId !== null || projectId != null)
@@ -96,7 +108,7 @@ export default function PhaseEditor({ phaseId, projectId, defaultSequence, onClo
       } else if (phase) {
         // 编辑已有阶段
         const payload: Record<string, any> = {}
-        if (values.name !== undefined) payload.phase_type = values.phase_type
+        if (values.phase_type !== undefined) payload.phase_type = values.phase_type
         if (values.name !== undefined) payload.name = values.name
         if (values.sequence !== undefined) payload.sequence = values.sequence
         if (values.status !== undefined) payload.status = values.status
@@ -197,11 +209,20 @@ export default function PhaseEditor({ phaseId, projectId, defaultSequence, onClo
       }
     >
       <Form form={form} layout="vertical" preserve={false}>
-        <Form.Item name="name" label={isCreate ? '阶段名称' : '阶段名称'} rules={[{ required: true }]}>
-          <Input />
+        <Form.Item name="name" label="阶段名称" rules={[{ required: true }]}>
+          <Input placeholder={isCreate ? '选择类型后自动填充，可修改' : '阶段显示名称'} />
         </Form.Item>
-        <Form.Item name="phase_type" label="阶段类型">
-          <Input placeholder="P1-P8（可留空）" />
+        <Form.Item name="phase_type" label="阶段类型（P1-P8）" rules={[{ required: true, message: '请选择阶段类型' }]}>
+          <Select
+            placeholder="请选择标准阶段类型"
+            options={PHASE_TYPE_OPTIONS}
+            onChange={(val) => {
+              const opt = PHASE_TYPE_OPTIONS.find((o) => o.value === val)
+              if (opt && form.getFieldValue('name') === '') {
+                form.setFieldValue('name', opt.name)
+              }
+            }}
+          />
         </Form.Item>
         {isCreate && (
           <Form.Item name="sequence" label="顺序">

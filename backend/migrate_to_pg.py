@@ -131,6 +131,24 @@ def main() -> None:
         print("\n⚠️ 行数不一致，请检查")
         sys.exit(1)
 
+    # 修复 PostgreSQL 自增序列（显式写入 ID 后必须同步）
+    from sqlalchemy import text
+    with engine.connect() as conn:
+        tables = ["resource", "project", "phase", "dependency", "rework_log",
+                   "template", "template_phase", "template_dependency", "user_account"]
+        for t in tables:
+            conn.execute(text(
+                f"SELECT setval('{t}_id_seq', COALESCE((SELECT MAX(id) FROM {t}), 1))"
+            ))
+        conn.commit()
+    print("✓ PostgreSQL 序列已同步到表最大 id")
+
+    if all_ok:
+        print("\n✅ 迁移完成，行数全部一致")
+    else:
+        print("\n⚠️ 行数不一致，请检查")
+        sys.exit(1)
+
 
 def _strip(row: dict) -> dict:
     """移除 None 值的键不必要处理，保留原样（ORM 会处理 None）。"""
