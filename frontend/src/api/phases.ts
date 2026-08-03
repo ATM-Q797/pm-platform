@@ -32,6 +32,11 @@ export async function reworkPhase(
   await client.post(`/phases/${id}/rework`, payload)
 }
 
+export async function movePhase(id: number, direction: 'up' | 'down'): Promise<Phase> {
+  const { data } = await client.post<Phase>(`/phases/${id}/move?direction=${direction}`)
+  return data
+}
+
 // ---------- 依赖 ----------
 export async function listDependencies(projectId: number): Promise<Dependency[]> {
   const { data } = await client.get<Dependency[]>(`/projects/${projectId}/dependencies`)

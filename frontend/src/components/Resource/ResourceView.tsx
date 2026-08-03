@@ -49,6 +49,15 @@ export default function ResourceView({ scale = 'week', onPhaseClick }: Props) {
         ensureGanttCss()
         applyGanttConfig(gantt)
 
+        // 负载视图：禁用所有编辑交互，仅查看
+        gantt.config.drag_move = false
+        gantt.config.drag_resize = false
+        gantt.config.drag_progress = false
+        gantt.config.drag_links = false
+        // 禁用右键菜单（防止误删除连线等操作）
+        gantt.config.touch = false
+        gantt.config.order_branch = false
+
         // 加载全员负载数据
         const allWorkloads: ResourceWorkload[] = await getAllWorkloads()
         if (destroyed) return

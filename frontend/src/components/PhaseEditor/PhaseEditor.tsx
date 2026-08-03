@@ -13,11 +13,11 @@ import {
   message,
   Divider,
 } from 'antd'
-import { DeleteOutlined, ReloadOutlined, SaveOutlined, PlusOutlined } from '@ant-design/icons'
+import { DeleteOutlined, ReloadOutlined, SaveOutlined, ArrowUpOutlined, ArrowDownOutlined } from '@ant-design/icons'
 import dayjs from 'dayjs'
-import { getPhase, updatePhase, createPhase, deletePhase, reworkPhase, listPhases } from '../../api/phases'
+import { getPhase, updatePhase, createPhase, deletePhase, reworkPhase, listPhases, movePhase, listDependencies, createDependency, deleteDependency } from '../../api/phases'
 import { listResources } from '../../api/resources'
-import type { Phase, Resource } from '../../types'
+import type { Phase, Resource, Dependency } from '../../types'
 
 interface Props {
   /** 编辑模式：阶段 id；创建模式：null；关闭：undefined */
@@ -26,6 +26,8 @@ interface Props {
   projectId?: number
   /** 默认 sequence（创建模式时自动传入） */
   defaultSequence?: number
+  /** 只读模式：仅查看，不显示保存/删除/移动等操作按钮 */
+  readonly?: boolean
   onClose: () => void
   onSaved: () => void
 }
@@ -44,7 +46,7 @@ const PHASE_TYPE_OPTIONS = [
   { value: 'P8', label: 'P8 交付', name: '交付' },
 ]
 
-export default function PhaseEditor({ phaseId, projectId, defaultSequence, onClose, onSaved }: Props) {
+export default function PhaseEditor({ phaseId, projectId, defaultSequence, readonly, onClose, onSaved }: Props) {
   const isCreate = phaseId === null
   const isOpen = phaseId !== undefined && (phaseId !== null || projectId != null)
 
@@ -52,17 +54,30 @@ export default function PhaseEditor({ phaseId, projectId, defaultSequence, onClo
   const [resources, setResources] = useState<Resource[]>([])
   const [projectPhases, setProjectPhases] = useState<Phase[]>([])
   const [saving, setSaving] = useState(false)
+  const [moving, setMoving] = useState(false)
+  const [currentDeps, setCurrentDeps] = useState<Dependency[]>([])
   const [form] = Form.useForm()
 
   useEffect(() => {
     if (phaseId != null && phaseId > 0) {
-      // 编辑模式
-      Promise.all([getPhase(phaseId), listResources()]).then(([ph, res]) => {
+      // 编辑模式：加载阶段、资源、项目阶段、依赖
+      const loadEdit = async () => {
+        const [ph, res, phs, deps] = await Promise.all([
+          getPhase(phaseId),
+          listResources(),
+          projectId ? listPhases(projectId).catch(() => []) : Promise.resolve([]),
+          projectId ? listDependencies(projectId).catch(() => []) : Promise.resolve([]),
+        ])
         setPhase(ph)
         setResources(res)
+        setProjectPhases(phs)
+        setCurrentDeps(deps)
+        // 前置依赖：哪些阶段指向我
+        const dependsOnIds = deps.filter(d => d.to_phase_id === ph.id).map(d => d.from_phase_id)
+        // 后续依赖：我指向哪些阶段
+        const dependedByIds = deps.filter(d => d.from_phase_id === ph.id).map(d => d.to_phase_id)
         form.setFieldsValue({
           phase_type: ph.phase_type,
-          sequence: ph.sequence,
           status: ph.status,
           progress: ph.progress,
           plan_start: ph.plan_start ? dayjs(ph.plan_start) : null,
@@ -72,8 +87,11 @@ export default function PhaseEditor({ phaseId, projectId, defaultSequence, onClo
           assignee_ids: ph.assignees?.map((a) => a.id) || [],
           handover_to: ph.handover_to,
           remark: ph.remark,
+          depends_on_phase_ids: dependsOnIds,
+          depended_by_phase_ids: dependedByIds,
         })
-      })
+      }
+      loadEdit()
     } else if (isCreate) {
       // 创建模式：空表单 + 加载项目现有阶段（用于依赖选择）
       setPhase(null)
@@ -89,9 +107,25 @@ export default function PhaseEditor({ phaseId, projectId, defaultSequence, onClo
         status: '未开始',
         progress: 0,
         sequence: defaultSequence ?? 1,
+        depends_on_phase_ids: [],
+        depended_by_phase_ids: [],
       })
     }
   }, [phaseId, isCreate, defaultSequence, form])
+
+  const handleMove = async (direction: 'up' | 'down') => {
+    if (!phase) return
+    setMoving(true)
+    try {
+      await movePhase(phase.id, direction)
+      message.success(direction === 'up' ? '已上移一层' : '已下移一层')
+      onSaved()
+    } catch (e) {
+      message.error('移动失败：' + (e as Error).message)
+    } finally {
+      setMoving(false)
+    }
+  }
 
   const handleSave = async () => {
     try {
@@ -121,7 +155,6 @@ export default function PhaseEditor({ phaseId, projectId, defaultSequence, onClo
         const payload: Record<string, any> = {}
         if (values.phase_type !== undefined) payload.phase_type = values.phase_type
         if (typeName) payload.name = typeName
-        if (values.sequence !== undefined) payload.sequence = values.sequence
         if (values.status !== undefined) payload.status = values.status
         if (values.progress !== undefined) payload.progress = values.progress
         if (values.plan_start !== undefined) payload.plan_start = values.plan_start?.format('YYYY-MM-DD') || null
@@ -132,6 +165,38 @@ export default function PhaseEditor({ phaseId, projectId, defaultSequence, onClo
         if (values.handover_to !== undefined) payload.handover_to = values.handover_to
         if (values.remark !== undefined) payload.remark = values.remark
         await updatePhase(phase.id, payload)
+
+        // 同步依赖变更
+        const newDependsOn: number[] = values.depends_on_phase_ids || []
+        const newDependedBy: number[] = values.depended_by_phase_ids || []
+        // 旧的前置依赖（指向我的阶段 id 列表）
+        const oldDependsOn = currentDeps.filter(d => d.to_phase_id === phase.id).map(d => d.from_phase_id)
+        // 旧的后置依赖（我指向的阶段 id 列表）
+        const oldDependedBy = currentDeps.filter(d => d.from_phase_id === phase.id).map(d => d.to_phase_id)
+
+        // 删除取消的前置依赖
+        const removedDependsOn = oldDependsOn.filter(id => !newDependsOn.includes(id))
+        for (const fromId of removedDependsOn) {
+          const dep = currentDeps.find(d => d.from_phase_id === fromId && d.to_phase_id === phase.id)
+          if (dep) await deleteDependency(dep.id).catch(() => {})
+        }
+        // 新增的前置依赖
+        const addedDependsOn = newDependsOn.filter(id => !oldDependsOn.includes(id))
+        for (const fromId of addedDependsOn) {
+          await createDependency(phase.project_id, { from_phase_id: fromId, to_phase_id: phase.id }).catch(() => {})
+        }
+        // 删除取消的后置依赖
+        const removedDependedBy = oldDependedBy.filter(id => !newDependedBy.includes(id))
+        for (const toId of removedDependedBy) {
+          const dep = currentDeps.find(d => d.from_phase_id === phase.id && d.to_phase_id === toId)
+          if (dep) await deleteDependency(dep.id).catch(() => {})
+        }
+        // 新增的后置依赖
+        const addedDependedBy = newDependedBy.filter(id => !oldDependedBy.includes(id))
+        for (const toId of addedDependedBy) {
+          await createDependency(phase.project_id, { from_phase_id: phase.id, to_phase_id: toId }).catch(() => {})
+        }
+
         message.success('已保存')
       }
       onSaved()
@@ -193,7 +258,12 @@ export default function PhaseEditor({ phaseId, projectId, defaultSequence, onClo
   return (
     <Drawer
       title={
-        isCreate ? '添加阶段' : (
+        isCreate ? '添加阶段' : readonly ? (
+          <Space>
+            <span>查看阶段</span>
+            {phase && phase.rework_count > 0 && <Tag color="orange">返工 {phase.rework_count} 次</Tag>}
+          </Space>
+        ) : (
           <Space>
             <span>编辑阶段</span>
             {phase && phase.rework_count > 0 && <Tag color="orange">返工 {phase.rework_count} 次</Tag>}
@@ -205,6 +275,9 @@ export default function PhaseEditor({ phaseId, projectId, defaultSequence, onClo
       width={420}
       destroyOnClose
       footer={
+        readonly ? (
+          <Button onClick={onClose}>关闭</Button>
+        ) : (
         <Space style={{ float: 'right' }}>
           {!isCreate && phase && (
             <>
@@ -217,42 +290,80 @@ export default function PhaseEditor({ phaseId, projectId, defaultSequence, onClo
             {isCreate ? '添加' : '保存'}
           </Button>
         </Space>
+        )
       }
     >
-      <Form form={form} layout="vertical" preserve={false}>
+      <Form form={form} layout="vertical" preserve={false} disabled={readonly}>
         <Form.Item name="phase_type" label="阶段类型（P1-P8）" rules={[{ required: true, message: '请选择阶段类型' }]}>
           <Select
             placeholder="请选择标准阶段类型"
             options={PHASE_TYPE_OPTIONS}
           />
         </Form.Item>
-        <Form.Item name="sequence" label="顺序" extra="调整顺序后同项目内>=此序号的阶段自动后移">
-          <Input type="number" />
-        </Form.Item>
-        {isCreate && (
-          <>
-            <Form.Item name="depends_on_phase_ids" label="前置依赖" extra="选本阶段依赖的前置阶段（可选）">
-              <Select
-                mode="multiple"
-                allowClear
-                placeholder="不选则无依赖"
-                options={projectPhases
-                  .sort((a, b) => a.sequence - b.sequence)
-                  .map((p) => ({ value: p.id, label: `${p.name}（seq:${p.sequence}）` }))}
-              />
-            </Form.Item>
-            <Form.Item name="depended_by_phase_ids" label="后续阶段" extra="选依赖本阶段的后续阶段（可选，交付阶段留空）">
-              <Select
-                mode="multiple"
-                allowClear
-                placeholder="不选则无后续依赖"
-                options={projectPhases
-                  .sort((a, b) => a.sequence - b.sequence)
-                  .map((p) => ({ value: p.id, label: `${p.name}（seq:${p.sequence}）` }))}
-              />
-            </Form.Item>
-          </>
+        {isCreate ? (
+          <Form.Item name="sequence" label="插入位置">
+            <Select
+              options={(() => {
+                const sorted = [...projectPhases].sort((a, b) => a.sequence - b.sequence)
+                const opts: { value: number; label: string }[] = [
+                  { value: 1, label: '🏁 最前面' },
+                ]
+                for (const p of sorted) {
+                  opts.push({ value: p.sequence + 1, label: `在「${p.name}」之后` })
+                }
+                return opts
+              })()}
+            />
+          </Form.Item>
+        ) : readonly ? (
+          <Form.Item label="顺序">
+            <span style={{ color: '#666' }}>第 {phase?.sequence} 位</span>
+          </Form.Item>
+        ) : phase && (
+          <Form.Item label="顺序调整">
+            <Space>
+              <Button
+                icon={<ArrowUpOutlined />}
+                loading={moving}
+                onClick={() => handleMove('up')}
+              >
+                上移一层
+              </Button>
+              <Button
+                icon={<ArrowDownOutlined />}
+                loading={moving}
+                onClick={() => handleMove('down')}
+              >
+                下移一层
+              </Button>
+            </Space>
+            <div style={{ fontSize: 12, color: '#999', marginTop: 4 }}>
+              当前序号：{phase.sequence}
+            </div>
+          </Form.Item>
         )}
+        <Form.Item name="depends_on_phase_ids" label="前置依赖" extra="选本阶段依赖的前置阶段（可选）">
+          <Select
+            mode="multiple"
+            allowClear
+            placeholder="不选则无依赖"
+            options={projectPhases
+              .filter(p => isCreate || p.id !== phaseId)
+              .sort((a, b) => a.sequence - b.sequence)
+              .map((p) => ({ value: p.id, label: `${p.name}（序:${p.sequence}）` }))}
+          />
+        </Form.Item>
+        <Form.Item name="depended_by_phase_ids" label="后续阶段" extra="选依赖本阶段的后续阶段（可选）">
+          <Select
+            mode="multiple"
+            allowClear
+            placeholder="不选则无后续依赖"
+            options={projectPhases
+              .filter(p => isCreate || p.id !== phaseId)
+              .sort((a, b) => a.sequence - b.sequence)
+              .map((p) => ({ value: p.id, label: `${p.name}（序:${p.sequence}）` }))}
+          />
+        </Form.Item>
         <Form.Item name="status" label="状态">
           <Select options={STATUS_OPTIONS} />
         </Form.Item>

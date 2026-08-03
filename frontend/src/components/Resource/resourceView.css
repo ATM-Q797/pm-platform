@@ -15,3 +15,12 @@
 .resource-view .gantt_cell.gantt_cell_tree {
   font-weight: 500;
 }
+
+/* 负载视图：甘特条只读，光标为默认箭头而非拖拽手柄 */
+.resource-view .gantt_task_line {
+  cursor: pointer !important;
+}
+.resource-view .gantt_task_line .gantt_task_progress_drag,
+.resource-view .gantt_task_line .gantt_task_drag {
+  display: none !important;
+}

@@ -175,6 +175,47 @@ def update_phase(
     return phase
 
 
+@router.post("/api/phases/{phase_id}/move", response_model=PhaseRead)
+def move_phase(
+    phase_id: int,
+    direction: str = "up",
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """上移/下移阶段：与视觉上相邻的阶段交换 sequence。
+
+    - direction="up"：与上一个阶段（sequence 小于当前的最大值）交换
+    - direction="down"：与下一个阶段（sequence 大于当前的最小值）交换
+    基于实际 sequence 排序而非假设连续值。
+    """
+    phase = check_phase_access(phase_id, user, db)
+
+    if direction == "up":
+        neighbor = db.scalars(
+            select(Phase).where(
+                Phase.project_id == phase.project_id,
+                Phase.id != phase.id,
+                Phase.sequence < phase.sequence,
+            ).order_by(Phase.sequence.desc()).limit(1)
+        ).first()
+    else:
+        neighbor = db.scalars(
+            select(Phase).where(
+                Phase.project_id == phase.project_id,
+                Phase.id != phase.id,
+                Phase.sequence > phase.sequence,
+            ).order_by(Phase.sequence.asc()).limit(1)
+        ).first()
+
+    if neighbor is None:
+        raise HTTPException(400, "已在边界，无法继续移动")
+    # 交换 sequence
+    phase.sequence, neighbor.sequence = neighbor.sequence, phase.sequence
+    db.commit()
+    db.refresh(phase)
+    return phase
+
+
 @router.delete("/api/phases/{phase_id}", status_code=status.HTTP_204_NO_CONTENT)
 def delete_phase(
     phase_id: int,

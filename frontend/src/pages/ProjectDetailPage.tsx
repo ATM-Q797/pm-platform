@@ -183,7 +183,7 @@ export default function ProjectDetailPage() {
       <PhaseEditor
         phaseId={editingPhase}
         projectId={projectId}
-        defaultSequence={(project?.phases?.length ?? 0) + 1}
+        defaultSequence={(project?.phases?.length ? Math.max(...project.phases.map(p => p.sequence)) + 1 : 1)}
         onClose={() => setEditingPhase(undefined)}
         onSaved={handlePhaseSaved}
       />

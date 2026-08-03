@@ -1,23 +1,18 @@
 import { useState } from 'react'
-import { Card, Segmented, Space, Tag, message } from 'antd'
+import { Card, Segmented, Space, Tag } from 'antd'
 import ResourceView from '../components/Resource/ResourceView'
 import PhaseEditor from '../components/PhaseEditor/PhaseEditor'
 
 /**
- * 资源负载页面：全员多行甘特图。
+ * 资源负载页面：全员多行甘特图（只读）。
  *
  * 每人一行，行内显示其参与的所有项目/阶段，一眼看谁在忙、谁有空。
- * 点击阶段条弹出 PhaseEditor 查看详情（复用项目详情页的编辑面板）。
+ * 甘特条不可编辑，点击只弹出只读查看面板。
+ * 所有阶段调整请在项目管理页面操作。
  */
 export default function ResourcePage() {
   const [scale, setScale] = useState<'day' | 'week' | 'month'>('week')
   const [editingPhase, setEditingPhase] = useState<number | null>(null)
-  // 用于强制刷新 ResourceView（编辑保存后重新加载）
-  const [viewKey, setViewKey] = useState(0)
-
-  const handlePhaseSaved = () => {
-    setViewKey((k) => k + 1)
-  }
 
   return (
     <Card
@@ -39,11 +34,16 @@ export default function ResourcePage() {
         />
       }
     >
-      <ResourceView key={viewKey} scale={scale} onPhaseClick={setEditingPhase} />
+      <ResourceView scale={scale} onPhaseClick={setEditingPhase} />
       <div style={{ marginTop: 8, fontSize: 12, color: '#999' }}>
-        提示：每人一行，行内的甘特条为其参与的项目阶段（按状态着色）。点击阶段条可查看/编辑详情。
+        提示：每人一行，行内的甘特条为其参与的项目阶段（按状态着色）。点击阶段条可查看详情（只读）。阶段调整请在项目管理页面操作。
       </div>
-      <PhaseEditor phaseId={editingPhase} onClose={() => setEditingPhase(null)} onSaved={handlePhaseSaved} />
+      <PhaseEditor
+        phaseId={editingPhase}
+        onClose={() => setEditingPhase(null)}
+        onSaved={() => {}}
+        readonly
+      />
     </Card>
   )
 }

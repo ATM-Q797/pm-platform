@@ -73,6 +73,7 @@ export interface PhaseCreate {
   remark?: string | null
   assignee_ids?: number[]
   depends_on_phase_ids?: number[]
+  depended_by_phase_ids?: number[]
 }
 
 export type PhaseUpdate = Partial<PhaseCreate>
