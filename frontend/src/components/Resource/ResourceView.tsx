@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react'
 import { applyGanttConfig, setScale } from '../Gantt/ganttConfig'
+import { setupPan, cleanupPan } from '../Gantt/panUtils'
 import { getAllWorkloads } from '../../api/resources'
 import type { ResourceWorkload } from '../../types'
 import '../Gantt/gantt.css'
@@ -85,8 +86,11 @@ export default function ResourceView({ scale = 'week', onPhaseClick }: Props) {
           for (const w of wl.workloads) {
             const start = w.plan_start ? new Date(w.plan_start) : today
             const end = w.plan_end ? new Date(w.plan_end) : today
+            // 注意：id 必须全局唯一。同一阶段可能被多人参与（phase_id 重复），
+            // 直接用 phase_id 会导致 dhtmlxGantt 内部索引混乱、甘特条错位。
+            // 用 personId * 100000 + phaseId 保证唯一，真实 phase_id 存在自定义字段。
             tasks.push({
-              id: w.phase_id,
+              id: wl.resource.id * 100000 + w.phase_id,
               text: `${w.project_name} · ${w.phase_name}`,
               start_date: fmt(start),
               duration: Math.max(1, Math.ceil((end.getTime() - start.getTime()) / 86400000)),
@@ -96,6 +100,7 @@ export default function ResourceView({ scale = 'week', onPhaseClick }: Props) {
               open: true,
               status: w.status, // 供 task_class 着色
               project_name: w.project_name,
+              phase_id: w.phase_id, // 真实阶段 id，点击时取这个
             })
           }
         }
@@ -106,6 +111,8 @@ export default function ResourceView({ scale = 'week', onPhaseClick }: Props) {
         gantt.render()
         setScale(gantt, scaleRef.current)
         drawTodayMarker(gantt, containerRef.current)
+        // 启用空白处拖拽平移（与项目甘特图一致）
+        setupPan(gantt, containerRef.current)
       } catch (e) {
         console.error('ResourceView 初始化失败:', e)
       }
@@ -117,8 +124,20 @@ export default function ResourceView({ scale = 'week', onPhaseClick }: Props) {
       const target = e.target as HTMLElement
       const taskBar = target.closest('.gantt_task_line') as HTMLElement | null
       if (taskBar) {
-        const tid = Number(taskBar.getAttribute('task_id'))
-        if (tid > 0) onPhaseClick(tid) // 跳过人员行（负 id）
+        const tid = taskBar.getAttribute('task_id')
+        if (tid && Number(tid) > 0) {
+          // tid 是唯一 id（personId*100000+phaseId），通过 gantt 实例取真实 phase_id
+          const g = ganttRef.current
+          if (g) {
+            const task = g.getTask(tid)
+            if (task && task.phase_id) {
+              onPhaseClick(task.phase_id)
+              return
+            }
+          }
+          // 兜底：tid 大于 100000 时取模还原 phase_id
+          onPhaseClick(Number(tid) % 100000)
+        }
       }
     }
     containerRef.current?.addEventListener('click', handleContainerClick)
@@ -126,6 +145,7 @@ export default function ResourceView({ scale = 'week', onPhaseClick }: Props) {
     return () => {
       destroyed = true
       containerRef.current?.removeEventListener('click', handleContainerClick)
+      cleanupPan()
       if (gantt) {
         for (const h of handlers) gantt.detachEvent(h)
         gantt.clearAll()
