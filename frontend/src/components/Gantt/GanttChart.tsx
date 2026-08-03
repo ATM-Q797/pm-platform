@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react'
 import { applyGanttConfig, setScale } from './ganttConfig'
 import { setupPan, cleanupPan } from './panUtils'
 import { getProjectGantt, getProject } from '../../api/projects'
-import { updatePhase } from '../../api/phases'
+import { updatePhase, createDependency, deleteDependency } from '../../api/phases'
 import { listResources } from '../../api/resources'
 import './gantt.css'
 
@@ -51,6 +51,30 @@ export default function GanttChart({ projectId, scale = 'week', onPhaseClick }: 
           }
         })
         handlers.push(dragH)
+        // 拖拽创建依赖连线 → 保存到后端
+        const linkAddH = gantt.attachEvent('onAfterLinkAdd', async (id: any, link: any) => {
+          try {
+            await createDependency(projectId, {
+              from_phase_id: link.source,
+              to_phase_id: link.target,
+              type: mapLinkType(link.type),
+            })
+            gantt.message({ text: '已创建依赖', expire: 1500 })
+          } catch (e) {
+            gantt.message({ text: '创建依赖失败', type: 'error', expire: 3000 })
+          }
+        })
+        handlers.push(linkAddH)
+        // 删除依赖连线（右键点击连线→删除）
+        const linkDelH = gantt.attachEvent('onAfterLinkDelete', async (id: any) => {
+          try {
+            await deleteDependency(Number(id))
+            gantt.message({ text: '已删除依赖', expire: 1500 })
+          } catch (e) {
+            gantt.message({ text: '删除依赖失败', type: 'error', expire: 3000 })
+          }
+        })
+        handlers.push(linkDelH)
         const [ganttData, projectDetail, resources] = await Promise.all([
           getProjectGantt(projectId), getProject(projectId), listResources(),
         ])
@@ -130,6 +154,12 @@ function ensureGanttCss() {
   link.href = '/node_modules/dhtmlx-gantt/codebase/dhtmlxgantt.css'
   document.head.appendChild(link)
   cssLoaded = true
+}
+
+// dhtmlxGantt link type 映射："0"→FS "1"→SS "2"→FF "3"→SF
+function mapLinkType(type: string): string {
+  const map: Record<string, string> = { '0': 'FS', '1': 'SS', '2': 'FF', '3': 'SF' }
+  return map[type] || 'FS'
 }
 
 /**

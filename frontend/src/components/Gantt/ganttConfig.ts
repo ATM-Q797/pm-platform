@@ -50,10 +50,15 @@ export function applyGanttConfig(gantt: GanttInstance) {
   gantt.config.drag_resize = true
   gantt.config.drag_progress = true
 
-  // 依赖连线：显示并加粗
+  // 禁用默认双击编辑器（由 PhaseEditor 抽屉替代）
+  gantt.config.details_on_dblclick = false
+  gantt.config.details_on_click = false
+
+  // 依赖连线：显示并加粗；支持拖拽创建（悬停任务条两端圆形手柄拖到另一条）
   gantt.config.show_links = true
-  gantt.config.link_line_width = 2.5      // 连线加粗（默认 2px）
-  gantt.config.link_arrow_size = 8        // 箭头稍大
+  gantt.config.drag_links = true
+  gantt.config.link_line_width = 2.5
+  gantt.config.link_arrow_size = 8
 
   // 左侧列定义
   gantt.config.columns = [

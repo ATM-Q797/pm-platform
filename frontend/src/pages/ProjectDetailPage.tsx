@@ -176,7 +176,7 @@ export default function ProjectDetailPage() {
           />
         )}
         <div style={{ marginTop: 8, fontSize: 12, color: '#999' }}>
-          提示：拖拽甘特条可改期/改工期，松手自动保存；点击阶段条打开编辑面板。拖拽只改当前阶段，不自动联动后续（社区版限制）。
+          提示：拖拽甘特条改期（松手自动保存）｜ 悬停任务条两端圆形手柄拖到另一条 = 创建依赖连线 ｜ 右键连线删除 ｜ 点击甘特条编辑阶段详情
         </div>
       </Card>
 

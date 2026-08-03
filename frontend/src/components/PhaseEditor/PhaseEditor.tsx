@@ -15,7 +15,7 @@ import {
 } from 'antd'
 import { DeleteOutlined, ReloadOutlined, SaveOutlined, PlusOutlined } from '@ant-design/icons'
 import dayjs from 'dayjs'
-import { getPhase, updatePhase, createPhase, deletePhase, reworkPhase } from '../../api/phases'
+import { getPhase, updatePhase, createPhase, deletePhase, reworkPhase, listPhases } from '../../api/phases'
 import { listResources } from '../../api/resources'
 import type { Phase, Resource } from '../../types'
 
@@ -50,6 +50,7 @@ export default function PhaseEditor({ phaseId, projectId, defaultSequence, onClo
 
   const [phase, setPhase] = useState<Phase | null>(null)
   const [resources, setResources] = useState<Resource[]>([])
+  const [projectPhases, setProjectPhases] = useState<Phase[]>([])
   const [saving, setSaving] = useState(false)
   const [form] = Form.useForm()
 
@@ -73,9 +74,15 @@ export default function PhaseEditor({ phaseId, projectId, defaultSequence, onClo
         })
       })
     } else if (isCreate) {
-      // 创建模式：空表单
+      // 创建模式：空表单 + 加载项目现有阶段（用于依赖选择）
       setPhase(null)
-      listResources().then(setResources)
+      Promise.all([
+        listResources(),
+        projectId ? listPhases(projectId).catch(() => [] as Phase[]) : Promise.resolve([] as Phase[]),
+      ]).then(([res, phs]) => {
+        setResources(res)
+        setProjectPhases(phs)
+      })
       form.resetFields()
       form.setFieldsValue({
         status: '未开始',
@@ -96,6 +103,7 @@ export default function PhaseEditor({ phaseId, projectId, defaultSequence, onClo
           phase_type: values.phase_type,
           name: values.name || typeName,
           sequence: values.sequence ?? (defaultSequence ?? 1),
+          depends_on_phase_ids: values.depends_on_phase_ids || [],
           plan_start: values.plan_start?.format('YYYY-MM-DD') || null,
           plan_end: values.plan_end?.format('YYYY-MM-DD') || null,
           status: values.status || '未开始',
@@ -217,9 +225,21 @@ export default function PhaseEditor({ phaseId, projectId, defaultSequence, onClo
           />
         </Form.Item>
         {isCreate && (
-          <Form.Item name="sequence" label="顺序">
-            <Input type="number" />
-          </Form.Item>
+          <>
+            <Form.Item name="sequence" label="顺序">
+              <Input type="number" />
+            </Form.Item>
+            <Form.Item name="depends_on_phase_ids" label="前置依赖" extra="选择本阶段依赖的前置阶段（可选）">
+              <Select
+                mode="multiple"
+                allowClear
+                placeholder="不选则无依赖"
+                options={projectPhases
+                  .sort((a, b) => a.sequence - b.sequence)
+                  .map((p) => ({ value: p.id, label: `${p.name}（seq:${p.sequence}）` }))}
+              />
+            </Form.Item>
+          </>
         )}
         <Form.Item name="status" label="状态">
           <Select options={STATUS_OPTIONS} />
