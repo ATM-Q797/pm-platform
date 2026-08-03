@@ -52,7 +52,7 @@ def build_gantt(db: Session, project_id: int) -> GanttData | None:
         )
     ]
 
-    for ph in phases:
+    for ph in sorted(phases, key=lambda p: p.sequence):
         start = ph.plan_start or ph.actual_start
         end = ph.plan_end or ph.actual_end
         tasks.append(

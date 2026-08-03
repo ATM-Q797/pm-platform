@@ -60,7 +60,6 @@ export default function PhaseEditor({ phaseId, projectId, defaultSequence, onClo
         setPhase(ph)
         setResources(res)
         form.setFieldsValue({
-          name: ph.name,
           phase_type: ph.phase_type,
           status: ph.status,
           progress: ph.progress,
@@ -91,10 +90,11 @@ export default function PhaseEditor({ phaseId, projectId, defaultSequence, onClo
       const values = await form.validateFields()
       setSaving(true)
       if (isCreate && projectId) {
-        // 创建新阶段
+        // 创建新阶段：名称从类型推导
+        const typeName = PHASE_TYPE_OPTIONS.find((o) => o.value === values.phase_type)?.name || values.phase_type
         await createPhase(projectId, {
-          phase_type: values.phase_type || '',
-          name: values.name,
+          phase_type: values.phase_type,
+          name: values.name || typeName,
           sequence: values.sequence ?? (defaultSequence ?? 1),
           plan_start: values.plan_start?.format('YYYY-MM-DD') || null,
           plan_end: values.plan_end?.format('YYYY-MM-DD') || null,
@@ -106,10 +106,11 @@ export default function PhaseEditor({ phaseId, projectId, defaultSequence, onClo
         })
         message.success('阶段已添加')
       } else if (phase) {
-        // 编辑已有阶段
+        // 编辑已有阶段：名称从类型推导
+        const typeName = PHASE_TYPE_OPTIONS.find((o) => o.value === values.phase_type)?.name
         const payload: Record<string, any> = {}
         if (values.phase_type !== undefined) payload.phase_type = values.phase_type
-        if (values.name !== undefined) payload.name = values.name
+        if (typeName) payload.name = typeName
         if (values.sequence !== undefined) payload.sequence = values.sequence
         if (values.status !== undefined) payload.status = values.status
         if (values.progress !== undefined) payload.progress = values.progress
@@ -209,19 +210,10 @@ export default function PhaseEditor({ phaseId, projectId, defaultSequence, onClo
       }
     >
       <Form form={form} layout="vertical" preserve={false}>
-        <Form.Item name="name" label="阶段名称" rules={[{ required: true }]}>
-          <Input placeholder={isCreate ? '选择类型后自动填充，可修改' : '阶段显示名称'} />
-        </Form.Item>
         <Form.Item name="phase_type" label="阶段类型（P1-P8）" rules={[{ required: true, message: '请选择阶段类型' }]}>
           <Select
             placeholder="请选择标准阶段类型"
             options={PHASE_TYPE_OPTIONS}
-            onChange={(val) => {
-              const opt = PHASE_TYPE_OPTIONS.find((o) => o.value === val)
-              if (opt && form.getFieldValue('name') === '') {
-                form.setFieldValue('name', opt.name)
-              }
-            }}
           />
         </Form.Item>
         {isCreate && (
