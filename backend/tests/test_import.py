@@ -113,10 +113,10 @@ def test_phase_name_mapping_table_completeness():
         "直接投料", "图纸归档", "归档", "BOM制作与激活",
         "首批生产保障", "投料", "发货",
     }
-    # 实际 Excel 的 5 个变体（扩充部分）
+    # 实际 Excel 的 6 个变体（扩充部分）
     expanded_keys = {
         "测试与发货", "样机打样（1台）", "归档（归档后再投料）",
-        "直接投料，BOM制作与激活", "直接投料，激活时间",
+        "直接投料，BOM制作与激活", "直接投料，激活时间", "交付",
     }
     all_keys = expected_keys | expanded_keys
     assert all_keys <= set(PHASE_NAME_TO_TYPE.keys()), (

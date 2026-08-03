@@ -93,7 +93,9 @@ class WorkloadItem(BaseModel):
     phase_id: int
     phase_name: str
     plan_start: str | None
-    period: list[str | None]  # [plan_start, plan_end]
+    plan_end: str | None
+    status: str | None = None  # 阶段状态，用于甘特条着色
+    period: list[str | None]  # [plan_start, plan_end]（兼容旧格式）
 
 
 class ResourceWorkload(BaseModel):

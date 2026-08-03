@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Table, Card, Select, Input, Button, Space, Tag, Upload, Modal, message, Spin } from 'antd'
-import { UploadOutlined, ReloadOutlined } from '@ant-design/icons'
+import { UploadOutlined, ReloadOutlined, DownloadOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import { listProjects } from '../api/projects'
 import type { Project, ImportReport } from '../types'
@@ -139,6 +139,9 @@ export default function ProjectListPage() {
           <Upload accept=".xlsx,.xls" beforeUpload={handleImport} showUploadList={false}>
             <Button icon={<UploadOutlined />}>导入 Excel</Button>
           </Upload>
+          <Button icon={<DownloadOutlined />} onClick={() => window.open('/api/export/excel')}>
+            导出 Excel
+          </Button>
           <Button icon={<ReloadOutlined />} onClick={load} />
         </Space>
       }

@@ -11,6 +11,11 @@ export async function getResourceWorkload(id: number): Promise<ResourceWorkload>
   return data
 }
 
+export async function getAllWorkloads(): Promise<ResourceWorkload[]> {
+  const { data } = await client.get<ResourceWorkload[]>('/resources/all/workload')
+  return data
+}
+
 export async function createResource(payload: { name: string; role?: string; department?: string }): Promise<Resource> {
   const { data } = await client.post<Resource>('/resources', payload)
   return data

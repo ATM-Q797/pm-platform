@@ -12,14 +12,21 @@
 | Node.js | ≥ 18 | `node --version` |
 | npm | ≥ 9 | `npm --version` |
 
-### 一键启动（开发完成后）
+### 一键启动
 
+**macOS / Linux：**
 ```bash
 cd ~/Desktop/pm-platform
 ./start.sh
 ```
 
-浏览器打开 `http://localhost:5173` 即可使用。
+**Windows：**
+```bat
+cd %USERPROFILE%\Desktop\pm-platform
+start.bat
+```
+
+首次运行会自动创建虚拟环境、安装依赖。浏览器打开 `http://localhost:5173` 即可使用。
 
 ### 手动启动（开发模式）
 
@@ -29,8 +36,9 @@ cd ~/Desktop/pm-platform
 cd ~/Desktop/pm-platform/backend
 
 # 创建虚拟环境（首次）
-python3.12 -m venv venv
-source venv/bin/activate
+python3 -m venv venv
+source venv/bin/activate      # macOS/Linux
+# venv\Scripts\activate        # Windows
 
 # 安装依赖（首次）
 pip install -r requirements.txt
@@ -94,6 +102,17 @@ Phase 3: 前端甘特图（第3周）
 Phase 4: 资源视图 + 收尾（第4周）
   └─ 资源负载视图 + 首页看板 + 一键启动
 ```
+
+## 功能概览
+
+| 模块 | 功能 | 入口 |
+|------|------|------|
+| 📊 首页看板 | 项目/阶段状态分布、延期预警、返工统计 | `/`（默认首页） |
+| 📋 项目列表 | 项目表格、状态/市场/类目筛选、Excel 导入导出 | `/projects` |
+| 📅 项目甘特图 | dhtmlxGantt 甘特图、依赖连线、拖拽改期、阶段编辑、今天标记、空白处拖动平移 | 点击项目进入 `/projects/:id` |
+| 👥 资源负载 | 每人一行，显示参与的所有项目/阶段，跨项目负载一目了然 | `/resources` |
+| 🔄 Excel 导入 | 全量导入，自动清洗（日期/人名/阶段名映射）、生成校验报告 | 项目列表页"导入 Excel" |
+| 📤 Excel 导出 | 导出当前所有数据，格式与导入对齐 | 项目列表页"导出 Excel" |
 
 ## 技术栈
 

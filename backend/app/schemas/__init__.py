@@ -36,6 +36,12 @@ from app.schemas.import_report import (
     ImportReport,
     ImportWarning as ImportWarn,
 )
+from app.schemas.dashboard import (
+    DashboardStats,
+    DelayedProject,
+    ReworkPhase,
+    StatusCount,
+)
 
 __all__ = [
     "ResourceCreate", "ResourceRead", "ResourceUpdate",
@@ -45,4 +51,5 @@ __all__ = [
     "PhaseCreate", "PhaseRead", "PhaseUpdate", "ReworkRequest", "ReworkLogRead",
     "DependencyCreate", "DependencyRead",
     "ImportReport", "ImportIssue", "ImportWarn",
+    "DashboardStats", "DelayedProject", "ReworkPhase", "StatusCount",
 ]

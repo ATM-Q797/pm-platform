@@ -108,6 +108,8 @@ export interface WorkloadItem {
   phase_id: number
   phase_name: string
   plan_start: string | null
+  plan_end: string | null
+  status: string | null
   period: (string | null)[]
 }
 
@@ -166,4 +168,41 @@ export interface ImportReport {
   resources_created: number
   errors: ImportError[]
   warnings: ImportError[]
+}
+
+// ---------- 首页看板 ----------
+export interface StatusCount {
+  status: string
+  count: number
+}
+
+export interface DelayedProject {
+  id: number
+  code: string
+  name: string
+  owner: string
+  market: string
+  status: string
+  plan_end: string | null
+  overdue_days: number
+}
+
+export interface ReworkPhase {
+  phase_id: number
+  phase_name: string
+  project_id: number
+  project_name: string
+  rework_count: number
+}
+
+export interface DashboardStats {
+  total_projects: number
+  active_projects: number
+  delayed_count: number
+  total_phases: number
+  project_status: StatusCount[]
+  phase_status: StatusCount[]
+  delayed_projects: DelayedProject[]
+  total_rework_count: number
+  rework_phases: ReworkPhase[]
 }

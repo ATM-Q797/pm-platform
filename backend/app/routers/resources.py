@@ -4,6 +4,8 @@
 """
 from __future__ import annotations
 
+from datetime import date
+
 from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -15,10 +17,50 @@ from app.schemas import ResourceCreate, ResourceRead, ResourceUpdate, ResourceWo
 router = APIRouter(prefix="/api/resources", tags=["资源/人员"])
 
 
+def _phase_to_workload(ph: Phase) -> dict:
+    """把阶段转为 workload dict（get_workload / get_all_workloads 共用）。"""
+    return {
+        "project_id": ph.project_id,
+        "project_name": ph.project.name,
+        "phase_id": ph.id,
+        "phase_name": ph.name,
+        "plan_start": ph.plan_start.isoformat() if ph.plan_start else None,
+        "plan_end": ph.plan_end.isoformat() if ph.plan_end else None,
+        "status": ph.status,
+        "period": [
+            ph.plan_start.isoformat() if ph.plan_start else None,
+            ph.plan_end.isoformat() if ph.plan_end else None,
+        ],
+    }
+
+
 @router.get("", response_model=list[ResourceRead])
 @router.get("/", response_model=list[ResourceRead], include_in_schema=False)
 def list_resources(db: Session = Depends(get_db)):
     return list(db.scalars(select(Resource).order_by(Resource.id)))
+
+
+@router.get("/all/workload", response_model=list[ResourceWorkload])
+def get_all_workloads(db: Session = Depends(get_db)):
+    """全员负载概览：一次返回所有人员的负载数据。
+
+    用于资源负载视图（每人一行甘特图），避免前端发 N 个请求。
+    按人员 id 升序，每人的阶段按 plan_start 升序。
+    注意：此静态路径必须注册在 /{resource_id}/workload 之前。
+    """
+    resources = list(db.scalars(select(Resource).order_by(Resource.id)))
+    result: list[ResourceWorkload] = []
+    for res in resources:
+        # 按 plan_start 排序该人员的阶段（None 排最后）
+        phases = sorted(
+            res.phases,
+            key=lambda ph: (ph.plan_start is None, ph.plan_start or date.min),
+        )
+        result.append(ResourceWorkload(
+            resource={"id": res.id, "name": res.name, "role": res.role},
+            workloads=[_phase_to_workload(ph) for ph in phases],
+        ))
+    return result
 
 
 @router.post("", response_model=ResourceRead, status_code=status.HTTP_201_CREATED)
@@ -65,21 +107,7 @@ def get_workload(resource_id: int, db: Session = Depends(get_db)):
     if resource is None:
         raise HTTPException(404, "人员不存在")
     phases: list[Phase] = list(resource.phases)  # 通过多对多关系
-    workloads = [
-        {
-            "project_id": ph.project_id,
-            "project_name": ph.project.name,
-            "phase_id": ph.id,
-            "phase_name": ph.name,
-            "plan_start": ph.plan_start.isoformat() if ph.plan_start else None,
-            "period": [
-                ph.plan_start.isoformat() if ph.plan_start else None,
-                ph.plan_end.isoformat() if ph.plan_end else None,
-            ],
-        }
-        for ph in phases
-    ]
     return ResourceWorkload(
         resource={"id": resource.id, "name": resource.name, "role": resource.role},
-        workloads=workloads,
+        workloads=[_phase_to_workload(ph) for ph in phases],
     )

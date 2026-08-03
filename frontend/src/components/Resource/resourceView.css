@@ -1,0 +1,17 @@
+/* 资源负载视图专用样式 */
+
+/* 人员行（project 类型）加粗显示 */
+.resource-view .gantt_task_line.gantt_project {
+  background-color: #001529;
+  border-color: #001529;
+}
+.resource-view .gantt_task_line.gantt_project .gantt_task_content {
+  color: #fff;
+  font-weight: 600;
+}
+
+/* 左侧人员名列加宽 */
+.resource-view .gantt_grid_head_text,
+.resource-view .gantt_cell.gantt_cell_tree {
+  font-weight: 500;
+}
