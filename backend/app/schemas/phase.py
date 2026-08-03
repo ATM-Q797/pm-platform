@@ -29,6 +29,9 @@ class PhaseCreate(PhaseBase):
     # 创建时可顺便指定前置阶段（phase id 列表，可选，空=无依赖也合法）。
     # 后端会为每个前置 id 自动建一条 前置→当前 的 FS 依赖。
     depends_on_phase_ids: list[int] = []
+    # 创建时可指定后续阶段（phase id 列表，可选，空=无依赖也合法）。
+    # 后端会为每个后续 id 自动建一条 当前→后续 的 FS 依赖。
+    depended_by_phase_ids: list[int] = []
 
 
 class PhaseUpdate(BaseModel):

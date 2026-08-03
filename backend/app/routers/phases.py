@@ -97,15 +97,41 @@ def create_phase(
 ):
     # 检查项目存在 + 操作权限
     check_project_access(project_id, user, db)
-    data = payload.model_dump(exclude={"assignee_ids", "depends_on_phase_ids"})
+
+    # sequence 冲突处理：将 >= 新 sequence 的已有阶段全部后移 1
+    new_seq = payload.sequence
+    existing = list(
+        db.scalars(
+            select(Phase)
+            .where(Phase.project_id == project_id, Phase.sequence >= new_seq)
+            .order_by(Phase.sequence.desc())
+        )
+    )
+    for ph in existing:
+        ph.sequence += 1
+
+    data = payload.model_dump(exclude={"assignee_ids", "depends_on_phase_ids", "depended_by_phase_ids"})
     phase = Phase(**data, project_id=project_id)
     db.add(phase)
     db.flush()
     if payload.assignee_ids:
         _sync_assignees(db, phase, payload.assignee_ids)
-    # 可选：为每个前置阶段自动建一条 前置→当前 的 FS 依赖
+    # 前置依赖：每个前置阶段 → 当前 的 FS 依赖
     if payload.depends_on_phase_ids:
         _create_prerequisite_dependencies(db, project_id, phase.id, payload.depends_on_phase_ids)
+    # 后置依赖（新增）：当前 → 每个后续阶段 的 FS 依赖
+    depended_by = getattr(payload, 'depended_by_phase_ids', None) or []
+    if depended_by:
+        for succ_id in depended_by:
+            # 避免重复
+            exists = db.scalars(
+                select(Dependency).where(
+                    Dependency.from_phase_id == phase.id,
+                    Dependency.to_phase_id == succ_id,
+                )
+            ).first()
+            if not exists:
+                db.add(Dependency(from_phase_id=phase.id, to_phase_id=succ_id, type="FS", lag_days=0))
     db.commit()
     db.refresh(phase)
     return phase
@@ -121,6 +147,24 @@ def update_phase(
     # 检查阶段存在 + 操作权限
     phase = check_phase_access(phase_id, user, db)
     data = payload.model_dump(exclude_unset=True)
+
+    # 如果改了 sequence，将同项目内 >= 新 sequence 的其他阶段后移
+    if "sequence" in data and data["sequence"] != phase.sequence:
+        new_seq = data["sequence"]
+        existing = list(
+            db.scalars(
+                select(Phase)
+                .where(
+                    Phase.project_id == phase.project_id,
+                    Phase.id != phase.id,
+                    Phase.sequence >= new_seq,
+                )
+                .order_by(Phase.sequence.desc())
+            )
+        )
+        for ph in existing:
+            ph.sequence += 1
+
     assignee_ids = data.pop("assignee_ids", None)
     for k, v in data.items():
         setattr(phase, k, v)

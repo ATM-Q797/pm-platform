@@ -62,6 +62,7 @@ export default function PhaseEditor({ phaseId, projectId, defaultSequence, onClo
         setResources(res)
         form.setFieldsValue({
           phase_type: ph.phase_type,
+          sequence: ph.sequence,
           status: ph.status,
           progress: ph.progress,
           plan_start: ph.plan_start ? dayjs(ph.plan_start) : null,
@@ -104,6 +105,7 @@ export default function PhaseEditor({ phaseId, projectId, defaultSequence, onClo
           name: values.name || typeName,
           sequence: values.sequence ?? (defaultSequence ?? 1),
           depends_on_phase_ids: values.depends_on_phase_ids || [],
+          depended_by_phase_ids: values.depended_by_phase_ids || [],
           plan_start: values.plan_start?.format('YYYY-MM-DD') || null,
           plan_end: values.plan_end?.format('YYYY-MM-DD') || null,
           status: values.status || '未开始',
@@ -224,16 +226,26 @@ export default function PhaseEditor({ phaseId, projectId, defaultSequence, onClo
             options={PHASE_TYPE_OPTIONS}
           />
         </Form.Item>
+        <Form.Item name="sequence" label="顺序" extra="调整顺序后同项目内>=此序号的阶段自动后移">
+          <Input type="number" />
+        </Form.Item>
         {isCreate && (
           <>
-            <Form.Item name="sequence" label="顺序">
-              <Input type="number" />
-            </Form.Item>
-            <Form.Item name="depends_on_phase_ids" label="前置依赖" extra="选择本阶段依赖的前置阶段（可选）">
+            <Form.Item name="depends_on_phase_ids" label="前置依赖" extra="选本阶段依赖的前置阶段（可选）">
               <Select
                 mode="multiple"
                 allowClear
                 placeholder="不选则无依赖"
+                options={projectPhases
+                  .sort((a, b) => a.sequence - b.sequence)
+                  .map((p) => ({ value: p.id, label: `${p.name}（seq:${p.sequence}）` }))}
+              />
+            </Form.Item>
+            <Form.Item name="depended_by_phase_ids" label="后续阶段" extra="选依赖本阶段的后续阶段（可选，交付阶段留空）">
+              <Select
+                mode="multiple"
+                allowClear
+                placeholder="不选则无后续依赖"
                 options={projectPhases
                   .sort((a, b) => a.sequence - b.sequence)
                   .map((p) => ({ value: p.id, label: `${p.name}（seq:${p.sequence}）` }))}
