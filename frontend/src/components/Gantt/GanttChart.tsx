@@ -34,7 +34,7 @@ export default function GanttChart({ projectId, scale = 'week', onPhaseClick }: 
         ensureGanttCss()
         applyGanttConfig(gantt)
         // 拖拽创建依赖连线 → 保存到后端
-        const linkAddH = gantt.attachEvent('onAfterLinkAdd', async (id: any, link: any) => {
+        const linkAddH = gantt.attachEvent('onAfterLinkAdd', async (_id: any, link: any) => {
           try {
             await createDependency(projectId, {
               from_phase_id: link.source,

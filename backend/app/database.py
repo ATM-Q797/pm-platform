@@ -3,9 +3,11 @@
 - 默认 PostgreSQL（Phase 5.0 起）；测试时可设 DATABASE_URL=sqlite:///:memory:
 - 同步 SQLAlchemy 2.0 风格
 - SQLite 连接额外开启 PRAGMA foreign_keys=ON（测试用）；PG 天然强制外键
+- 生产环境必须通过 DATABASE_URL 环境变量设置数据库连接串
 """
 from __future__ import annotations
 
+import logging
 import os
 from contextlib import contextmanager
 from typing import Generator
@@ -14,8 +16,15 @@ from sqlalchemy import create_engine, event
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
-# 默认连接本地 PostgreSQL（postgres 用户，密码 postgres；两台机器统一）；
-# 可通过环境变量覆盖（如测试用 sqlite:///:memory:）
+logger = logging.getLogger(__name__)
+
+# ---------------------------------------------------------------------------
+# 数据库连接串
+# - 生产环境：必须设置 DATABASE_URL 环境变量
+#   示例: postgresql://user:password@db-host:5432/pm_platform
+# - 开发环境：默认连接本地 PostgreSQL
+# - 测试环境：可设为 sqlite:///:memory:
+# ---------------------------------------------------------------------------
 DATABASE_URL = os.environ.get(
     "DATABASE_URL",
     "postgresql://postgres:postgres@localhost:5432/pm_platform",
@@ -25,7 +34,23 @@ DATABASE_URL = os.environ.get(
 def _create_engine() -> Engine:
     """创建 engine。SQLite 需要 check_same_thread=False；PG 无需特殊参数。"""
     connect_args = {"check_same_thread": False} if DATABASE_URL.startswith("sqlite") else {}
-    engine = create_engine(DATABASE_URL, connect_args=connect_args, echo=False, future=True)
+
+    # 生产环境连接池优化
+    pool_kwargs = {}
+    if not DATABASE_URL.startswith("sqlite"):
+        pool_kwargs.update(
+            pool_size=int(os.environ.get("DB_POOL_SIZE", "10")),
+            max_overflow=int(os.environ.get("DB_MAX_OVERFLOW", "20")),
+            pool_pre_ping=True,  # 自动检测断连并重建
+        )
+
+    engine = create_engine(
+        DATABASE_URL,
+        connect_args=connect_args,
+        echo=False,
+        future=True,
+        **pool_kwargs,
+    )
 
     # SQLite 默认不强制外键约束，测试时开启使级联删除生效；PG 天然强制，无需处理
     if DATABASE_URL.startswith("sqlite"):
@@ -35,6 +60,7 @@ def _create_engine() -> Engine:
             cursor.execute("PRAGMA foreign_keys=ON")
             cursor.close()
 
+    logger.info("数据库引擎已创建: %s", DATABASE_URL.split("@")[-1] if "@" in DATABASE_URL else "sqlite")
     return engine
 
 

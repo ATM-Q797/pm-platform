@@ -7,6 +7,8 @@
 """
 from __future__ import annotations
 
+import os
+
 from fastapi import APIRouter, Depends, HTTPException, Response, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
@@ -25,13 +27,19 @@ from app.schemas import LoginRequest, LoginResponse, PasswordChange, UserRead
 
 router = APIRouter(prefix="/api/auth", tags=["认证"])
 
-# Cookie 配置：httpOnly（免疫 XSS）+ SameSite=Lax + 24h
+# ---------------------------------------------------------------------------
+# Cookie 配置
+# - httpOnly: 免疫 XSS
+# - SameSite=Lax: 防 CSRF
+# - Secure: 生产环境(HTTPS)必须开启，通过 COOKIE_SECURE 环境变量控制
+# ---------------------------------------------------------------------------
 _COOKIE_KWARGS = dict(
     key=COOKIE_NAME,
     httponly=True,
     samesite="lax",
     max_age=TOKEN_EXPIRE_HOURS * 3600,
     path="/",
+    secure=os.environ.get("COOKIE_SECURE", "false").lower() in ("true", "1", "yes"),
 )
 
 

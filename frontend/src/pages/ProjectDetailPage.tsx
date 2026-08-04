@@ -79,10 +79,6 @@ export default function ProjectDetailPage() {
     setEditingName(false)
   }
 
-  const setScaleRef = useCallback((_fn: (level: 'day' | 'week' | 'month') => void) => {
-    // 暴露给 Segmented 用——这里简化为直接用 setScale
-  }, [])
-
   if (loading && !project) {
     return <Spin size="large" style={{ display: 'block', margin: '100px auto' }} />
   }
