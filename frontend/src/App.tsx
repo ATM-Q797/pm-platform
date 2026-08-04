@@ -74,7 +74,9 @@ export default function App() {
       setForcePwd(true)
       setPwdModalOpen(true)
     }
-    navigate('/')
+    // 按角色跳转默认页：admin/viewer 去看板，manager/engineer 去项目列表
+    const defaultPath = u.role === 'manager' || u.role === 'engineer' ? '/projects' : '/'
+    navigate(defaultPath)
   }
 
   const handleLogout = async () => {
@@ -112,20 +114,30 @@ export default function App() {
   }
 
   // 导航项（按角色）
-  const navItems = [
-    { key: 'dashboard', icon: <DashboardOutlined />, label: '看板' },
-    { key: 'projects', icon: <ProjectOutlined />, label: '项目列表' },
-    { key: 'resources', icon: <TeamOutlined />, label: '资源负载' },
-    ...(user.role === 'admin'
+  // - admin：全部（看板/项目/资源/用户管理/审核中心）
+  // - manager：项目列表 + 我的任务（不需要看板和资源负载）
+  // - engineer：项目列表 + 我的任务（不需要看板和资源负载）
+  // - viewer：看板/项目列表/资源负载（只读）
+  const navItems =
+    user.role === 'admin'
       ? [
+          { key: 'dashboard', icon: <DashboardOutlined />, label: '看板' },
+          { key: 'projects', icon: <ProjectOutlined />, label: '项目列表' },
+          { key: 'resources', icon: <TeamOutlined />, label: '资源负载' },
           { key: 'users', icon: <UserOutlined />, label: '用户管理' },
           { key: 'review', icon: <AuditOutlined />, label: '审核中心' },
         ]
-      : []),
-    ...(user.role === 'engineer' || user.role === 'manager'
-      ? [{ key: 'my-tasks', icon: <CheckSquareOutlined />, label: '我的任务' }]
-      : []),
-  ]
+      : user.role === 'manager' || user.role === 'engineer'
+      ? [
+          { key: 'projects', icon: <ProjectOutlined />, label: '项目列表' },
+          { key: 'my-tasks', icon: <CheckSquareOutlined />, label: '我的任务' },
+        ]
+      : // viewer
+        [
+          { key: 'dashboard', icon: <DashboardOutlined />, label: '看板' },
+          { key: 'projects', icon: <ProjectOutlined />, label: '项目列表' },
+          { key: 'resources', icon: <TeamOutlined />, label: '资源负载' },
+        ]
 
   // 用户下拉菜单
   const userMenu = {
@@ -184,13 +196,32 @@ export default function App() {
         <Content style={{ padding: 24 }}>
           <Suspense fallback={<Spin size="large" style={{ display: 'block', margin: '100px auto' }} />}>
             <Routes>
-              <Route path="/" element={<DashboardPage />} />
+              {/* 看板/资源负载仅 admin + viewer 可见，manager/engineer 重定向到项目列表 */}
+              <Route path="/" element={
+                user.role === 'manager' || user.role === 'engineer'
+                  ? <Navigate to="/projects" replace />
+                  : <DashboardPage />
+              } />
               <Route path="/projects" element={<ProjectListPage />} />
               <Route path="/projects/:id" element={<ProjectDetailPage />} />
-              <Route path="/resources" element={<ResourcePage />} />
-              <Route path="/users" element={<UserManagePage />} />
-              <Route path="/review" element={<ReviewPage />} />
-              <Route path="/my-tasks" element={<MyTasksPage />} />
+              <Route path="/resources" element={
+                user.role === 'manager' || user.role === 'engineer'
+                  ? <Navigate to="/projects" replace />
+                  : <ResourcePage />
+              } />
+              {/* 用户管理/审核中心仅 admin */}
+              <Route path="/users" element={
+                user.role === 'admin' ? <UserManagePage /> : <Navigate to="/" replace />
+              } />
+              <Route path="/review" element={
+                user.role === 'admin' ? <ReviewPage /> : <Navigate to="/" replace />
+              } />
+              {/* 我的任务仅 manager + engineer */}
+              <Route path="/my-tasks" element={
+                user.role === 'manager' || user.role === 'engineer'
+                  ? <MyTasksPage />
+                  : <Navigate to="/" replace />
+              } />
               <Route path="/login" element={<Navigate to="/" replace />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>

@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import { useNavigate } from 'react-router-dom'
 import { Card, Table, Tag, Progress, message, Empty } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import client from '../api/client'
@@ -18,6 +19,7 @@ interface TaskWithProject extends Phase {
 }
 
 export default function MyTasksPage() {
+  const navigate = useNavigate()
   const [tasks, setTasks] = useState<TaskWithProject[]>([])
   const [loading, setLoading] = useState(true)
   const [currentUser, setCurrentUser] = useState<{ id: number; name: string; resource_id: number | null } | null>(null)
@@ -64,7 +66,10 @@ export default function MyTasksPage() {
       title: '状态', dataIndex: 'status', width: 90, align: 'center',
       render: (s: string) => <Tag color={STATUS_COLOR[s] || 'default'}>{s}</Tag>,
     },
-    { title: '项目', dataIndex: 'project_name', width: 200, ellipsis: true },
+    {
+      title: '项目', dataIndex: 'project_name', width: 200, ellipsis: true,
+      render: (_, r) => <a onClick={() => navigate(`/projects/${r.project_id}`)}>{r.project_name}</a>,
+    },
     { title: '阶段', dataIndex: 'name', width: 120 },
     {
       title: '进度', dataIndex: 'progress', width: 160,

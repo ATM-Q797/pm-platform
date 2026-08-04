@@ -41,21 +41,29 @@ export default function ProjectListPage() {
   const load = async () => {
     setLoading(true)
     try {
-      const [data, tpls, users, me] = await Promise.all([
+      // 项目列表和当前用户信息所有角色都需要
+      const [data, me] = await Promise.all([
         listProjects({
           status: filters.status || undefined,
           market: filters.market || undefined,
           category: filters.category || undefined,
         }),
-        listTemplates(),
-        listUsers(),
         getMe(),
       ])
       setProjects(data)
-      setTemplates(tpls)
       setMyRole(me.role)
-      // 只保留 manager 和 admin 角色作为项目负责人候选
-      setManagers(users.filter((u) => u.role === 'manager' || u.role === 'admin'))
+
+      // 模板列表和用户列表仅 admin/manager 需要（创建项目表单用），容错获取
+      const canCreate = me.role === 'admin' || me.role === 'manager'
+      if (canCreate) {
+        try {
+          const [tpls, users] = await Promise.all([listTemplates(), listUsers()])
+          setTemplates(tpls)
+          setManagers(users.filter((u) => u.role === 'manager' || u.role === 'admin'))
+        } catch {
+          // 静默失败，不影响列表展示
+        }
+      }
     } catch (e) {
       message.error((e as Error).message)
     } finally {
