@@ -54,9 +54,6 @@ export default function LoginPage({ onLogin }: Props) {
             </Button>
           </Form.Item>
         </Form>
-        <div style={{ textAlign: 'center', fontSize: 12, color: '#999' }}>
-          初始账户：admin / admin123
-        </div>
       </Card>
     </div>
   )
