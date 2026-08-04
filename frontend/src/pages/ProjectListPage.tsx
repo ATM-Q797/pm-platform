@@ -302,9 +302,11 @@ export default function ProjectListPage() {
       }
       extra={
         <Space>
-          <Button type="primary" icon={<PlusOutlined />} onClick={() => { form.resetFields(); setCreateOpen(true) }}>
-            新建项目
-          </Button>
+          {myRole !== 'engineer' && myRole !== 'viewer' && (
+            <Button type="primary" icon={<PlusOutlined />} onClick={() => { form.resetFields(); setCreateOpen(true) }}>
+              新建项目
+            </Button>
+          )}
           <Upload accept=".xlsx,.xls" beforeUpload={handleImport} showUploadList={false}>
             <Button icon={<UploadOutlined />}>导入 Excel</Button>
           </Upload>

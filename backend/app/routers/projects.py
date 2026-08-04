@@ -5,12 +5,12 @@
 from __future__ import annotations
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
 from app.core.deps import get_current_user, require_role, check_project_access
 from app.database import get_db
-from app.models import Dependency, Phase, Project, User
+from app.models import Dependency, Phase, Project, User, phase_assignee
 from app.routers.audit import log_operation
 from app.schemas import (
     GanttData,
@@ -33,8 +33,35 @@ def list_projects(
     category: str | None = None,
     market: str | None = None,
 ):
-    """项目列表，支持 ?status=&category=&market= 筛选。需登录。"""
-    stmt = select(Project)
+    """项目列表，支持筛选。按角色过滤可见范围：
+    - admin / viewer：看全部项目
+    - manager：看自己创建的项目 + 自己参与的项目（resource 被分配了阶段的）
+    - engineer：只看自己参与的项目
+    """
+    if user.role in ("admin", "viewer"):
+        stmt = select(Project)
+    else:
+        # manager / engineer：过滤可见项目
+        stmt = select(Project)
+        if user.role == "manager":
+            # 自己创建的 或 自己参与的
+            conditions = [Project.created_by == user.id]
+        else:
+            conditions = []
+        # 自己参与的：resource 被分配到该项目的某个阶段
+        if user.resource_id:
+            conditions.append(
+                Project.id.in_(
+                    select(Phase.project_id).join(
+                        phase_assignee, Phase.id == phase_assignee.c.phase_id
+                    ).where(phase_assignee.c.resource_id == user.resource_id)
+                )
+            )
+        if not conditions:
+            # 工程师没关联 resource 时返回空列表
+            return []
+        stmt = stmt.where(or_(*conditions))
+
     if status_:
         stmt = stmt.where(Project.status == status_)
     if category:

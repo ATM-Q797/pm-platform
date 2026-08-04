@@ -3,6 +3,7 @@ import { useParams, useNavigate } from 'react-router-dom'
 import { Card, Descriptions, Tag, Button, Space, Segmented, Spin, message, Input } from 'antd'
 import { ArrowLeftOutlined, PlusOutlined } from '@ant-design/icons'
 import { getProject, updateProject } from '../api/projects'
+import { getMe } from '../api/auth'
 import type { ProjectDetail } from '../types'
 import GanttChart from '../components/Gantt/GanttChart'
 import PhaseEditor from '../components/PhaseEditor/PhaseEditor'
@@ -27,6 +28,7 @@ export default function ProjectDetailPage() {
   const [ganttKey, setGanttKey] = useState(0)
   // 甘特图时间轴尺度
   const [ganttScale, setGanttScale] = useState<'day' | 'week' | 'month'>('week')
+  const [userRole, setUserRole] = useState<string>('viewer')
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -43,6 +45,11 @@ export default function ProjectDetailPage() {
   useEffect(() => {
     load()
   }, [load])
+
+  // 加载当前用户角色
+  useEffect(() => {
+    getMe().then((u) => setUserRole(u.role)).catch(() => {})
+  }, [])
 
   const handlePhaseClick = (phaseId: number) => {
     setEditingPhase(phaseId)
@@ -184,6 +191,7 @@ export default function ProjectDetailPage() {
         phaseId={editingPhase}
         projectId={projectId}
         defaultSequence={(project?.phases?.length ? Math.max(...project.phases.map(p => p.sequence)) + 1 : 1)}
+        userRole={userRole}
         onClose={() => setEditingPhase(undefined)}
         onSaved={handlePhaseSaved}
       />

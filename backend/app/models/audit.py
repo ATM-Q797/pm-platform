@@ -14,8 +14,10 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.database import Base
 
 if TYPE_CHECKING:
+    from app.models.phase import Phase
     from app.models.project import Project
     from app.models.user import User
+    from app.models.phase import Phase
 
 
 class ProjectDeleteRequest(Base):
@@ -56,3 +58,28 @@ class OperationLog(Base):
     target_name: Mapped[str | None] = mapped_column(String)
     detail: Mapped[str | None] = mapped_column(Text)
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.current_timestamp())
+
+
+class PhaseChangeRequest(Base):
+    """工程师阶段编辑审批（Phase 5.3）。
+
+    流程：engineer 编辑阶段 → 创建 pending change request →
+          manager 审核通过→变更应用 / 拒绝→关闭请求。
+    同一阶段同时只能有一个 pending 请求。
+    """
+    __tablename__ = "phase_change_request"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    phase_id: Mapped[int] = mapped_column(ForeignKey("phase.id", ondelete="CASCADE"), nullable=False, index=True)
+    project_id: Mapped[int] = mapped_column(ForeignKey("project.id", ondelete="CASCADE"), nullable=False, index=True)
+    requested_by: Mapped[int] = mapped_column(ForeignKey("user_account.id"), nullable=False)
+    proposed_changes: Mapped[str | None] = mapped_column(Text)  # JSON: {field: new_value, ...}
+    status: Mapped[str] = mapped_column(String, nullable=False, default="pending", server_default="pending", index=True)
+    reviewed_by: Mapped[int | None] = mapped_column(ForeignKey("user_account.id"))
+    review_comment: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.current_timestamp())
+    reviewed_at: Mapped[datetime | None] = mapped_column(DateTime)
+
+    phase: Mapped["Phase"] = relationship()
+    project: Mapped["Project"] = relationship()
+    requester: Mapped["User"] = relationship(foreign_keys=[requested_by])

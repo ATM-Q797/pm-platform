@@ -131,6 +131,9 @@ export default function App() {
       ? [
           { key: 'projects', icon: <ProjectOutlined />, label: '项目列表' },
           { key: 'my-tasks', icon: <CheckSquareOutlined />, label: '我的任务' },
+          ...(user.role === 'manager'
+            ? [{ key: 'review', icon: <AuditOutlined />, label: '审核中心' }]
+            : []),
         ]
       : // viewer
         [
@@ -214,7 +217,9 @@ export default function App() {
                 user.role === 'admin' ? <UserManagePage /> : <Navigate to="/" replace />
               } />
               <Route path="/review" element={
-                user.role === 'admin' ? <ReviewPage /> : <Navigate to="/" replace />
+                user.role === 'admin' || user.role === 'manager'
+                  ? <ReviewPage userRole={user.role} />
+                  : <Navigate to="/" replace />
               } />
               {/* 我的任务仅 manager + engineer */}
               <Route path="/my-tasks" element={

@@ -15,8 +15,16 @@ from sqlalchemy.orm import Session
 
 from app.core.deps import get_current_user, require_role, check_project_access
 from app.database import get_db
-from app.models import OperationLog, Project, ProjectDeleteRequest, User
-from app.schemas import DeleteRequestCreate, DeleteRequestRead, DeleteReview, OperationLogRead
+from app.models import OperationLog, Phase, PhaseChangeRequest, Project, ProjectDeleteRequest, User
+from app.schemas import (
+    DeleteRequestCreate,
+    DeleteRequestRead,
+    DeleteReview,
+    OperationLogRead,
+    PhaseChangeRequestCreate,
+    PhaseChangeRequestRead,
+    PhaseChangeReview,
+)
 
 router = APIRouter(tags=["审核与日志"])
 
@@ -148,6 +156,141 @@ def review_delete_request(
     db.commit()
     db.refresh(req)
     return _enrich_request(req, db)
+
+
+# ---------- 阶段编辑审批 ----------
+
+@router.post(
+    "/api/phase-change-requests",
+    response_model=PhaseChangeRequestRead,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_phase_change_request(
+    payload: PhaseChangeRequestCreate,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """工程师提交阶段编辑审批。engineer 编辑阶段后不直接保存，而是创建审批请求。"""
+    # 获取阶段信息
+    phase = db.get(Phase, payload.phase_id)
+    if phase is None:
+        raise HTTPException(404, "阶段不存在")
+    if user.role not in ("engineer",):
+        raise HTTPException(403, "仅工程师需要提交审批")
+
+    # 检查是否已有 pending 请求
+    existing = db.scalars(
+        select(PhaseChangeRequest).where(
+            PhaseChangeRequest.phase_id == payload.phase_id,
+            PhaseChangeRequest.status == "pending",
+        )
+    ).first()
+    if existing:
+        raise HTTPException(400, "该阶段已有待审核的变更申请")
+
+    import json
+    req = PhaseChangeRequest(
+        phase_id=payload.phase_id,
+        project_id=phase.project_id,
+        requested_by=user.id,
+        proposed_changes=json.dumps(payload.proposed_changes, ensure_ascii=False),
+        status="pending",
+    )
+    db.add(req)
+    db.flush()
+    log_operation(db, user, "submit_phase_change", "phase", phase.id, phase.name,
+                  detail=f"项目#{phase.project_id}，提交编辑审批")
+    db.commit()
+    db.refresh(req)
+    return _enrich_change_request(req, db)
+
+
+@router.get("/api/phase-change-requests", response_model=list[PhaseChangeRequestRead])
+def list_phase_change_requests(
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+    status_filter: str | None = Query(None, alias="status"),
+):
+    """查看阶段变更审批列表。
+    - admin/manager：看所有 pending 请求
+    - engineer：看自己提交的
+    """
+    stmt = select(PhaseChangeRequest).order_by(PhaseChangeRequest.created_at.desc())
+    if status_filter:
+        stmt = stmt.where(PhaseChangeRequest.status == status_filter)
+    if user.role in ("engineer",):
+        stmt = stmt.where(PhaseChangeRequest.requested_by == user.id)
+    reqs = list(db.scalars(stmt))
+    return [_enrich_change_request(r, db) for r in reqs]
+
+
+@router.post("/api/phase-change-requests/{req_id}/review", response_model=PhaseChangeRequestRead)
+def review_phase_change_request(
+    req_id: int,
+    payload: PhaseChangeReview,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """管理员/负责人审核阶段变更：通过则应用修改，拒绝则关闭。"""
+    if user.role not in ("admin", "manager"):
+        raise HTTPException(403, "仅管理员和项目负责人可审核")
+
+    req = db.get(PhaseChangeRequest, req_id)
+    if req is None:
+        raise HTTPException(404, "变更申请不存在")
+    if req.status != "pending":
+        raise HTTPException(400, f"该申请已处理（当前状态：{req.status}）")
+
+    req.reviewed_by = user.id
+    req.review_comment = payload.comment
+    req.reviewed_at = datetime.now()
+
+    if payload.approved:
+        req.status = "approved"
+        # 应用变更到阶段
+        phase = db.get(Phase, req.phase_id)
+        phase_name = phase.name if phase else ""
+        if phase:
+            import json
+            changes = json.loads(req.proposed_changes) if req.proposed_changes else {}
+            assignee_ids = changes.pop("assignee_ids", None)
+            for k, v in changes.items():
+                setattr(phase, k, v)
+            if assignee_ids is not None:
+                from app.routers.phases import _sync_assignees
+                _sync_assignees(db, phase, assignee_ids)
+        log_operation(db, user, "approve_phase_change", "phase", req.phase_id,
+                      phase_name, detail=f"通过工程师变更审批 #{req_id}")
+    else:
+        req.status = "rejected"
+        log_operation(db, user, "reject_phase_change", "phase", req.phase_id,
+                      detail=f"拒绝变更审批 #{req_id}，评论：{payload.comment or '无'}")
+
+    db.commit()
+    db.refresh(req)
+    return _enrich_change_request(req, db)
+
+
+def _enrich_change_request(req: PhaseChangeRequest, db: Session) -> PhaseChangeRequestRead:
+    """补充阶段名、项目名、申请人名。"""
+    phase = db.get(Phase, req.phase_id)
+    project = db.get(Project, req.project_id)
+    requester = db.get(User, req.requested_by)
+    return PhaseChangeRequestRead(
+        id=req.id,
+        phase_id=req.phase_id,
+        phase_name=phase.name if phase else None,
+        project_id=req.project_id,
+        project_name=project.name if project else None,
+        requested_by=req.requested_by,
+        requester_name=requester.name if requester else None,
+        proposed_changes=req.proposed_changes,
+        status=req.status,
+        reviewed_by=req.reviewed_by,
+        review_comment=req.review_comment,
+        created_at=req.created_at,
+        reviewed_at=req.reviewed_at,
+    )
 
 
 def _enrich_request(req: ProjectDeleteRequest, db: Session) -> DeleteRequestRead:

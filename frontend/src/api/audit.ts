@@ -48,3 +48,39 @@ export async function listOperationLogs(limit = 50): Promise<OperationLog[]> {
   const { data } = await client.get<OperationLog[]>('/operation-logs', { params: { limit } })
   return data
 }
+
+// ---------- 阶段编辑审批 ----------
+export interface PhaseChangeRequest {
+  id: number
+  phase_id: number
+  phase_name: string | null
+  project_id: number
+  project_name: string | null
+  requested_by: number
+  requester_name: string | null
+  proposed_changes: string | null
+  status: string
+  reviewed_by: number | null
+  review_comment: string | null
+  created_at: string | null
+  reviewed_at: string | null
+}
+
+export async function createPhaseChangeRequest(phaseId: number, proposedChanges: Record<string, any>): Promise<PhaseChangeRequest> {
+  const { data } = await client.post<PhaseChangeRequest>('/phase-change-requests', {
+    phase_id: phaseId,
+    proposed_changes: proposedChanges,
+  })
+  return data
+}
+
+export async function listPhaseChangeRequests(statusFilter?: string): Promise<PhaseChangeRequest[]> {
+  const params = statusFilter ? { status: statusFilter } : {}
+  const { data } = await client.get<PhaseChangeRequest[]>('/phase-change-requests', { params })
+  return data
+}
+
+export async function reviewPhaseChangeRequest(reqId: number, approved: boolean, comment?: string): Promise<PhaseChangeRequest> {
+  const { data } = await client.post<PhaseChangeRequest>(`/phase-change-requests/${reqId}/review`, { approved, comment })
+  return data
+}

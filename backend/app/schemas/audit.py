@@ -47,3 +47,36 @@ class OperationLogRead(BaseModel):
     target_name: str | None = None
     detail: str | None = None
     created_at: datetime | None = None
+
+
+# ---------- 阶段编辑审批 ----------
+
+class PhaseChangeRequestCreate(BaseModel):
+    """工程师提交阶段编辑审批。"""
+    phase_id: int
+    proposed_changes: dict  # {field: new_value, ...}
+
+
+class PhaseChangeRequestRead(BaseModel):
+    """阶段变更审批详情。"""
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    phase_id: int
+    phase_name: str | None = None
+    project_id: int
+    project_name: str | None = None
+    requested_by: int
+    requester_name: str | None = None
+    proposed_changes: str | None = None  # JSON string
+    status: str
+    reviewed_by: int | None = None
+    review_comment: str | None = None
+    created_at: datetime | None = None
+    reviewed_at: datetime | None = None
+
+
+class PhaseChangeReview(BaseModel):
+    """管理员审核阶段变更。"""
+    approved: bool
+    comment: str | None = None

@@ -17,6 +17,7 @@ import { DeleteOutlined, ReloadOutlined, SaveOutlined, ArrowUpOutlined, ArrowDow
 import dayjs from 'dayjs'
 import { getPhase, updatePhase, createPhase, deletePhase, reworkPhase, listPhases, movePhase, listDependencies, createDependency, deleteDependency } from '../../api/phases'
 import { listResources } from '../../api/resources'
+import { createPhaseChangeRequest } from '../../api/audit'
 import type { Phase, Resource, Dependency } from '../../types'
 
 interface Props {
@@ -28,6 +29,8 @@ interface Props {
   defaultSequence?: number
   /** 只读模式：仅查看，不显示保存/删除/移动等操作按钮 */
   readonly?: boolean
+  /** 当前用户角色（用于审批流程判断） */
+  userRole?: string
   onClose: () => void
   onSaved: () => void
 }
@@ -150,7 +153,7 @@ export default function PhaseEditor({ phaseId, projectId, defaultSequence, reado
         })
         message.success('阶段已添加')
       } else if (phase) {
-        // 编辑已有阶段：名称从类型推导
+        // 编辑已有阶段
         const typeName = PHASE_TYPE_OPTIONS.find((o) => o.value === values.phase_type)?.name
         const payload: Record<string, any> = {}
         if (values.phase_type !== undefined) payload.phase_type = values.phase_type
@@ -164,50 +167,57 @@ export default function PhaseEditor({ phaseId, projectId, defaultSequence, reado
         if (values.assignee_ids !== undefined) payload.assignee_ids = values.assignee_ids
         if (values.handover_to !== undefined) payload.handover_to = values.handover_to
         if (values.remark !== undefined) payload.remark = values.remark
-        await updatePhase(phase.id, payload)
 
-        // 同步依赖变更（批量执行，收集错误而非静默吞掉）
-        const newDependsOn: number[] = values.depends_on_phase_ids || []
-        const newDependedBy: number[] = values.depended_by_phase_ids || []
-        // 旧的前置依赖（指向我的阶段 id 列表）
-        const oldDependsOn = currentDeps.filter(d => d.to_phase_id === phase.id).map(d => d.from_phase_id)
-        // 旧的后置依赖（我指向的阶段 id 列表）
-        const oldDependedBy = currentDeps.filter(d => d.from_phase_id === phase.id).map(d => d.to_phase_id)
+        if (userRole === 'engineer') {
+          // 工程师走审批流程
+          await createPhaseChangeRequest(phase.id, payload)
+          message.success('已提交编辑审批，请等待项目负责人审核')
+          // 不处理依赖变更（工程师不能改依赖）
+        } else {
+          // admin/manager 直接保存
+          await updatePhase(phase.id, payload)
 
-        // 构建所有依赖变更操作
-        const depOps: Promise<void>[] = []
+          // 同步依赖变更（批量执行，收集错误而非静默吞掉）
+          const newDependsOn: number[] = values.depends_on_phase_ids || []
+          const newDependedBy: number[] = values.depended_by_phase_ids || []
+          // 旧的前置依赖（指向我的阶段 id 列表）
+          const oldDependsOn = currentDeps.filter(d => d.to_phase_id === phase.id).map(d => d.from_phase_id)
+          // 旧的后置依赖（我指向的阶段 id 列表）
+          const oldDependedBy = currentDeps.filter(d => d.from_phase_id === phase.id).map(d => d.to_phase_id)
 
-        // 删除取消的前置依赖
-        for (const fromId of oldDependsOn.filter(id => !newDependsOn.includes(id))) {
-          const dep = currentDeps.find(d => d.from_phase_id === fromId && d.to_phase_id === phase.id)
-          if (dep) depOps.push(deleteDependency(dep.id))
-        }
-        // 新增的前置依赖
-        for (const fromId of newDependsOn.filter(id => !oldDependsOn.includes(id))) {
-          depOps.push(createDependency(phase.project_id, { from_phase_id: fromId, to_phase_id: phase.id }))
-        }
-        // 删除取消的后置依赖
-        for (const toId of oldDependedBy.filter(id => !newDependedBy.includes(id))) {
-          const dep = currentDeps.find(d => d.from_phase_id === phase.id && d.to_phase_id === toId)
-          if (dep) depOps.push(deleteDependency(dep.id))
-        }
-        // 新增的后置依赖
-        for (const toId of newDependedBy.filter(id => !oldDependedBy.includes(id))) {
-          depOps.push(createDependency(phase.project_id, { from_phase_id: phase.id, to_phase_id: toId }))
-        }
+          // 构建所有依赖变更操作
+          const depOps: Promise<void>[] = []
 
-        // 批量执行，收集失败项
-        if (depOps.length > 0) {
-          const results = await Promise.allSettled(depOps)
-          const failures = results.filter(r => r.status === 'rejected') as PromiseRejectedResult[]
-          if (failures.length > 0) {
-            // 阶段本身已保存成功，但部分依赖同步失败——提示用户但不阻断
-            message.warning(`阶段已保存，但 ${failures.length} 条依赖关系同步失败，请检查`)
+          // 删除取消的前置依赖
+          for (const fromId of oldDependsOn.filter(id => !newDependsOn.includes(id))) {
+            const dep = currentDeps.find(d => d.from_phase_id === fromId && d.to_phase_id === phase.id)
+            if (dep) depOps.push(deleteDependency(dep.id))
           }
-        }
+          // 新增的前置依赖
+          for (const fromId of newDependsOn.filter(id => !oldDependsOn.includes(id))) {
+            depOps.push(createDependency(phase.project_id, { from_phase_id: fromId, to_phase_id: phase.id }))
+          }
+          // 删除取消的后置依赖
+          for (const toId of oldDependedBy.filter(id => !newDependedBy.includes(id))) {
+            const dep = currentDeps.find(d => d.from_phase_id === phase.id && d.to_phase_id === toId)
+            if (dep) depOps.push(deleteDependency(dep.id))
+          }
+          // 新增的后置依赖
+          for (const toId of newDependedBy.filter(id => !oldDependedBy.includes(id))) {
+            depOps.push(createDependency(phase.project_id, { from_phase_id: phase.id, to_phase_id: toId }))
+          }
 
-        message.success('已保存')
-      }
+          // 批量执行，收集失败项
+          if (depOps.length > 0) {
+            const results = await Promise.allSettled(depOps)
+            const failures = results.filter(r => r.status === 'rejected') as PromiseRejectedResult[]
+            if (failures.length > 0) {
+              message.warning(`阶段已保存，但 ${failures.length} 条依赖关系同步失败，请检查`)
+            }
+          }
+
+          message.success('已保存')
+        }
       onSaved()
       onClose()
     } catch (e) {
@@ -288,7 +298,7 @@ export default function PhaseEditor({ phaseId, projectId, defaultSequence, reado
           <Button onClick={onClose}>关闭</Button>
         ) : (
         <Space style={{ float: 'right' }}>
-          {!isCreate && phase && (
+          {!isCreate && phase && userRole !== 'engineer' && (
             <>
               <Button danger icon={<DeleteOutlined />} onClick={handleDelete}>删除</Button>
               <Button icon={<ReloadOutlined />} onClick={handleRework}>返工</Button>
@@ -296,7 +306,7 @@ export default function PhaseEditor({ phaseId, projectId, defaultSequence, reado
           )}
           <Button onClick={onClose}>取消</Button>
           <Button type="primary" icon={<SaveOutlined />} loading={saving} onClick={handleSave}>
-            {isCreate ? '添加' : '保存'}
+            {isCreate ? '添加' : userRole === 'engineer' ? '提交审批' : '保存'}
           </Button>
         </Space>
         )
@@ -328,7 +338,7 @@ export default function PhaseEditor({ phaseId, projectId, defaultSequence, reado
           <Form.Item label="顺序">
             <span style={{ color: '#666' }}>第 {phase?.sequence} 位</span>
           </Form.Item>
-        ) : phase && (
+        ) : phase && userRole !== 'engineer' && (
           <Form.Item label="顺序调整">
             <Space>
               <Button

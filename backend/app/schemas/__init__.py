@@ -55,6 +55,9 @@ from app.schemas.audit import (
     DeleteRequestRead,
     DeleteReview,
     OperationLogRead,
+    PhaseChangeRequestCreate,
+    PhaseChangeRequestRead,
+    PhaseChangeReview,
 )
 
 __all__ = [
@@ -68,4 +71,5 @@ __all__ = [
     "DashboardStats", "DelayedProject", "ReworkPhase", "StatusCount",
     "UserCreate", "UserRead", "UserUpdate", "LoginRequest", "LoginResponse", "PasswordChange",
     "DeleteRequestCreate", "DeleteRequestRead", "DeleteReview", "OperationLogRead",
+    "PhaseChangeRequestCreate", "PhaseChangeRequestRead", "PhaseChangeReview",
 ]
