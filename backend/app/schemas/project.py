@@ -23,6 +23,7 @@ class ProjectBase(BaseModel):
     plan_end: date | None = None
     template_id: int | None = None
     remark: str | None = None
+    managed_by: int | None = None  # 项目负责人 user_id
 
 
 class ProjectCreate(ProjectBase):
@@ -41,12 +42,14 @@ class ProjectUpdate(BaseModel):
     plan_end: date | None = None
     template_id: int | None = None
     remark: str | None = None
+    managed_by: int | None = None  # 项目负责人 user_id
 
 
 class ProjectRead(ProjectBase):
     model_config = ConfigDict(from_attributes=True)
 
     id: int
+    created_by: int | None = None  # 创建者 user_id
     created_at: datetime | None = None
     updated_at: datetime | None = None
     template: TemplateBrief | None = None

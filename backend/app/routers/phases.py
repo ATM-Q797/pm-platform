@@ -26,6 +26,21 @@ def _sync_assignees(db: Session, phase: Phase, assignee_ids: list[int]) -> None:
     phase.assignees = resources
 
 
+def _normalize_sequence(db: Session, project_id: int) -> None:
+    """重排项目内所有阶段的 sequence，保证连续无空洞（1,2,3...）。
+
+    在 create/update/delete/move 后调用，彻底避免 sequence 空洞或重复。
+    """
+    phases = list(
+        db.scalars(
+            select(Phase).where(Phase.project_id == project_id).order_by(Phase.sequence, Phase.id)
+        )
+    )
+    for idx, ph in enumerate(phases, start=1):
+        if ph.sequence != idx:
+            ph.sequence = idx
+
+
 def _create_prerequisite_dependencies(
     db: Session, project_id: int, current_phase_id: int, prerequisite_ids: list[int]
 ) -> None:
@@ -98,8 +113,9 @@ def create_phase(
     # 检查项目存在 + 操作权限
     check_project_access(project_id, user, db)
 
-    # sequence 冲突处理：将 >= 新 sequence 的已有阶段全部后移 1
+    # sequence 处理：直接用传入值插入，后续 _normalize_sequence 会重排保证连续
     new_seq = payload.sequence
+    # 将 >= 新 sequence 的已有阶段后移 1（腾出位置）
     existing = list(
         db.scalars(
             select(Phase)
@@ -132,6 +148,8 @@ def create_phase(
             ).first()
             if not exists:
                 db.add(Dependency(from_phase_id=phase.id, to_phase_id=succ_id, type="FS", lag_days=0))
+    # 重排 sequence 保证连续无空洞
+    _normalize_sequence(db, project_id)
     db.commit()
     db.refresh(phase)
     return phase
@@ -148,7 +166,8 @@ def update_phase(
     phase = check_phase_access(phase_id, user, db)
     data = payload.model_dump(exclude_unset=True)
 
-    # 如果改了 sequence，将同项目内 >= 新 sequence 的其他阶段后移
+    assignee_ids = data.pop("assignee_ids", None)
+    # 如果改了 sequence，先将 >= 新值的同项目其他阶段后移，再设置新值
     if "sequence" in data and data["sequence"] != phase.sequence:
         new_seq = data["sequence"]
         existing = list(
@@ -165,11 +184,12 @@ def update_phase(
         for ph in existing:
             ph.sequence += 1
 
-    assignee_ids = data.pop("assignee_ids", None)
     for k, v in data.items():
         setattr(phase, k, v)
     if assignee_ids is not None:
         _sync_assignees(db, phase, assignee_ids)
+    # 重排 sequence 保证连续无空洞
+    _normalize_sequence(db, phase.project_id)
     db.commit()
     db.refresh(phase)
     return phase
@@ -211,6 +231,8 @@ def move_phase(
         raise HTTPException(400, "已在边界，无法继续移动")
     # 交换 sequence
     phase.sequence, neighbor.sequence = neighbor.sequence, phase.sequence
+    # 重排保证连续
+    _normalize_sequence(db, phase.project_id)
     db.commit()
     db.refresh(phase)
     return phase
@@ -223,7 +245,11 @@ def delete_phase(
     user: User = Depends(get_current_user),
 ):
     phase = check_phase_access(phase_id, user, db)
+    project_id = phase.project_id
     db.delete(phase)
+    db.flush()
+    # 删除后重排剩余阶段的 sequence
+    _normalize_sequence(db, project_id)
     db.commit()
 
 

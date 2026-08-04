@@ -166,7 +166,7 @@ export default function PhaseEditor({ phaseId, projectId, defaultSequence, reado
         if (values.remark !== undefined) payload.remark = values.remark
         await updatePhase(phase.id, payload)
 
-        // 同步依赖变更
+        // 同步依赖变更（批量执行，收集错误而非静默吞掉）
         const newDependsOn: number[] = values.depends_on_phase_ids || []
         const newDependedBy: number[] = values.depended_by_phase_ids || []
         // 旧的前置依赖（指向我的阶段 id 列表）
@@ -174,27 +174,36 @@ export default function PhaseEditor({ phaseId, projectId, defaultSequence, reado
         // 旧的后置依赖（我指向的阶段 id 列表）
         const oldDependedBy = currentDeps.filter(d => d.from_phase_id === phase.id).map(d => d.to_phase_id)
 
+        // 构建所有依赖变更操作
+        const depOps: Promise<void>[] = []
+
         // 删除取消的前置依赖
-        const removedDependsOn = oldDependsOn.filter(id => !newDependsOn.includes(id))
-        for (const fromId of removedDependsOn) {
+        for (const fromId of oldDependsOn.filter(id => !newDependsOn.includes(id))) {
           const dep = currentDeps.find(d => d.from_phase_id === fromId && d.to_phase_id === phase.id)
-          if (dep) await deleteDependency(dep.id).catch(() => {})
+          if (dep) depOps.push(deleteDependency(dep.id))
         }
         // 新增的前置依赖
-        const addedDependsOn = newDependsOn.filter(id => !oldDependsOn.includes(id))
-        for (const fromId of addedDependsOn) {
-          await createDependency(phase.project_id, { from_phase_id: fromId, to_phase_id: phase.id }).catch(() => {})
+        for (const fromId of newDependsOn.filter(id => !oldDependsOn.includes(id))) {
+          depOps.push(createDependency(phase.project_id, { from_phase_id: fromId, to_phase_id: phase.id }))
         }
         // 删除取消的后置依赖
-        const removedDependedBy = oldDependedBy.filter(id => !newDependedBy.includes(id))
-        for (const toId of removedDependedBy) {
+        for (const toId of oldDependedBy.filter(id => !newDependedBy.includes(id))) {
           const dep = currentDeps.find(d => d.from_phase_id === phase.id && d.to_phase_id === toId)
-          if (dep) await deleteDependency(dep.id).catch(() => {})
+          if (dep) depOps.push(deleteDependency(dep.id))
         }
         // 新增的后置依赖
-        const addedDependedBy = newDependedBy.filter(id => !oldDependedBy.includes(id))
-        for (const toId of addedDependedBy) {
-          await createDependency(phase.project_id, { from_phase_id: phase.id, to_phase_id: toId }).catch(() => {})
+        for (const toId of newDependedBy.filter(id => !oldDependedBy.includes(id))) {
+          depOps.push(createDependency(phase.project_id, { from_phase_id: phase.id, to_phase_id: toId }))
+        }
+
+        // 批量执行，收集失败项
+        if (depOps.length > 0) {
+          const results = await Promise.allSettled(depOps)
+          const failures = results.filter(r => r.status === 'rejected') as PromiseRejectedResult[]
+          if (failures.length > 0) {
+            // 阶段本身已保存成功，但部分依赖同步失败——提示用户但不阻断
+            message.warning(`阶段已保存，但 ${failures.length} 条依赖关系同步失败，请检查`)
+          }
         }
 
         message.success('已保存')

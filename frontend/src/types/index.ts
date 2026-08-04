@@ -14,6 +14,8 @@ export interface Project {
   plan_end?: string | null
   template_id?: number | null
   remark?: string | null
+  managed_by?: number | null // 项目负责人 user_id
+  created_by?: number | null // 创建者 user_id
   created_at?: string | null
   updated_at?: string | null
   template?: { id: number; name: string; category: string } | null
@@ -36,6 +38,7 @@ export interface ProjectCreate {
   plan_end?: string | null
   template_id?: number | null
   remark?: string | null
+  managed_by?: number | null // 项目负责人 user_id
 }
 
 export type ProjectUpdate = Partial<ProjectCreate>

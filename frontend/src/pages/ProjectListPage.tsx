@@ -6,7 +6,8 @@ import dayjs from 'dayjs'
 import type { ColumnsType } from 'antd/es/table'
 import { listProjects, createProject, updateProject, deleteProject, applyTemplate } from '../api/projects'
 import { listTemplates } from '../api/templates'
-import type { Project, ImportReport, Template } from '../types'
+import { listUsers } from '../api/users'
+import type { Project, ImportReport, Template, UserInfo } from '../types'
 
 // 状态 → Tag 颜色
 const STATUS_COLOR: Record<string, string> = {
@@ -28,6 +29,7 @@ export default function ProjectListPage() {
   const [editOpen, setEditOpen] = useState(false)
   const [editing, setEditing] = useState<Project | null>(null)
   const [templates, setTemplates] = useState<Template[]>([])
+  const [managers, setManagers] = useState<UserInfo[]>([])  // 可选为项目负责人的用户（manager + admin）
   const [form] = Form.useForm()
   const [editForm] = Form.useForm()
 
@@ -41,9 +43,12 @@ export default function ProjectListPage() {
           category: filters.category || undefined,
         }),
         listTemplates(),
+        listUsers(),
       ])
       setProjects(data)
       setTemplates(tpls)
+      // 只保留 manager 和 admin 角色作为项目负责人候选
+      setManagers(users.filter((u) => u.role === 'manager' || u.role === 'admin'))
     } catch (e) {
       message.error((e as Error).message)
     } finally {
@@ -115,11 +120,14 @@ export default function ProjectListPage() {
     try {
       const values = await form.validateFields()
       setCreating(true)
+      // 从 managed_by（user_id）反查用户姓名，同步填入 owner（兼容显示/旧逻辑）
+      const managerUser = managers.find((m) => m.id === values.managed_by)
       const project = await createProject({
         code: values.code,
         category: values.category,
         name: values.name,
-        owner: values.owner,
+        owner: managerUser?.name || '',
+        managed_by: values.managed_by,
         market: values.market,
         plan_start: values.plan_start?.format('YYYY-MM-DD') || null,
         plan_end: values.plan_end?.format('YYYY-MM-DD') || null,
@@ -351,8 +359,13 @@ export default function ProjectListPage() {
               ]} />
             </Form.Item>
           </Space>
-          <Form.Item name="owner" label="项目负责人" rules={[{ required: true, message: '请输入负责人' }]}>
-            <Input placeholder="负责人姓名" />
+          <Form.Item name="managed_by" label="项目负责人" rules={[{ required: true, message: '请选择负责人' }]}>
+            <Select
+              placeholder="选择项目负责人"
+              showSearch
+              optionFilterProp="label"
+              options={managers.map((m) => ({ value: m.id, label: `${m.name}（${m.username}）` }))}
+            />
           </Form.Item>
           <Space style={{ display: 'flex' }}>
             <Form.Item name="plan_start" label="计划开始">

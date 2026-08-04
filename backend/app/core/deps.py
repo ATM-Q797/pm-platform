@@ -61,8 +61,11 @@ def check_project_access(project_id: int, user: User, db: Session) -> Project:
     if project is None:
         raise HTTPException(status.HTTP_404_NOT_FOUND, "项目不存在")
     if user.role == "manager":
-        # manager 只能访问自己负责的项目
-        if project.managed_by == user.id or project.owner == user.name:
+        # manager 只能访问 managed_by 指向自己的项目
+        # 兼容历史数据：managed_by 为空时回退到 owner 文本匹配（导入的旧数据）
+        if project.managed_by == user.id:
+            return project
+        if project.managed_by is None and project.owner == user.name:
             return project
         raise HTTPException(status.HTTP_403_FORBIDDEN, "无权操作此项目")
     raise HTTPException(status.HTTP_403_FORBIDDEN, "无权操作项目")
@@ -84,11 +87,14 @@ def check_phase_access(phase_id: int, user: User, db: Session) -> Phase:
         if user.resource_id and user.resource_id in assignee_ids:
             return phase
         raise HTTPException(status.HTTP_403_FORBIDDEN, "无权操作此阶段")
-    # manager：检查是否负责该阶段所属项目
+    # manager：检查是否负责该阶段所属项目（managed_by 优先，兼容 owner 文本）
     if user.role == "manager":
         project = db.get(Project, phase.project_id)
-        if project and (project.managed_by == user.id or project.owner == user.name):
-            return phase
+        if project:
+            if project.managed_by == user.id:
+                return phase
+            if project.managed_by is None and project.owner == user.name:
+                return phase
         raise HTTPException(status.HTTP_403_FORBIDDEN, "无权操作此项目阶段")
     raise HTTPException(status.HTTP_403_FORBIDDEN, "无权操作")
 

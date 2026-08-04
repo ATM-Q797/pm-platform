@@ -14,11 +14,11 @@ from sqlalchemy import create_engine, event
 from sqlalchemy.engine import Engine
 from sqlalchemy.orm import DeclarativeBase, Session, sessionmaker
 
-# 默认连接本地 PostgreSQL（不指定用户，自动用系统用户；跨机器通用）；
+# 默认连接本地 PostgreSQL（postgres 用户，密码 postgres；两台机器统一）；
 # 可通过环境变量覆盖（如测试用 sqlite:///:memory:）
 DATABASE_URL = os.environ.get(
     "DATABASE_URL",
-    "postgresql://localhost/pm_platform",
+    "postgresql://postgres:postgres@localhost:5432/pm_platform",
 )
 
 

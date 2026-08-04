@@ -27,11 +27,12 @@ router = APIRouter(prefix="/api/projects", tags=["项目"])
 @router.get("/", response_model=list[ProjectRead], include_in_schema=False)
 def list_projects(
     db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
     status_: str | None = Query(None, alias="status"),
     category: str | None = None,
     market: str | None = None,
 ):
-    """项目列表，支持 ?status=&category=&market= 筛选。"""
+    """项目列表，支持 ?status=&category=&market= 筛选。需登录。"""
     stmt = select(Project)
     if status_:
         stmt = stmt.where(Project.status == status_)
@@ -51,7 +52,12 @@ def create_project(
 ):
     if db.scalars(select(Project).where(Project.code == payload.code)).first():
         raise HTTPException(400, f"项目编号 {payload.code} 已存在")
-    project = Project(**payload.model_dump())
+    data = payload.model_dump()
+    # 自动记录创建者；manager 创建时若未指定 managed_by，默认为自己的 user_id
+    data["created_by"] = user.id
+    if data.get("managed_by") is None and user.role == "manager":
+        data["managed_by"] = user.id
+    project = Project(**data)
     db.add(project)
     db.commit()
     db.refresh(project)
@@ -59,7 +65,11 @@ def create_project(
 
 
 @router.get("/{project_id}", response_model=ProjectDetail)
-def get_project(project_id: int, db: Session = Depends(get_db)):
+def get_project(
+    project_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
     project = db.get(Project, project_id)
     if project is None:
         raise HTTPException(404, "项目不存在")
@@ -105,8 +115,12 @@ def delete_project(
 
 
 @router.get("/{project_id}/gantt", response_model=GanttData)
-def get_project_gantt(project_id: int, db: Session = Depends(get_db)):
-    """获取项目甘特图数据（dhtmlxGantt 格式）。"""
+def get_project_gantt(
+    project_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """获取项目甘特图数据（dhtmlxGantt 格式）。需登录。"""
     data = build_gantt(db, project_id)
     if data is None:
         raise HTTPException(404, "项目不存在")

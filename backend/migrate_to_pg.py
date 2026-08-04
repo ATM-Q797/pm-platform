@@ -113,6 +113,18 @@ def main() -> None:
     finally:
         db.close()
 
+    # 修复 PostgreSQL 自增序列（显式写入 ID 后必须同步）
+    # 空表时设为 0（nextval 返回 1），有数据时设为 MAX(id)（nextval 返回 MAX+1）
+    with engine.connect() as conn:
+        seq_tables = ["resource", "project", "phase", "dependency", "rework_log",
+                       "template", "template_phase", "template_dependency", "user_account"]
+        for t in seq_tables:
+            max_id = conn.execute(text(f"SELECT MAX(id) FROM {t}")).scalar()
+            next_val = max_id if max_id is not None else 0
+            conn.execute(text(f"SELECT setval('{t}_id_seq', {next_val})"))
+        conn.commit()
+    print("✓ PostgreSQL 序列已同步到表最大 id")
+
     # 校验：PG 各表行数 vs SQLite
     print("\n校验行数：")
     all_ok = True
@@ -124,24 +136,6 @@ def main() -> None:
             if pg_count != sqlite_count:
                 all_ok = False
             print(f"  {ok} {t}: PG={pg_count} SQLite={sqlite_count}")
-
-    if all_ok:
-        print("\n✅ 迁移完成，行数全部一致")
-    else:
-        print("\n⚠️ 行数不一致，请检查")
-        sys.exit(1)
-
-    # 修复 PostgreSQL 自增序列（显式写入 ID 后必须同步）
-    from sqlalchemy import text
-    with engine.connect() as conn:
-        tables = ["resource", "project", "phase", "dependency", "rework_log",
-                   "template", "template_phase", "template_dependency", "user_account"]
-        for t in tables:
-            conn.execute(text(
-                f"SELECT setval('{t}_id_seq', COALESCE((SELECT MAX(id) FROM {t}), 1))"
-            ))
-        conn.commit()
-    print("✓ PostgreSQL 序列已同步到表最大 id")
 
     if all_ok:
         print("\n✅ 迁移完成，行数全部一致")
