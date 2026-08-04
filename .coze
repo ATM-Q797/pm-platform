@@ -1,0 +1,10 @@
+[project]
+requires = ["nodejs-24"]
+
+[dev]
+build = ["bash", "-c", "cd backend && pip install -r requirements.txt 2>/dev/null; cd ../frontend && pnpm install"]
+run = ["bash", "-c", "cd ${COZE_WORKSPACE_PATH}/backend && DATABASE_URL=sqlite:///pm_platform.db python init_db.py 2>/dev/null; cd ${COZE_WORKSPACE_PATH}/backend && DATABASE_URL=sqlite:///pm_platform.db uvicorn app.main:app --host 0.0.0.0 --port 8000 & sleep 2 && cd ${COZE_WORKSPACE_PATH}/frontend && npx vite --port ${DEPLOY_RUN_PORT} --host 0.0.0.0"]
+
+[deploy]
+build = ["bash", "-c", "cd frontend && pnpm install && pnpm run build"]
+run = ["bash", "-c", "cd ${COZE_WORKSPACE_PATH}/backend && DATABASE_URL=sqlite:///pm_platform.db python init_db.py 2>/dev/null; cd ${COZE_WORKSPACE_PATH}/backend && DATABASE_URL=sqlite:///pm_platform.db uvicorn app.main:app --host 0.0.0.0 --port 8000 & sleep 2 && cd ${COZE_WORKSPACE_PATH}/frontend && npx serve dist -l ${DEPLOY_RUN_PORT} -s"]
