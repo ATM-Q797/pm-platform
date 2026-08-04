@@ -229,8 +229,12 @@ def move_phase(
 
     if neighbor is None:
         raise HTTPException(400, "已在边界，无法继续移动")
-    # 交换 sequence
-    phase.sequence, neighbor.sequence = neighbor.sequence, phase.sequence
+    # 交换 sequence（用临时变量，避免 SQLAlchemy 自动 flush 导致交换失败）
+    old_seq = phase.sequence
+    neighbor_seq = neighbor.sequence
+    phase.sequence = neighbor_seq
+    neighbor.sequence = old_seq
+    db.flush()
     # 重排保证连续
     _normalize_sequence(db, phase.project_id)
     db.commit()
