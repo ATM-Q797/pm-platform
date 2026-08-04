@@ -1,5 +1,5 @@
 """FastAPI 应用入口。
-
+	
 - 挂载所有路由
 - 配置 CORS（通过环境变量 CORS_ORIGINS 控制，开发默认 localhost）
 - 启动时确保导入所有模型
@@ -9,6 +9,9 @@ from __future__ import annotations
 
 import logging
 import os
+
+from dotenv import load_dotenv
+load_dotenv()  # 加载 backend/.env（本地开发免手动设环境变量）
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
