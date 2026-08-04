@@ -19,6 +19,8 @@ RUN pip install --no-cache-dir -r requirements.txt
 
 # 复制应用代码
 COPY backend/ ./
+# init_db.py 需要读取 docs/templates.json 种子数据
+COPY docs/ /app/docs/
 
 # 切换到非 root 用户
 USER appuser
