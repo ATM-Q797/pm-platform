@@ -1,0 +1,224 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<title>内网部署操作指南 — 项目管理平台</title>
+<style>
+  body { font-family: -apple-system, "PingFang SC", "Microsoft YaHei", sans-serif; max-width: 800px; margin: 0 auto; padding: 40px; color: #333; line-height: 1.8; }
+  h1 { text-align: center; border-bottom: 2px solid #1890ff; padding-bottom: 12px; }
+  h2 { color: #1890ff; margin-top: 32px; border-bottom: 1px solid #e8e8e8; padding-bottom: 6px; }
+  h3 { color: #555; }
+  code { background: #f5f5f5; padding: 2px 6px; border-radius: 3px; font-size: 14px; }
+  pre { background: #1e1e1e; color: #d4d4d4; padding: 16px; border-radius: 6px; overflow-x: auto; font-size: 13px; line-height: 1.5; }
+  pre code { background: none; padding: 0; color: inherit; }
+  table { border-collapse: collapse; width: 100%; margin: 16px 0; }
+  th, td { border: 1px solid #e0e0e0; padding: 10px 14px; text-align: left; }
+  th { background: #f0f5ff; font-weight: 600; }
+  .warning { background: #fff7e6; border-left: 4px solid #fa8c16; padding: 12px 16px; margin: 16px 0; border-radius: 4px; }
+  .tip { background: #e6f7ff; border-left: 4px solid #1890ff; padding: 12px 16px; margin: 16px 0; border-radius: 4px; }
+  .step { background: #f6f8fa; border-radius: 8px; padding: 16px 20px; margin: 12px 0; }
+  .step-num { display: inline-block; background: #1890ff; color: #fff; width: 24px; height: 24px; text-align: center; border-radius: 50%; margin-right: 8px; font-size: 14px; line-height: 24px; }
+</style>
+</head>
+<body>
+
+<h1>项目管理平台 — 公司内网部署操作指南</h1>
+<p style="text-align:center;color:#888;">适用于闲置机器部署，团队通过内网浏览器访问</p>
+
+<h2>一、核心逻辑</h2>
+
+<pre><code>你的闲置机器（内网IP 192.168.1.100）
+├── Nginx（端口 80）
+├── 前端：npm run build 后的静态文件
+├── 后端：Gunicorn + FastAPI（端口 8000）
+└── SQLite
+
+同事浏览器 → http://192.168.1.100 → 直接打开平台</code></pre>
+
+<h2>二、确定闲置机器的系统</h2>
+
+<table>
+<tr><th>机器现系统</th><th>建议</th></tr>
+<tr><td>Ubuntu / Linux</td><td>✅ 直接部署，最佳选择</td></tr>
+<tr><td>Windows 10/11 专业版</td><td>⚠️ 可以，但要关防火墙 + 装 Nginx for Windows，稳定性较差</td></tr>
+<tr><td>macOS 旧机器</td><td>✅ 可以部署</td></tr>
+</table>
+
+<div class="warning">
+<strong>⚠️ 强烈建议</strong>：如果闲置机器是 Windows，花半小时格盘装 Ubuntu Server 22.04（U 盘安装）。作为长期运行的服务，Linux 比 Windows 稳定一万倍。<strong>这是你这次部署性价比最高的半小时投入。</strong>
+</div>
+
+<h2>三、给机器固定 IP</h2>
+
+<p>公司内网一般用 DHCP 自动分配 IP，但服务器必须固定 IP，否则重启后 IP 变了同事就找不到。</p>
+
+<h3>方法 A（推荐）：路由器 DHCP 绑定</h3>
+<p>登陆公司路由器管理后台 → 找到这台机器的 MAC 地址 → 绑定一个固定 IP（如 <code>192.168.1.100</code>）。无需改机器配置。</p>
+
+<h3>方法 B：机器上静态 IP 配置</h3>
+<p>Ubuntu Server 修改 <code>/etc/netplan/00-installer-config.yaml</code>：</p>
+
+<pre><code>network:
+  ethernets:
+    eth0:
+      dhcp4: no
+      addresses:
+        - 192.168.1.100/24
+      routes:
+        - to: default
+          via: 192.168.1.1          # 你的路由器地址
+      nameservers:
+        addresses: [114.114.114.114, 8.8.8.8]
+  version: 2</code></pre>
+
+<pre><code>sudo netplan apply</code></pre>
+
+<div class="tip">
+<strong>💡 选哪个</strong>：能进路由器后台就选 A，搞不定就选 B。<strong>但要确保选的 IP 不在 DHCP 池范围内</strong>（比如路由器 DHCP 分配 192.168.1.2-99，你选 100 以上就安全）。
+</div>
+
+<h2>四、部署步骤</h2>
+
+<h3>4.1 环境准备</h3>
+
+<pre><code># SSH 连到闲置机器
+ssh user@192.168.1.100
+
+# 装依赖
+sudo apt update
+sudo apt install -y nginx python3.12 python3.12-venv python3-pip git nodejs npm
+
+# 拉代码
+cd /opt
+git clone git@github.com:ATM-Q797/pm-platform.git
+cd pm-platform</code></pre>
+
+<h3>4.2 部署前端</h3>
+
+<pre><code>cd /opt/pm-platform/frontend
+npm install
+npm run build           # 产出在 dist/ 目录
+
+# 把 dist/ 交给 Nginx
+sudo cp -r dist/* /var/www/html/</code></pre>
+
+<h3>4.3 部署后端</h3>
+
+<pre><code>cd /opt/pm-platform/backend
+python3.12 -m venv venv
+source venv/bin/activate
+pip install -r requirements.txt
+pip install gunicorn uvicorn
+
+# 初始化数据库
+python init_db.py</code></pre>
+
+<h3>4.4 配置 Nginx</h3>
+
+<p>创建 <code>/etc/nginx/sites-available/pm-platform</code>：</p>
+
+<pre><code>server {
+    listen 80 default_server;
+    server_name _;
+
+    # 前端静态文件
+    location / {
+        root /var/www/html;
+        index index.html;
+        try_files $uri $uri/ /index.html;   # 单页应用必须有这条
+    }
+
+    # 后端 API 代理
+    location /api/ {
+        proxy_pass http://127.0.0.1:8000;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+    }
+}</code></pre>
+
+<pre><code>sudo ln -s /etc/nginx/sites-available/pm-platform /etc/nginx/sites-enabled/
+sudo nginx -t              # 检查配置
+sudo systemctl restart nginx</code></pre>
+
+<h3>4.5 systemd 保活后端进程</h3>
+
+<p>创建 <code>/etc/systemd/system/pm-platform.service</code>：</p>
+
+<pre><code>[Unit]
+Description=PM Platform Backend
+After=network.target
+
+[Service]
+User=www-data
+WorkingDirectory=/opt/pm-platform/backend
+ExecStart=/opt/pm-platform/backend/venv/bin/gunicorn -w 2 -k uvicorn.workers.UvicornWorker app.main:app -b 127.0.0.1:8000
+Restart=always
+RestartSec=3
+
+[Install]
+WantedBy=multi-user.target</code></pre>
+
+<pre><code>sudo systemctl daemon-reload
+sudo systemctl enable pm-platform
+sudo systemctl start pm-platform
+sudo systemctl status pm-platform   # 看是否 running</code></pre>
+
+<div class="tip">
+<strong>✅ 做完这五步，浏览器访问服务器 IP 就能看到平台了。</strong>
+</div>
+
+<h2>五、打开防火墙（关键，最容易被忘）</h2>
+
+<h3>Ubuntu</h3>
+<pre><code>sudo ufw allow 80/tcp
+sudo ufw enable
+sudo ufw status</code></pre>
+
+<h3>Windows</h3>
+<p>控制面板 → Windows Defender 防火墙 → 高级设置 → 入站规则 → 新建规则 → 端口 → TCP 80 → 允许。</p>
+
+<h3>公司网络如果有企业防火墙</h3>
+<p>这是唯一可能卡住的点。让 IT 同事放开闲置机器的 80 端口。一般情况下，同网段的机器访问不受企业防火墙限制。</p>
+
+<h2>六、同事怎么用</h2>
+
+<table>
+<tr><th>同事</th><th>操作</th></tr>
+<tr><td>打开浏览器</td><td>输入 <code>http://192.168.1.100</code></td></tr>
+<tr><td>收藏夹</td><td>加个书签，就不用记 IP 了</td></tr>
+<tr><td>手机也能访问</td><td>连公司 WiFi，同样打开这个地址</td></tr>
+</table>
+
+<p>不需要装任何软件，有浏览器就行。</p>
+
+<h2>七、常见坑</h2>
+
+<table>
+<tr><th>坑</th><th>排查</th></tr>
+<tr><td>同事访问不了</td><td>① <code>ping 192.168.1.100</code> 看通不通<br>② 在服务器上 <code>curl localhost:80</code> 看 Nginx 活着没<br>③ 防火墙端口开了没</td></tr>
+<tr><td>过几天 IP 变了</td><td>没配固定 IP，回去做第三步</td></tr>
+<tr><td>重启后服务挂了</td><td><code>systemctl enable nginx && systemctl enable pm-platform</code> 设置开机自启</td></tr>
+<tr><td>机器休眠了</td><td>关掉休眠：<code>systemctl mask sleep.target suspend.target hibernate.target</code></td></tr>
+<tr><td>数据库文件越来越大</td><td>SQLite 会自动管理，但建议定期备份到 U 盘/另一个目录</td></tr>
+</table>
+
+<h2>八、与云部署对比</h2>
+
+<table>
+<tr><th>维度</th><th>内网闲置机器</th><th>云服务器</th></tr>
+<tr><td>成本</td><td>0</td><td>¥50-100/月</td></tr>
+<tr><td>访问范围</td><td>仅公司内网/WiFi</td><td>全球</td></tr>
+<tr><td>稳定性</td><td>看机器本身（老机器可能不稳）</td><td>商业级 99.9%</td></tr>
+<tr><td>安全性</td><td>天然隔离外网</td><td>需要防护</td></tr>
+<tr><td>维护</td><td>IT 不管的话你自己管</td><td>云平台自动运维</td></tr>
+<tr><td>适合阶段</td><td>MVP 团队试用 🟢</td><td>正式上线后 🔵</td></tr>
+</table>
+
+<div class="tip">
+<strong>💡 建议</strong>：MVP 阶段先用闲置机器跑起来，让团队 3-5 个人试用，验证功能和数据模型。跑通之后再考虑上云。迁移就是 <code>git pull</code> + 数据库文件拷过去的事。
+</div>
+
+<p style="text-align:center;color:#999;margin-top:40px;">🦞 Phoebe · 2026-08-02</p>
+
+</body>
+</html>
