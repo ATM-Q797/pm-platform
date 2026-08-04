@@ -43,6 +43,7 @@ export default function ResourcePage() {
         onClose={() => setEditingPhase(null)}
         onSaved={() => {}}
         readonly
+        hideExtra
       />
     </Card>
   )

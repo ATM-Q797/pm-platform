@@ -157,9 +157,11 @@ export default function ProjectDetailPage() {
         title="甘特图"
         extra={
           <Space>
-            <Button size="small" type="primary" icon={<PlusOutlined />} onClick={handleAddPhase}>
-              添加阶段
-            </Button>
+            {(userRole === 'admin' || userRole === 'manager') && (
+              <Button size="small" type="primary" icon={<PlusOutlined />} onClick={handleAddPhase}>
+                添加阶段
+              </Button>
+            )}
             <Segmented
               options={[
                 { label: '日', value: 'day' },
@@ -183,7 +185,7 @@ export default function ProjectDetailPage() {
           />
         )}
         <div style={{ marginTop: 8, fontSize: 12, color: '#999' }}>
-          提示：拖拽甘特条改期（松手自动保存）｜ 悬停任务条两端圆形手柄拖到另一条 = 创建依赖连线 ｜ 右键连线删除 ｜ 点击甘特条编辑阶段详情
+          提示：悬停任务条两端圆形手柄拖到另一条 = 创建依赖连线 ｜ 右键连线删除 ｜ 点击甘特条编辑阶段详情（通过编辑面板修改日期）
         </div>
       </Card>
 
@@ -192,6 +194,7 @@ export default function ProjectDetailPage() {
         projectId={projectId}
         defaultSequence={(project?.phases?.length ? Math.max(...project.phases.map(p => p.sequence)) + 1 : 1)}
         userRole={userRole}
+        readonly={userRole === 'viewer'}
         onClose={() => setEditingPhase(undefined)}
         onSaved={handlePhaseSaved}
       />

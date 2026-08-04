@@ -17,6 +17,7 @@ import { DeleteOutlined, ReloadOutlined, SaveOutlined, ArrowUpOutlined, ArrowDow
 import dayjs from 'dayjs'
 import { getPhase, updatePhase, createPhase, deletePhase, reworkPhase, listPhases, movePhase, listDependencies, createDependency, deleteDependency } from '../../api/phases'
 import { listResources } from '../../api/resources'
+import { getProject } from '../../api/projects'
 import { createPhaseChangeRequest } from '../../api/audit'
 import type { Phase, Resource, Dependency } from '../../types'
 
@@ -31,6 +32,8 @@ interface Props {
   readonly?: boolean
   /** 当前用户角色（用于审批流程判断） */
   userRole?: string
+  /** 精简模式：隐藏顺序调整、依赖、交接人等高级字段（资源视图使用） */
+  hideExtra?: boolean
   onClose: () => void
   onSaved: () => void
 }
@@ -49,7 +52,7 @@ const PHASE_TYPE_OPTIONS = [
   { value: 'P8', label: 'P8 交付', name: '交付' },
 ]
 
-export default function PhaseEditor({ phaseId, projectId, defaultSequence, readonly, onClose, onSaved }: Props) {
+export default function PhaseEditor({ phaseId, projectId, defaultSequence, readonly, userRole, hideExtra, onClose, onSaved }: Props) {
   const isCreate = phaseId === null
   const isOpen = phaseId !== undefined && (phaseId !== null || projectId != null)
 
@@ -59,6 +62,7 @@ export default function PhaseEditor({ phaseId, projectId, defaultSequence, reado
   const [saving, setSaving] = useState(false)
   const [moving, setMoving] = useState(false)
   const [currentDeps, setCurrentDeps] = useState<Dependency[]>([])
+  const [projectInfo, setProjectInfo] = useState<{ name: string; owner: string } | null>(null)
   const [form] = Form.useForm()
 
   useEffect(() => {
@@ -75,6 +79,10 @@ export default function PhaseEditor({ phaseId, projectId, defaultSequence, reado
         setResources(res)
         setProjectPhases(phs)
         setCurrentDeps(deps)
+        // hideExtra 模式下加载项目信息（资源视图弹窗显示）
+        if (hideExtra && ph.project_id) {
+          getProject(ph.project_id).then((p) => setProjectInfo({ name: p.name, owner: p.owner })).catch(() => {})
+        }
         // 前置依赖：哪些阶段指向我
         const dependsOnIds = deps.filter(d => d.to_phase_id === ph.id).map(d => d.from_phase_id)
         // 后续依赖：我指向哪些阶段
@@ -218,6 +226,7 @@ export default function PhaseEditor({ phaseId, projectId, defaultSequence, reado
 
           message.success('已保存')
         }
+      } // 结束 else if (phase) 块
       onSaved()
       onClose()
     } catch (e) {
@@ -335,10 +344,21 @@ export default function PhaseEditor({ phaseId, projectId, defaultSequence, reado
             />
           </Form.Item>
         ) : readonly ? (
-          <Form.Item label="顺序">
-            <span style={{ color: '#666' }}>第 {phase?.sequence} 位</span>
-          </Form.Item>
-        ) : phase && userRole !== 'engineer' && (
+          hideExtra ? (
+            <>
+              <Form.Item label="所属项目">
+                <span style={{ color: '#666' }}>{projectInfo?.name ?? phase?.project_id ?? '—'}</span>
+              </Form.Item>
+              <Form.Item label="项目负责人">
+                <span style={{ color: '#666' }}>{projectInfo?.owner ?? '—'}</span>
+              </Form.Item>
+            </>
+          ) : (
+            <Form.Item label="顺序">
+              <span style={{ color: '#666' }}>第 {phase?.sequence} 位</span>
+            </Form.Item>
+          )
+        ) : phase && userRole !== 'engineer' && !hideExtra && (
           <Form.Item label="顺序调整">
             <Space>
               <Button
@@ -361,7 +381,8 @@ export default function PhaseEditor({ phaseId, projectId, defaultSequence, reado
             </div>
           </Form.Item>
         )}
-        <Form.Item name="depends_on_phase_ids" label="前置依赖" extra="选本阶段依赖的前置阶段（可选）">
+        {!hideExtra && (
+          <Form.Item name="depends_on_phase_ids" label="前置依赖" extra="选本阶段依赖的前置阶段（可选）">
           <Select
             mode="multiple"
             allowClear
@@ -372,7 +393,9 @@ export default function PhaseEditor({ phaseId, projectId, defaultSequence, reado
               .map((p) => ({ value: p.id, label: `${p.name}（序:${p.sequence}）` }))}
           />
         </Form.Item>
-        <Form.Item name="depended_by_phase_ids" label="后续阶段" extra="选依赖本阶段的后续阶段（可选）">
+        )}
+        {!hideExtra && (
+          <Form.Item name="depended_by_phase_ids" label="后续阶段" extra="选依赖本阶段的后续阶段（可选）">
           <Select
             mode="multiple"
             allowClear
@@ -383,6 +406,7 @@ export default function PhaseEditor({ phaseId, projectId, defaultSequence, reado
               .map((p) => ({ value: p.id, label: `${p.name}（序:${p.sequence}）` }))}
           />
         </Form.Item>
+        )}
         <Form.Item name="status" label="状态">
           <Select options={STATUS_OPTIONS} />
         </Form.Item>
@@ -414,9 +438,11 @@ export default function PhaseEditor({ phaseId, projectId, defaultSequence, reado
             options={resources.map((r) => ({ value: r.id, label: r.name + (r.role ? `（${r.role}）` : '') }))}
           />
         </Form.Item>
-        <Form.Item name="handover_to" label="交接人">
-          <Input />
-        </Form.Item>
+        {!hideExtra && (
+          <Form.Item name="handover_to" label="交接人">
+            <Input />
+          </Form.Item>
+        )}
         <Form.Item name="remark" label="备注">
           <Input.TextArea rows={2} />
         </Form.Item>

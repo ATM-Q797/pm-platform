@@ -86,7 +86,10 @@
   color: #fff;
 }
 
-/* 今天标记 — 自绘（社区版无 marker 插件）：上下三角形 + 红色虚线 + 今天标签 */
+/* 今天标记 — 冻结在时间轴顶部（挂在 .gantt_task 内，该区域不纵向滚动） */
+.pm-gantt-container .gantt_task {
+  position: relative;
+}
 .pm-today-marker {
   pointer-events: none;
 }

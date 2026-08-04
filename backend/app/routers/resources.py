@@ -23,6 +23,7 @@ def _phase_to_workload(ph: Phase) -> dict:
     return {
         "project_id": ph.project_id,
         "project_name": ph.project.name,
+        "project_owner": ph.project.owner,  # 项目负责人
         "phase_id": ph.id,
         "phase_name": ph.name,
         "plan_start": ph.plan_start.isoformat() if ph.plan_start else None,

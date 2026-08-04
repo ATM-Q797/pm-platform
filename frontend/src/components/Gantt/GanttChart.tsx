@@ -2,7 +2,7 @@ import { useEffect, useRef } from 'react'
 import { applyGanttConfig, setScale } from './ganttConfig'
 import { setupPan, cleanupPan } from './panUtils'
 import { getProjectGantt, getProject } from '../../api/projects'
-import { updatePhase, createDependency, deleteDependency } from '../../api/phases'
+import { createDependency, deleteDependency } from '../../api/phases'
 import { listResources } from '../../api/resources'
 import './gantt.css'
 
@@ -33,24 +33,6 @@ export default function GanttChart({ projectId, scale = 'week', onPhaseClick }: 
         if (destroyed || !containerRef.current) return
         ensureGanttCss()
         applyGanttConfig(gantt)
-        // scale 切换由独立的 useEffect 处理（通过 scale prop + ganttRef）
-        // 点击编辑由容器的事件委托处理（只响应右侧任务条，不响应 grid 行），
-        // 不使用 dhtmlxGantt 的 onTaskClick（它对 grid 行点击也触发）
-        const dragH = gantt.attachEvent('onAfterTaskDrag', async (id: any, _mode: any) => {
-          const tid = Number(id)
-          const task = gantt.getTask(id)
-          if (tid <= 0) return  // 跳过项目行
-          const startDate = gantt.date.date_to_str('%Y-%m-%d')(task.start_date)
-          const endDate = gantt.date.date_to_str('%Y-%m-%d')(gantt.calculateEndDate(task))
-          const progress = Math.round((task.progress || 0) * 100)
-          try {
-            await updatePhase(tid, { plan_start: startDate, plan_end: endDate, progress })
-            gantt.message({ text: `已保存：${task.text}`, expire: 1500 })
-          } catch (e) {
-            gantt.message({ text: '保存失败', type: 'error', expire: 3000 })
-          }
-        })
-        handlers.push(dragH)
         // 拖拽创建依赖连线 → 保存到后端
         const linkAddH = gantt.attachEvent('onAfterLinkAdd', async (id: any, link: any) => {
           try {
@@ -163,54 +145,35 @@ function mapLinkType(type: string): string {
 }
 
 /**
- * 自绘"今天"标记线。
- *
- * dhtmlx-gantt 10.0 社区版没有内置 marker 插件（无 addMarker / markToday），
- * 这里用 posFromDate 算出今天在时间轴上的 X 坐标，自绘标记：
- *   - 顶部 ▼ 三角形（贴时间轴刻度下沿）+ "今天"文字标签
- *   - 中间红色虚线（只在任务条数据区垂直贯穿）
- *   - 底部 ▲ 三角形（贴任务区底部）
- * 标记挂在 .gantt_data_area（时间轴滚动容器）内，随时间轴横向滚动一起移动。
+ * 自绘"今天"标记 — 挂在于时间轴可视区顶部，冻结在日期刻度位置。
+ * 挂在 .gantt_task 内（覆盖时间轴可视区的背景层），该元素随横向滚动但不纵向滚动。
  */
 function drawTodayMarker(gantt: any, container: HTMLElement) {
-  // 清除旧标记（scale 切换 / 数据刷新时会重复调用）
   container.querySelectorAll('.pm-today-marker').forEach((el) => el.remove())
 
-  const dataArea = container.querySelector('.gantt_data_area') as HTMLElement | null
-  if (!dataArea) return
+  // .gantt_task 是时间轴背景区域，固定在可视区内不随任务行纵向滚动
+  const taskArea = container.querySelector('.gantt_task') as HTMLElement | null
+  if (!taskArea) return
+
+  // 清除旧标记
+  taskArea.querySelectorAll('.pm-today-marker').forEach((el) => el.remove())
 
   const x = gantt.posFromDate(new Date())
   if (typeof x !== 'number' || isNaN(x)) return
 
   const marker = document.createElement('div')
   marker.className = 'pm-today-marker'
-  // marker 容器：覆盖整个 dataArea（任务条区域），垂直 flex 布局
-  marker.style.cssText = `position:absolute;left:${x}px;top:0;height:100%;width:0;z-index:10;pointer-events:none;display:flex;flex-direction:column;align-items:center;justify-content:space-between;`
+  marker.style.cssText = `position:absolute;left:${x}px;top:2px;z-index:10;pointer-events:none;white-space:nowrap;`
 
-  // 顶部 ▼ 三角形 + "今天"标签（贴时间轴刻度下沿 / dataArea 顶部）
-  const topCap = document.createElement('div')
-  topCap.style.cssText = 'display:flex;flex-direction:column;align-items:center;line-height:1;'
-  const label = document.createElement('div')
+  const label = document.createElement('span')
   label.textContent = '今天'
-  label.style.cssText = 'font-size:11px;font-weight:600;color:#fff;background:#ff4d4f;padding:1px 6px;border-radius:3px;white-space:nowrap;margin-bottom:2px;'
-  const triDown = document.createElement('div')
-  triDown.style.cssText = 'width:0;height:0;border-left:5px solid transparent;border-right:5px solid transparent;border-top:6px solid #ff4d4f;'
-  topCap.appendChild(label)
-  topCap.appendChild(triDown)
+  label.style.cssText = 'font-size:10px;font-weight:600;color:#fff;background:#ff4d4f;padding:1px 4px;border-radius:2px;margin-right:2px;'
 
-  // 中间红色虚线（absolute 定位，从顶部三角下方到底部三角上方）
-  const dashedLine = document.createElement('div')
-  dashedLine.style.cssText = 'position:absolute;left:50%;top:27px;bottom:6px;width:0;border-left:2px dashed #ff4d4f;transform:translateX(-50%);'
+  const arrow = document.createElement('span')
+  arrow.innerHTML = '▼'
+  arrow.style.cssText = 'color:#ff4d4f;font-size:8px;'
 
-  // 底部 ▲ 三角形（贴 dataArea 底部，justify-content:space-between 让它自然贴底）
-  const bottomCap = document.createElement('div')
-  bottomCap.style.cssText = 'display:flex;flex-direction:column;align-items:center;line-height:1;'
-  const triUp = document.createElement('div')
-  triUp.style.cssText = 'width:0;height:0;border-left:5px solid transparent;border-right:5px solid transparent;border-bottom:6px solid #ff4d4f;'
-  bottomCap.appendChild(triUp)
-
-  marker.appendChild(topCap)
-  marker.appendChild(dashedLine)
-  marker.appendChild(bottomCap)
-  dataArea.appendChild(marker)
+  marker.appendChild(label)
+  marker.appendChild(arrow)
+  taskArea.appendChild(marker)
 }

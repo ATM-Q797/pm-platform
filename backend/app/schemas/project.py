@@ -93,6 +93,7 @@ class GanttData(BaseModel):
 class WorkloadItem(BaseModel):
     project_id: int
     project_name: str
+    project_owner: str | None = None  # 项目负责人（用于资源视图弹窗显示）
     phase_id: int
     phase_name: str
     plan_start: str | None

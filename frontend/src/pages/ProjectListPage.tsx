@@ -242,7 +242,8 @@ export default function ProjectListPage() {
   }
 
   const columns: ColumnsType<Project> = [
-    { title: '编号', dataIndex: 'code', width: 70, align: 'center' },
+    { title: '编号', width: 70, align: 'center',
+      render: (_: unknown, _r: Project, index: number) => index + 1 },
     {
       title: '项目名称',
       dataIndex: 'name',

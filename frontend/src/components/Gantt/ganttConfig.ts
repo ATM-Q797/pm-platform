@@ -45,10 +45,10 @@ export function applyGanttConfig(gantt: GanttInstance) {
   gantt.config.show_progress = true
   gantt.config.smart_rendering = false  // 关闭虚拟渲染（数据量小，避免部分任务条不画）
 
-  // 拖拽：改期、改工期、改进度
-  gantt.config.drag_move = true
-  gantt.config.drag_resize = true
-  gantt.config.drag_progress = true
+  // 拖拽禁用（所有角色通过 PhaseEditor 窗口修改日期，避免误操作）
+  gantt.config.drag_move = false
+  gantt.config.drag_resize = false
+  gantt.config.drag_progress = false
 
   // 禁用默认双击编辑器（由 PhaseEditor 抽屉替代）
   gantt.config.details_on_dblclick = false

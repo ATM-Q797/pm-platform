@@ -49,6 +49,12 @@ export default function ResourceView({ scale = 'week', onPhaseClick }: Props) {
         ensureGanttCss()
         applyGanttConfig(gantt)
 
+        // 负载视图：左侧栏仅保留阶段名和工期，不显示负责人和开始时间
+        gantt.config.columns = [
+          { name: 'text', label: '阶段', width: 280, tree: true },
+          { name: 'duration', label: '工期', width: 100, align: 'center' },
+        ]
+
         // 负载视图：禁用所有编辑交互，仅查看
         gantt.config.drag_move = false
         gantt.config.drag_resize = false
@@ -195,32 +201,25 @@ function ensureGanttCss() {
 // 今天标记线（与 GanttChart 相同的自绘逻辑）
 function drawTodayMarker(gantt: any, container: HTMLElement) {
   container.querySelectorAll('.pm-today-marker').forEach((el) => el.remove())
-  const dataArea = container.querySelector('.gantt_data_area') as HTMLElement | null
-  if (!dataArea) return
+  const taskArea = container.querySelector('.gantt_task') as HTMLElement | null
+  if (!taskArea) return
+  taskArea.querySelectorAll('.pm-today-marker').forEach((el) => el.remove())
   const x = gantt.posFromDate(new Date())
   if (typeof x !== 'number' || isNaN(x)) return
 
   const marker = document.createElement('div')
   marker.className = 'pm-today-marker'
-  marker.style.cssText = `position:absolute;left:${x}px;top:0;height:100%;width:0;z-index:10;pointer-events:none;display:flex;flex-direction:column;align-items:center;justify-content:space-between;`
-  const topCap = document.createElement('div')
-  topCap.style.cssText = 'display:flex;flex-direction:column;align-items:center;line-height:1;'
-  const label = document.createElement('div')
+  marker.style.cssText = `position:absolute;left:${x}px;top:2px;z-index:10;pointer-events:none;white-space:nowrap;`
+
+  const label = document.createElement('span')
   label.textContent = '今天'
-  label.style.cssText = 'font-size:11px;font-weight:600;color:#fff;background:#ff4d4f;padding:1px 6px;border-radius:3px;white-space:nowrap;margin-bottom:2px;'
-  const triDown = document.createElement('div')
-  triDown.style.cssText = 'width:0;height:0;border-left:5px solid transparent;border-right:5px solid transparent;border-top:6px solid #ff4d4f;'
-  topCap.appendChild(label)
-  topCap.appendChild(triDown)
-  const dashedLine = document.createElement('div')
-  dashedLine.style.cssText = 'position:absolute;left:50%;top:27px;bottom:6px;width:0;border-left:2px dashed #ff4d4f;transform:translateX(-50%);'
-  const bottomCap = document.createElement('div')
-  bottomCap.style.cssText = 'display:flex;flex-direction:column;align-items:center;line-height:1;'
-  const triUp = document.createElement('div')
-  triUp.style.cssText = 'width:0;height:0;border-left:5px solid transparent;border-right:5px solid transparent;border-bottom:6px solid #ff4d4f;'
-  bottomCap.appendChild(triUp)
-  marker.appendChild(topCap)
-  marker.appendChild(dashedLine)
-  marker.appendChild(bottomCap)
-  dataArea.appendChild(marker)
+  label.style.cssText = 'font-size:10px;font-weight:600;color:#fff;background:#ff4d4f;padding:1px 4px;border-radius:2px;margin-right:2px;'
+
+  const arrow = document.createElement('span')
+  arrow.innerHTML = '▼'
+  arrow.style.cssText = 'color:#ff4d4f;font-size:8px;'
+
+  marker.appendChild(label)
+  marker.appendChild(arrow)
+  taskArea.appendChild(marker)
 }
