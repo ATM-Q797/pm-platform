@@ -3,6 +3,7 @@ import { applyGanttConfig, setScale } from '../Gantt/ganttConfig'
 import { setupPan, cleanupPan } from '../Gantt/panUtils'
 import { getAllWorkloads } from '../../api/resources'
 import type { ResourceWorkload } from '../../types'
+import 'dhtmlx-gantt/codebase/dhtmlxgantt.css'
 import '../Gantt/gantt.css'
 import './resourceView.css'
 
@@ -37,7 +38,6 @@ export default function ResourceView({ scale = 'week', onPhaseClick }: Props) {
         ganttRef.current = gantt
         if (destroyed || !containerRef.current) return
 
-        ensureGanttCss()
         applyGanttConfig(gantt)
 
         // 负载视图：左侧栏仅保留阶段名和工期，不显示负责人和开始时间
@@ -177,16 +177,6 @@ function fmt(d: Date): string {
   const m = String(d.getMonth() + 1).padStart(2, '0')
   const day = String(d.getDate()).padStart(2, '0')
   return `${y}-${m}-${day}`
-}
-
-let cssLoaded = false
-function ensureGanttCss() {
-  if (cssLoaded) return
-  const link = document.createElement('link')
-  link.rel = 'stylesheet'
-  link.href = '/node_modules/dhtmlx-gantt/codebase/dhtmlxgantt.css'
-  document.head.appendChild(link)
-  cssLoaded = true
 }
 
 // 今天标记线（与 GanttChart 相同的自绘逻辑）
