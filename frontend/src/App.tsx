@@ -9,6 +9,8 @@ import {
   LogoutOutlined,
   KeyOutlined,
   DownOutlined,
+  AuditOutlined,
+  CheckSquareOutlined,
 } from '@ant-design/icons'
 import ErrorBoundary from './components/ErrorBoundary'
 import LoginPage from './pages/LoginPage'
@@ -22,6 +24,8 @@ const ProjectListPage = lazy(() => import('./pages/ProjectListPage'))
 const ProjectDetailPage = lazy(() => import('./pages/ProjectDetailPage'))
 const ResourcePage = lazy(() => import('./pages/ResourcePage'))
 const UserManagePage = lazy(() => import('./pages/UserManagePage'))
+const ReviewPage = lazy(() => import('./pages/ReviewPage'))
+const MyTasksPage = lazy(() => import('./pages/MyTasksPage'))
 
 const { Header, Content } = Layout
 
@@ -89,6 +93,10 @@ export default function App() {
     ? 'projects'
     : location.pathname.startsWith('/users')
     ? 'users'
+    : location.pathname.startsWith('/review')
+    ? 'review'
+    : location.pathname.startsWith('/my-tasks')
+    ? 'my-tasks'
     : 'dashboard'
 
   if (loading) {
@@ -109,7 +117,13 @@ export default function App() {
     { key: 'projects', icon: <ProjectOutlined />, label: '项目列表' },
     { key: 'resources', icon: <TeamOutlined />, label: '资源负载' },
     ...(user.role === 'admin'
-      ? [{ key: 'users', icon: <UserOutlined />, label: '用户管理' }]
+      ? [
+          { key: 'users', icon: <UserOutlined />, label: '用户管理' },
+          { key: 'review', icon: <AuditOutlined />, label: '审核中心' },
+        ]
+      : []),
+    ...(user.role === 'engineer' || user.role === 'manager'
+      ? [{ key: 'my-tasks', icon: <CheckSquareOutlined />, label: '我的任务' }]
       : []),
   ]
 
@@ -149,6 +163,8 @@ export default function App() {
                 else if (key === 'projects') navigate('/projects')
                 else if (key === 'resources') navigate('/resources')
                 else if (key === 'users') navigate('/users')
+                else if (key === 'review') navigate('/review')
+                else if (key === 'my-tasks') navigate('/my-tasks')
               }}
               items={navItems}
               style={{ minWidth: 280, background: 'transparent' }}
@@ -173,6 +189,8 @@ export default function App() {
               <Route path="/projects/:id" element={<ProjectDetailPage />} />
               <Route path="/resources" element={<ResourcePage />} />
               <Route path="/users" element={<UserManagePage />} />
+              <Route path="/review" element={<ReviewPage />} />
+              <Route path="/my-tasks" element={<MyTasksPage />} />
               <Route path="/login" element={<Navigate to="/" replace />} />
               <Route path="*" element={<Navigate to="/" replace />} />
             </Routes>

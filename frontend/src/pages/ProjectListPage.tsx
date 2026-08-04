@@ -7,6 +7,8 @@ import type { ColumnsType } from 'antd/es/table'
 import { listProjects, createProject, updateProject, deleteProject, applyTemplate } from '../api/projects'
 import { listTemplates } from '../api/templates'
 import { listUsers } from '../api/users'
+import { requestDeleteProject } from '../api/audit'
+import { getMe } from '../api/auth'
 import type { Project, ImportReport, Template, UserInfo } from '../types'
 
 // 状态 → Tag 颜色
@@ -30,13 +32,16 @@ export default function ProjectListPage() {
   const [editing, setEditing] = useState<Project | null>(null)
   const [templates, setTemplates] = useState<Template[]>([])
   const [managers, setManagers] = useState<UserInfo[]>([])  // 可选为项目负责人的用户（manager + admin）
+  const [myRole, setMyRole] = useState<string>('viewer')
+  const [deleteReasonOpen, setDeleteReasonOpen] = useState<Project | null>(null)
+  const [deleteReason, setDeleteReason] = useState('')
   const [form] = Form.useForm()
   const [editForm] = Form.useForm()
 
   const load = async () => {
     setLoading(true)
     try {
-      const [data, tpls] = await Promise.all([
+      const [data, tpls, users, me] = await Promise.all([
         listProjects({
           status: filters.status || undefined,
           market: filters.market || undefined,
@@ -44,9 +49,11 @@ export default function ProjectListPage() {
         }),
         listTemplates(),
         listUsers(),
+        getMe(),
       ])
       setProjects(data)
       setTemplates(tpls)
+      setMyRole(me.role)
       // 只保留 manager 和 admin 角色作为项目负责人候选
       setManagers(users.filter((u) => u.role === 'manager' || u.role === 'admin'))
     } catch (e) {
@@ -197,12 +204,32 @@ export default function ProjectListPage() {
   }
 
   const handleDelete = async (project: Project) => {
+    if (myRole === 'admin') {
+      // 管理员直接删
+      try {
+        await deleteProject(project.id)
+        message.success(`已删除项目 "${project.name}"`)
+        load()
+      } catch (e) {
+        message.error((e as Error).message)
+      }
+    } else {
+      // manager 弹出申请框
+      setDeleteReasonOpen(project)
+      setDeleteReason('')
+    }
+  }
+
+  const handleDeleteRequest = async () => {
+    if (!deleteReasonOpen) return
     try {
-      await deleteProject(project.id)
-      message.success(`已删除项目 "${project.name}"`)
+      await requestDeleteProject(deleteReasonOpen.id, deleteReason || undefined)
+      message.success('删除申请已提交，等待管理员审核')
+      setDeleteReasonOpen(null)
+      setDeleteReason('')
       load()
     } catch (e) {
-      message.error((e as Error).message)
+      message.error('申请失败：' + (e as Error).message)
     }
   }
 
@@ -242,8 +269,13 @@ export default function ProjectListPage() {
           <Button size="small" icon={<EditOutlined />} onClick={(e) => { e.stopPropagation(); handleEdit(r) }}>
             编辑
           </Button>
-          <Popconfirm title={`删除项目 "${r.name}"？`} onConfirm={() => handleDelete(r)}
-            okText="删除" okType="danger" cancelText="取消">
+          <Popconfirm
+            title={myRole === 'admin' ? `删除项目 "${r.name}"？此操作不可恢复` : `申请删除项目 "${r.name}"？`}
+            onConfirm={() => handleDelete(r)}
+            okText={myRole === 'admin' ? '删除' : '申请'}
+            okType="danger"
+            cancelText="取消"
+          >
             <Button size="small" danger icon={<DeleteOutlined />} onClick={(e) => e.stopPropagation()} />
           </Popconfirm>
         </Space>
@@ -447,6 +479,25 @@ export default function ProjectListPage() {
             <Input.TextArea rows={2} />
           </Form.Item>
         </Form>
+      </Modal>
+
+      {/* 删除申请（manager） */}
+      <Modal
+        title="申请删除项目"
+        open={!!deleteReasonOpen}
+        onOk={handleDeleteRequest}
+        onCancel={() => { setDeleteReasonOpen(null); setDeleteReason('') }}
+        okText="提交申请"
+        okType="danger"
+      >
+        <p>项目：{deleteReasonOpen?.name}</p>
+        <p style={{ color: '#999', fontSize: 12 }}>申请将提交给管理员审核，通过后项目才会被删除。</p>
+        <Input.TextArea
+          placeholder="删除原因（可选）"
+          rows={3}
+          value={deleteReason}
+          onChange={(e) => setDeleteReason(e.target.value)}
+        />
       </Modal>
     </>
   )

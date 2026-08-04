@@ -50,6 +50,12 @@ from app.schemas.user import (
     UserRead,
     UserUpdate,
 )
+from app.schemas.audit import (
+    DeleteRequestCreate,
+    DeleteRequestRead,
+    DeleteReview,
+    OperationLogRead,
+)
 
 __all__ = [
     "ResourceCreate", "ResourceRead", "ResourceUpdate",
@@ -61,4 +67,5 @@ __all__ = [
     "ImportReport", "ImportIssue", "ImportWarn",
     "DashboardStats", "DelayedProject", "ReworkPhase", "StatusCount",
     "UserCreate", "UserRead", "UserUpdate", "LoginRequest", "LoginResponse", "PasswordChange",
+    "DeleteRequestCreate", "DeleteRequestRead", "DeleteReview", "OperationLogRead",
 ]

@@ -9,6 +9,7 @@ from app.models.template import Template, TemplateDependency, TemplatePhase
 from app.models.project import Project
 from app.models.phase import Phase, ReworkLog, phase_assignee
 from app.models.dependency import Dependency
+from app.models.audit import ProjectDeleteRequest, OperationLog
 
 __all__ = [
     "Resource",
@@ -21,4 +22,6 @@ __all__ = [
     "ReworkLog",
     "phase_assignee",
     "Dependency",
+    "ProjectDeleteRequest",
+    "OperationLog",
 ]

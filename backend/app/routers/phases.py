@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 from app.core.deps import get_current_user, check_project_access, check_phase_access
 from app.database import get_db
 from app.models import Dependency, Phase, Project, Resource, ReworkLog, User
+from app.routers.audit import log_operation
 from app.schemas import PhaseCreate, PhaseRead, PhaseUpdate, ReworkLogRead, ReworkRequest
 
 router = APIRouter(tags=["阶段"])
@@ -191,6 +192,9 @@ def update_phase(
     # 重排 sequence 保证连续无空洞
     _normalize_sequence(db, phase.project_id)
     db.commit()
+    log_operation(db, user, "update_phase", "phase", phase.id, phase.name,
+                  detail=f"项目#{phase.project_id}，修改字段：{', '.join(data.keys())}")
+    db.commit()
     db.refresh(phase)
     return phase
 
@@ -283,6 +287,9 @@ def rework_phase(
     if payload.to_status == "未开始":
         phase.progress = 0
     db.add(log)
+    db.commit()
+    log_operation(db, user, "rework_phase", "phase", phase_id, phase.name,
+                  detail=f"项目#{phase.project_id}，{from_status}→{payload.to_status}，原因：{payload.reason}")
     db.commit()
     db.refresh(log)
     return log

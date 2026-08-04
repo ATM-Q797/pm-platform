@@ -11,6 +11,7 @@ from sqlalchemy.orm import Session
 from app.core.deps import get_current_user, require_role, check_project_access
 from app.database import get_db
 from app.models import Dependency, Phase, Project, User
+from app.routers.audit import log_operation
 from app.schemas import (
     GanttData,
     ProjectCreate,
@@ -61,6 +62,8 @@ def create_project(
     db.add(project)
     db.commit()
     db.refresh(project)
+    log_operation(db, user, "create_project", "project", project.id, project.name)
+    db.commit()
     return project
 
 
@@ -100,6 +103,9 @@ def update_project(
         setattr(project, k, v)
     db.commit()
     db.refresh(project)
+    log_operation(db, user, "update_project", "project", project.id, project.name,
+                  detail=f"修改字段：{', '.join(data.keys())}")
+    db.commit()
     return project
 
 
@@ -107,9 +113,19 @@ def update_project(
 def delete_project(
     project_id: int,
     db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),  # 改：check_project_access 内部判断角色
+    user: User = Depends(get_current_user),
 ):
+    """删除项目。
+
+    - admin：直接物理删除
+    - manager：不能直接删，提示走删除申请流程（POST /api/projects/{id}/delete-request）
+    """
     project = check_project_access(project_id, user, db)
+    if user.role == "manager":
+        raise HTTPException(
+            status.HTTP_403_FORBIDDEN,
+            "项目负责人不能直接删除项目，请申请删除（调用 delete-request 接口）",
+        )
     db.delete(project)
     db.commit()
 
