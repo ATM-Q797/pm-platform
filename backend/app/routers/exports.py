@@ -1,8 +1,9 @@
 """Excel 导出 API。
 
-把当前所有项目+阶段导出为 Excel，格式与导入源文件对齐：
-- 两个 sheet：项目情况统计-国内 / 项目情况统计-海外
-- 列：项目编号 | 项目类目 | 项目名称 | 负责人 | 计划开始 | 计划结束 | 状态 | 交接人
+把当前所有项目+阶段导出为 Excel，格式与「项目填报模板.xlsx」对齐（14 列）：
+- 单 sheet：项目填报
+- 列：项目编号 | 项目类目 | 项目名称 | 项目负责人 | 市场 | 阶段类型 |
+      计划开始 | 计划结束 | 实际开始 | 实际结束 | 阶段负责人 | 阶段状态 | 阶段进度 | 备注
 - 项目行编号为纯数字，阶段行编号为"项目编号-序号"
 """
 from __future__ import annotations
@@ -19,18 +20,23 @@ from sqlalchemy.orm import Session
 
 from app.database import get_db
 from app.models import Phase, Project
+from app.services.excel_format import HEADERS, style_sheet
 
 router = APIRouter(prefix="/api/export", tags=["Excel导出"])
 
-# 列标题（与导入源文件一致）
-_HEADERS = ["项目编号", "项目类目", "项目名称", "负责人", "计划开始", "计划结束", "状态", "交接人"]
+
+def _phase_type_label(ph: Phase) -> str:
+    """阶段类型列文本：直接使用阶段名称（不含 P1-P8 前缀）。"""
+    return ph.name
 
 
 def _write_sheet(ws, projects: list[Project]) -> None:
-    """把一组项目写入工作表。项目行用纯数字编号，阶段行用'编号-序号'。"""
-    # 表头 2 行（第 1 行列名，第 2 行留空，与源文件一致）
-    ws.append(_HEADERS)
-    ws.append([""] * len(_HEADERS))
+    """把全部项目写入工作表（布局与填报模板一致：R1 标题 / R2 表头 / R3 起数据）。"""
+    # 第 1 行：标题
+    ws.append(["智能终端研发项目管理平台 — 项目填报模板"])
+    # 第 2 行：表头
+    ws.append(HEADERS)
+    # 第 3 行起：数据
 
     for proj_idx, project in enumerate(projects, start=1):
         # 项目行
@@ -39,9 +45,15 @@ def _write_sheet(ws, projects: list[Project]) -> None:
             project.category,
             project.name,
             project.owner,
+            project.market,
+            "",  # 阶段类型
             project.plan_start,
             project.plan_end,
-            project.status,
+            "",  # 实际开始
+            "",  # 实际结束
+            "",  # 阶段负责人
+            "",  # 阶段状态
+            "",  # 阶段进度
             project.remark or "",
         ])
         # 阶段行（按 sequence 排序）
@@ -51,35 +63,32 @@ def _write_sheet(ws, projects: list[Project]) -> None:
             owner = " ".join(a.name for a in ph.assignees) if ph.assignees else ""
             ws.append([
                 f"{proj_idx}-{seq}",
-                ph.name,  # 类目列放阶段名（与导入时阶段行的类目列一致）
-                ph.name,
-                owner,
+                "",  # 类目
+                "",  # 名称（阶段名在"阶段类型"列）
+                "",  # 项目负责人
+                "",  # 市场
+                _phase_type_label(ph),
                 ph.plan_start,
                 ph.plan_end,
+                ph.actual_start,
+                ph.actual_end,
+                owner,
                 ph.status,
-                ph.handover_to or "",
+                ph.progress,
+                ph.remark or "",
             ])
 
 
 @router.get("/excel")
 def export_excel(db: Session = Depends(get_db)):
-    """导出所有项目为 Excel 文件（国内/海外两个 sheet）。"""
+    """导出所有项目为 Excel 文件（单 sheet，与填报模板格式一致）。"""
     wb = openpyxl.Workbook()
-
+    ws = wb.active
+    ws.title = "项目填报"
     all_projects = list(db.scalars(select(Project).order_by(Project.id)))
-
-    # 按市场分组
-    domestic = [p for p in all_projects if p.market == "国内"]
-    overseas = [p for p in all_projects if p.market == "海外"]
-
-    # 国内 sheet（重命名默认 sheet）
-    ws_domestic = wb.active
-    ws_domestic.title = "项目情况统计-国内"
-    _write_sheet(ws_domestic, domestic)
-
-    # 海外 sheet
-    ws_overseas = wb.create_sheet("项目情况统计-海外")
-    _write_sheet(ws_overseas, overseas)
+    _write_sheet(ws, all_projects)
+    # 应用模板样式与数据验证（列宽/边框/冻结/下拉/日期验证）
+    style_sheet(ws)
 
     # 输出到内存
     buf = io.BytesIO()

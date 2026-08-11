@@ -32,7 +32,7 @@ interface Props {
   readonly?: boolean
   /** 当前用户角色（用于审批流程判断） */
   userRole?: string
-  /** 精简模式：隐藏顺序调整、依赖、交接人等高级字段（资源视图使用） */
+  /** 精简模式：隐藏顺序调整、依赖等高级字段（资源视图使用） */
   hideExtra?: boolean
   onClose: () => void
   onSaved: () => void
@@ -42,14 +42,14 @@ const STATUS_OPTIONS = ['未开始', '进行中', '已完成', '延期', '已搁
 
 // 标准阶段类型（PROJECT_SPEC §2.3），含默认显示名称
 const PHASE_TYPE_OPTIONS = [
-  { value: 'P1', label: 'P1 需求评估', name: '需求评估' },
-  { value: 'P2', label: 'P2 配置评估', name: '配置评估' },
-  { value: 'P3', label: 'P3 模块选型', name: '模块选型' },
-  { value: 'P4', label: 'P4 工业设计', name: '工业设计' },
-  { value: 'P5', label: 'P5 结构设计', name: '结构设计' },
-  { value: 'P6', label: 'P6 样机打样', name: '样机打样' },
-  { value: 'P7', label: 'P7 联调测试', name: '联调测试' },
-  { value: 'P8', label: 'P8 交付', name: '交付' },
+  { value: 'P1', label: '需求评估', name: '需求评估' },
+  { value: 'P2', label: '配置评估', name: '配置评估' },
+  { value: 'P3', label: '模块选型', name: '模块选型' },
+  { value: 'P4', label: '工业设计', name: '工业设计' },
+  { value: 'P5', label: '结构设计', name: '结构设计' },
+  { value: 'P6', label: '样机打样', name: '样机打样' },
+  { value: 'P7', label: '联调测试', name: '联调测试' },
+  { value: 'P8', label: '交付', name: '交付' },
 ]
 
 export default function PhaseEditor({ phaseId, projectId, defaultSequence, readonly, userRole, hideExtra, onClose, onSaved }: Props) {
@@ -96,7 +96,6 @@ export default function PhaseEditor({ phaseId, projectId, defaultSequence, reado
           actual_start: ph.actual_start ? dayjs(ph.actual_start) : null,
           actual_end: ph.actual_end ? dayjs(ph.actual_end) : null,
           assignee_ids: ph.assignees?.map((a) => a.id) || [],
-          handover_to: ph.handover_to,
           remark: ph.remark,
           depends_on_phase_ids: dependsOnIds,
           depended_by_phase_ids: dependedByIds,
@@ -156,7 +155,6 @@ export default function PhaseEditor({ phaseId, projectId, defaultSequence, reado
           status: values.status || '未开始',
           progress: values.progress ?? 0,
           assignee_ids: values.assignee_ids || [],
-          handover_to: values.handover_to || null,
           remark: values.remark || null,
         })
         message.success('阶段已添加')
@@ -173,7 +171,6 @@ export default function PhaseEditor({ phaseId, projectId, defaultSequence, reado
         if (values.actual_start !== undefined) payload.actual_start = values.actual_start?.format('YYYY-MM-DD') || null
         if (values.actual_end !== undefined) payload.actual_end = values.actual_end?.format('YYYY-MM-DD') || null
         if (values.assignee_ids !== undefined) payload.assignee_ids = values.assignee_ids
-        if (values.handover_to !== undefined) payload.handover_to = values.handover_to
         if (values.remark !== undefined) payload.remark = values.remark
 
         if (userRole === 'engineer') {
@@ -322,7 +319,7 @@ export default function PhaseEditor({ phaseId, projectId, defaultSequence, reado
       }
     >
       <Form form={form} layout="vertical" preserve={false} disabled={readonly}>
-        <Form.Item name="phase_type" label="阶段类型（P1-P8）" rules={[{ required: true, message: '请选择阶段类型' }]}>
+        <Form.Item name="phase_type" label="阶段类型" rules={[{ required: true, message: '请选择阶段类型' }]}>
           <Select
             placeholder="请选择标准阶段类型"
             options={PHASE_TYPE_OPTIONS}
@@ -438,11 +435,6 @@ export default function PhaseEditor({ phaseId, projectId, defaultSequence, reado
             options={resources.map((r) => ({ value: r.id, label: r.name + (r.role ? `（${r.role}）` : '') }))}
           />
         </Form.Item>
-        {!hideExtra && (
-          <Form.Item name="handover_to" label="交接人">
-            <Input />
-          </Form.Item>
-        )}
         <Form.Item name="remark" label="备注">
           <Input.TextArea rows={2} />
         </Form.Item>

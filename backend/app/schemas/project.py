@@ -27,7 +27,8 @@ class ProjectBase(BaseModel):
 
 
 class ProjectCreate(ProjectBase):
-    pass
+    # 项目编号系统自动生成（连续整数），创建时可不传
+    code: str | None = None
 
 
 class ProjectUpdate(BaseModel):

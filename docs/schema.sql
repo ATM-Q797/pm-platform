@@ -65,7 +65,7 @@ CREATE TABLE IF NOT EXISTS project (
     category    TEXT NOT NULL,                     -- 新需求/量产/定制/改造
     name        TEXT NOT NULL,                     -- 项目名称
     owner       TEXT NOT NULL,                     -- 项目负责人
-    market      TEXT NOT NULL,                     -- 国内/海外
+    market      TEXT NOT NULL,                     -- 销售区域（拉美区/西欧区/...）
     status      TEXT NOT NULL DEFAULT '未开始',     -- 未开始/进行中/已完成/已搁置
     priority    TEXT,                              -- 高/中/低
     plan_start  DATE,
@@ -92,7 +92,6 @@ CREATE TABLE IF NOT EXISTS phase (
     status        TEXT NOT NULL DEFAULT '未开始',   -- 未开始/进行中/已完成/延期/已搁置
     progress      INTEGER DEFAULT 0,               -- 0-100
     rework_count  INTEGER DEFAULT 0,
-    handover_to   TEXT,                            -- 交接人
     remark        TEXT
 );
 

@@ -129,7 +129,7 @@ export default function ProjectDetailPage() {
             <Tag color={STATUS_COLOR[project.status] || 'default'}>{project.status}</Tag>
           </Descriptions.Item>
           <Descriptions.Item label="市场">
-            <Tag color={project.market === '海外' ? 'purple' : 'blue'}>{project.market}</Tag>
+            <Tag color="blue">{project.market}</Tag>
           </Descriptions.Item>
           <Descriptions.Item label="类目">{project.category}</Descriptions.Item>
           <Descriptions.Item label="负责人">{project.owner}</Descriptions.Item>

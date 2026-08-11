@@ -163,7 +163,6 @@ export default function ReviewPage({ userRole = 'admin' }: { userRole?: string }
     actual_end: '实际结束',
     phase_type: '阶段类型',
     remark: '备注',
-    handover_to: '交接人',
     assignee_ids: '负责人',
   }
 

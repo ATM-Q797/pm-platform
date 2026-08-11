@@ -253,62 +253,128 @@ def test_import_rejects_non_excel(client, db_session):
 # ---------- 直接调用 import_excel 的单元测试（构造内存 Excel） ----------
 
 def test_import_excel_direct_with_constructed_workbook(client, db_session):
-    """构造一个最小 Excel，直接测导入逻辑（不依赖真实文件）。"""
+    """构造一个最小 14 列模板格式 Excel，直接测导入逻辑。"""
     import openpyxl
     from app.services.excel_importer import import_excel
 
     wb = openpyxl.Workbook()
     ws = wb.active
-    ws.title = "项目情况统计-国内"
-    # 表头 2 行
-    ws.cell(1, 1, "项目编号")
-    ws.cell(2, 9, "1")  # 第 2 行的月份表头（无意义，模拟）
+    ws.title = "项目填报"
+    # 表头（14 列，与 docs/项目填报模板.xlsx 一致）
+    headers = ["项目编号", "项目类目", "项目名称", "项目负责人", "市场", "阶段类型",
+               "计划开始", "计划结束", "实际开始", "实际结束",
+               "阶段负责人", "阶段状态", "阶段进度", "备注"]
+    for c, h in enumerate(headers, 1):
+        ws.cell(1, c, h)
     # 项目 1
     ws.cell(3, 1, "1")
-    ws.cell(3, 2, "工行招标")
+    ws.cell(3, 2, "新需求")
     ws.cell(3, 3, "测试项目")
     ws.cell(3, 4, "张三")
-    ws.cell(3, 5, datetime(2026, 7, 1))
-    ws.cell(3, 6, datetime(2026, 8, 1))
-    ws.cell(3, 7, "进行中")
+    ws.cell(3, 5, "拉美区")
+    ws.cell(3, 7, datetime(2026, 7, 1))
+    ws.cell(3, 8, datetime(2026, 8, 1))
+    ws.cell(3, 14, "项目备注")
     # 阶段 1-1
     ws.cell(4, 1, "1-1")
-    ws.cell(4, 2, "阶段A")
-    ws.cell(4, 3, "工业设计")
-    ws.cell(4, 4, "李四 王五")
-    ws.cell(4, 5, datetime(2026, 7, 1))
-    ws.cell(4, 6, datetime(2026, 7, 10))
-    ws.cell(4, 7, "已完成")
+    ws.cell(4, 6, "P4 工业设计")
+    ws.cell(4, 7, datetime(2026, 7, 1))
+    ws.cell(4, 8, datetime(2026, 7, 10))
+    ws.cell(4, 9, datetime(2026, 7, 1))
+    ws.cell(4, 11, "李四 王五")
+    ws.cell(4, 12, "已完成")
+    ws.cell(4, 13, 100)
     # 阶段 1-2
     ws.cell(5, 1, "1-2")
-    ws.cell(5, 2, "阶段B")
-    ws.cell(5, 3, "结构设计")
-    ws.cell(5, 4, "李四")
-    ws.cell(5, 5, datetime(2026, 7, 11))
-    ws.cell(5, 6, datetime(2026, 7, 30))
-    ws.cell(5, 7, "进行中")
+    ws.cell(5, 6, "P5 结构设计")
+    ws.cell(5, 7, datetime(2026, 7, 11))
+    ws.cell(5, 8, datetime(2026, 7, 30))
+    ws.cell(5, 11, "李四")
+    ws.cell(5, 12, "进行中")
+    ws.cell(5, 13, 60)
+    # 阶段 1-3（纯中文阶段类型列，走映射表兜底）
+    ws.cell(6, 1, "1-3")
+    ws.cell(6, 6, "交付")
+    ws.cell(6, 7, datetime(2026, 8, 1))
+    ws.cell(6, 8, datetime(2026, 8, 30))
+    ws.cell(6, 11, "王五")
+    ws.cell(6, 12, "未开始")
 
     import io
     buf = io.BytesIO()
     wb.save(buf)
 
     from app.database import SessionLocal
-    # 用 TestClient 已注入的 db_session
     report = import_excel(db_session, buf.getvalue())
     assert report.projects_imported == 1
-    assert report.phases_imported == 2
+    assert report.phases_imported == 3
+    assert len(report.errors) == 0
+
+    # 项目字段验证（市场/类目/备注来自模板列）
+    projects = list(db_session.query(Project))
+    assert projects[0].market == "拉美区"
+    assert projects[0].category == "新需求"
+    assert projects[0].remark == "项目备注"
 
     # 验证人员拆分：李四、王五、张三
     resources = list(db_session.query(Resource))
     names = {r.name for r in resources}
     assert {"张三", "李四", "王五"} <= names
 
-    # 验证依赖：1-1 → 1-2 FS
+    # 验证依赖：1-1 → 1-2 → 1-3 两条 FS
     deps = list(db_session.query(Dependency))
-    assert len(deps) == 1
-    assert deps[0].type == "FS"
+    assert len(deps) == 2
+    assert all(d.type == "FS" for d in deps)
 
-    # 验证 phase_type 映射
+    # 验证 phase_type 解析（"P4 工业设计" → P4 + name=工业设计）与进度/实际日期
     phases = list(db_session.query(Phase).order_by(Phase.sequence))
-    assert phases[0].phase_type == "P4"  # 工业设计
-    assert phases[1].phase_type == "P5"  # 结构设计
+    assert phases[0].phase_type == "P4"
+    assert phases[0].name == "工业设计"
+    assert phases[0].progress == 100
+    assert phases[0].actual_start == date(2026, 7, 1)
+    assert phases[1].phase_type == "P5"
+    assert phases[1].name == "结构设计"
+    assert phases[1].progress == 60
+    # 阶段 1-3：纯中文阶段类型列 → 映射表兜底
+    assert phases[2].phase_type == "P8"
+    assert phases[2].name == "交付"
+
+
+def test_import_old_format_compat(client, db_session):
+    """旧 8 列格式（含交接人列）仍可导入：交接人列被忽略，市场按 sheet 名推断。"""
+    import openpyxl
+    from app.services.excel_importer import import_excel
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "项目情况统计-海外"
+    headers = ["项目编号", "项目类目", "项目名称", "负责人", "计划开始", "计划结束", "状态", "交接人"]
+    for c, h in enumerate(headers, 1):
+        ws.cell(1, c, h)
+    # 项目 1
+    ws.cell(3, 1, "1")
+    ws.cell(3, 3, "旧格式项目")
+    ws.cell(3, 4, "张三")
+    ws.cell(3, 7, "进行中")
+    # 阶段 1-1
+    ws.cell(4, 1, "1-1")
+    ws.cell(4, 3, "工业设计")
+    ws.cell(4, 4, "李四")
+    ws.cell(4, 7, "已完成")
+    ws.cell(4, 8, "王五")  # 交接人列：应被忽略
+
+    import io
+    buf = io.BytesIO()
+    wb.save(buf)
+
+    report = import_excel(db_session, buf.getvalue())
+    assert report.projects_imported == 1
+    assert report.phases_imported == 1
+
+    projects = list(db_session.query(Project))
+    assert projects[0].market == "海外"  # 旧格式按 sheet 名推断
+    assert projects[0].status == "进行中"
+
+    phases = list(db_session.query(Phase))
+    assert phases[0].phase_type == "P4"  # 名称映射兜底
+    assert phases[0].status == "已完成"

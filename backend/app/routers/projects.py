@@ -4,6 +4,8 @@
 """
 from __future__ import annotations
 
+import re
+
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
@@ -20,6 +22,16 @@ from app.schemas import (
     ProjectUpdate,
 )
 from app.services import apply_template, build_gantt
+
+# 纯数字编号正则（自动编号用）
+_CODE_INT_RE = re.compile(r"^\d+$")
+
+
+def _next_project_code(db: Session) -> str:
+    """生成下一个项目编号：现有纯数字编号最大值 + 1（无则从 1 开始）。"""
+    codes = db.scalars(select(Project.code)).all()
+    nums = [int(c) for c in codes if c and _CODE_INT_RE.match(c)]
+    return str(max(nums) + 1) if nums else "1"
 
 router = APIRouter(prefix="/api/projects", tags=["项目"])
 
@@ -78,9 +90,12 @@ def create_project(
     db: Session = Depends(get_db),
     user: User = Depends(require_role("admin", "manager")),
 ):
-    if db.scalars(select(Project).where(Project.code == payload.code)).first():
-        raise HTTPException(400, f"项目编号 {payload.code} 已存在")
     data = payload.model_dump()
+    # 项目编号：未提供时自动生成（现有纯数字编号的最大值 + 1）
+    if not data.get("code"):
+        data["code"] = _next_project_code(db)
+    if db.scalars(select(Project).where(Project.code == data["code"])).first():
+        raise HTTPException(400, f"项目编号 {data['code']} 已存在")
     # 自动记录创建者；manager 创建时若未指定 managed_by，默认为自己的 user_id
     data["created_by"] = user.id
     if data.get("managed_by") is None and user.role == "manager":
