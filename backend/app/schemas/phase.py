@@ -19,7 +19,6 @@ class PhaseBase(BaseModel):
     status: str = "未开始"  # 未开始/进行中/已完成/延期/已搁置
     progress: int = Field(default=0, ge=0, le=100)
     rework_count: int = 0
-    handover_to: str | None = None
     remark: str | None = None
 
 
@@ -45,7 +44,6 @@ class PhaseUpdate(BaseModel):
     status: str | None = None
     progress: int | None = Field(default=None, ge=0, le=100)
     rework_count: int | None = None
-    handover_to: str | None = None
     remark: str | None = None
     assignee_ids: list[int] | None = None  # 提供则整体替换负责人
 

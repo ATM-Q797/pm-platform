@@ -82,7 +82,7 @@ export default function DashboardPage() {
       dataIndex: 'market',
       width: 80,
       align: 'center',
-      render: (m: string) => <Tag color={m === '海外' ? 'purple' : 'blue'}>{m}</Tag>,
+      render: (m: string) => <Tag color="blue">{m}</Tag>,
     },
   ]
 

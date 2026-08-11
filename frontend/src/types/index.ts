@@ -1,5 +1,12 @@
 // 与后端 Pydantic schema 一一对应的 TypeScript 类型定义
 
+// 市场区域（与 docs/项目填报模板.xlsx 下拉一致）
+export const MARKET_OPTIONS = [
+  '拉美区', '西欧区', '东欧区', '中东区', '亚太区', '土耳其区', '非洲区', '北美区', 'OEM业务部',
+]
+
+export const MARKET_OPTION_ITEMS = MARKET_OPTIONS.map((m) => ({ value: m, label: m }))
+
 // ---------- 项目 ----------
 export interface Project {
   id: number
@@ -7,7 +14,7 @@ export interface Project {
   category: string // 新需求/量产/定制/改造
   name: string
   owner: string
-  market: string // 国内/海外
+  market: string // 销售区域（拉美区/西欧区/...）
   status: string // 未开始/进行中/已完成/已搁置
   priority?: string | null // 高/中/低
   plan_start?: string | null // YYYY-MM-DD
@@ -27,7 +34,7 @@ export interface ProjectDetail extends Project {
 }
 
 export interface ProjectCreate {
-  code: string
+  code?: string // 系统自动生成（连续整数），可不传
   category: string
   name: string
   owner: string
@@ -57,7 +64,6 @@ export interface Phase {
   status: string // 未开始/进行中/已完成/延期/已搁置
   progress: number // 0-100
   rework_count: number
-  handover_to?: string | null
   remark?: string | null
   assignees?: Resource[]
 }
@@ -72,7 +78,6 @@ export interface PhaseCreate {
   actual_end?: string | null
   status?: string
   progress?: number
-  handover_to?: string | null
   remark?: string | null
   assignee_ids?: number[]
   depends_on_phase_ids?: number[]

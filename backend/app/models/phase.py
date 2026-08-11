@@ -54,7 +54,6 @@ class Phase(Base):
     )  # 未开始/进行中/已完成/延期/已搁置
     progress: Mapped[int] = mapped_column(Integer, default=0, server_default="0")  # 0-100
     rework_count: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
-    handover_to: Mapped[str | None] = mapped_column(String)
     remark: Mapped[str | None] = mapped_column(String)
 
     project: Mapped["Project"] = relationship(back_populates="phases")

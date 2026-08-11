@@ -181,7 +181,7 @@ PROJECT 1───N PHASE N───N DEPENDENCY
 | category | TEXT | NOT NULL | 类目：新需求/量产/定制/改造 |
 | name | TEXT | NOT NULL | 项目名称 |
 | owner | TEXT | NOT NULL | 项目负责人 |
-| market | TEXT | NOT NULL | 市场：国内/海外 |
+| market | TEXT | NOT NULL | 销售区域：拉美区/西欧区/东欧区/中东区/亚太区/土耳其区/非洲区/北美区/OEM业务部 |
 | status | TEXT | NOT NULL DEFAULT '未开始' | 未开始/进行中/已完成/已搁置 |
 | priority | TEXT | | 高/中/低 |
 | plan_start | DATE | | 计划开始日期 |
@@ -207,7 +207,6 @@ PROJECT 1───N PHASE N───N DEPENDENCY
 | status | TEXT | NOT NULL DEFAULT '未开始' | 未开始/进行中/已完成/延期/已搁置 |
 | progress | INTEGER | DEFAULT 0 | 进度 0-100 |
 | rework_count | INTEGER | DEFAULT 0 | 返工次数 |
-| handover_to | TEXT | | 交接人 |
 | remark | TEXT | | 备注 |
 
 #### 2.2.4 rework_log（返工日志）

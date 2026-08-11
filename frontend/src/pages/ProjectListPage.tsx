@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Table, Card, Select, Input, Button, Space, Tag, Upload, Modal, Form, DatePicker, message, Spin, Popconfirm } from 'antd'
-import { UploadOutlined, ReloadOutlined, DownloadOutlined, PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons'
+import { DownloadOutlined, ReloadOutlined, UploadOutlined, PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons'
 import dayjs from 'dayjs'
 import type { ColumnsType } from 'antd/es/table'
 import { listProjects, createProject, updateProject, deleteProject, applyTemplate } from '../api/projects'
@@ -9,6 +9,7 @@ import { listTemplates } from '../api/templates'
 import { listUsers } from '../api/users'
 import { requestDeleteProject } from '../api/audit'
 import { getMe } from '../api/auth'
+import { MARKET_OPTION_ITEMS, MARKET_OPTIONS } from '../types'
 import type { Project, ImportReport, Template, UserInfo } from '../types'
 
 // 状态 → Tag 颜色
@@ -137,8 +138,8 @@ export default function ProjectListPage() {
       setCreating(true)
       // 从 managed_by（user_id）反查用户姓名，同步填入 owner（兼容显示/旧逻辑）
       const managerUser = managers.find((m) => m.id === values.managed_by)
+      // 项目编号由系统自动生成（连续整数），无需前端填写
       const project = await createProject({
-        code: values.code,
         category: values.category,
         name: values.name,
         owner: managerUser?.name || '',
@@ -172,7 +173,6 @@ export default function ProjectListPage() {
   const handleEdit = (project: Project) => {
     setEditing(project)
     editForm.setFieldsValue({
-      code: project.code,
       category: project.category,
       name: project.name,
       owner: project.owner,
@@ -191,7 +191,6 @@ export default function ProjectListPage() {
     try {
       const values = await editForm.validateFields()
       await updateProject(editing.id, {
-        code: values.code,
         category: values.category,
         name: values.name,
         owner: values.owner,
@@ -264,7 +263,7 @@ export default function ProjectListPage() {
       dataIndex: 'market',
       width: 80,
       align: 'center',
-      render: (m: string) => <Tag color={m === '海外' ? 'purple' : 'blue'}>{m}</Tag>,
+      render: (m: string) => <Tag color="blue">{m}</Tag>,
     },
     { title: '负责人', dataIndex: 'owner', width: 100 },
     { title: '计划开始', dataIndex: 'plan_start', width: 120, align: 'center' },
@@ -309,9 +308,9 @@ export default function ProjectListPage() {
             </Button>
           )}
           <Upload accept=".xlsx,.xls" beforeUpload={handleImport} showUploadList={false}>
-            <Button icon={<UploadOutlined />}>导入 Excel</Button>
+            <Button icon={<DownloadOutlined />}>导入 Excel</Button>
           </Upload>
-          <Button icon={<DownloadOutlined />} onClick={() => window.open('/api/export/excel')}>
+          <Button icon={<UploadOutlined />} onClick={() => window.open('/api/export/excel')}>
             导出 Excel
           </Button>
           <Button icon={<ReloadOutlined />} onClick={load} />
@@ -338,10 +337,7 @@ export default function ProjectListPage() {
           style={{ width: 120 }}
           value={filters.market || undefined}
           onChange={(v) => setFilters({ ...filters, market: v || '' })}
-          options={[
-            { value: '国内', label: '国内' },
-            { value: '海外', label: '海外' },
-          ]}
+          options={MARKET_OPTION_ITEMS}
         />
         <Select
           placeholder="类目筛选"
@@ -379,10 +375,7 @@ export default function ProjectListPage() {
         okText="创建"
       >
         <Form form={form} layout="vertical" style={{ marginTop: 16 }}
-          initialValues={{ category: '新需求', market: '国内', status: '未开始' }}>
-          <Form.Item name="code" label="项目编号" rules={[{ required: true, message: '请输入项目编号' }]}>
-            <Input placeholder="如 TCM10-015" />
-          </Form.Item>
+          initialValues={{ category: '新需求', market: MARKET_OPTIONS[0], status: '未开始' }}>
           <Form.Item name="name" label="项目名称" rules={[{ required: true, message: '请输入项目名称' }]}>
             <Input placeholder="项目全称" />
           </Form.Item>
@@ -396,10 +389,7 @@ export default function ProjectListPage() {
               ]} />
             </Form.Item>
             <Form.Item name="market" label="市场" style={{ flex: 1 }}>
-              <Select options={[
-                { value: '国内', label: '国内' },
-                { value: '海外', label: '海外' },
-              ]} />
+              <Select options={MARKET_OPTION_ITEMS} />
             </Form.Item>
           </Space>
           <Form.Item name="managed_by" label="项目负责人" rules={[{ required: true, message: '请选择负责人' }]}>
@@ -454,10 +444,7 @@ export default function ProjectListPage() {
               ]} />
             </Form.Item>
             <Form.Item name="market" label="市场" style={{ flex: 1 }}>
-              <Select options={[
-                { value: '国内', label: '国内' },
-                { value: '海外', label: '海外' },
-              ]} />
+              <Select options={MARKET_OPTION_ITEMS} />
             </Form.Item>
           </Space>
           <Form.Item name="owner" label="项目负责人" rules={[{ required: true }]}>

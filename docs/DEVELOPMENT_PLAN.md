@@ -179,7 +179,7 @@ PROJECT 1────N PHASE N────N DEPENDENCY
 | `category` | TEXT | ✓ | 项目类目：招标/量产/定制/改造 |
 | `name` | TEXT | ✓ | 项目名称 |
 | `owner` | TEXT | ✓ | 项目负责人 |
-| `market` | TEXT | ✓ | 市场：国内/海外 |
+| `market` | TEXT | ✓ | 销售区域：拉美区/西欧区/... |
 | `status` | TEXT | ✓ | 未开始/进行中/已完成/已搁置 |
 | `priority` | TEXT | | 高/中/低 |
 | `plan_start` | DATE | ✓ | 计划开始日期 |
@@ -205,7 +205,6 @@ PROJECT 1────N PHASE N────N DEPENDENCY
 | `status` | TEXT | ✓ | 未开始/进行中/已完成/延期/已搁置 |
 | `progress` | INTEGER | ✓ | 进度百分比 0-100 |
 | `rework_count` | INTEGER | ✓ | 返工次数，默认 0 |
-| `handover_to` | TEXT | | 交接人 |
 | `remark` | TEXT | | 备注 |
 
 #### PHASE_ASSIGNEE（阶段-人员关联表）

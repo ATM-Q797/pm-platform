@@ -61,6 +61,28 @@ def test_project_duplicate_code(client):
     assert resp.status_code == 400
 
 
+def test_project_auto_code(client):
+    """不传 code 时系统自动生成连续整数编号（现有纯数字最大值 + 1）。"""
+    # 建一个带自定义 code 的项目（非数字，不参与自动编号）
+    r = client.post("/api/projects", json={"code": "CUSTOM", "category": "招标", "name": "A", "owner": "x", "market": "拉美区"})
+    assert r.status_code == 201
+    # 不带 code → 自动编号从 1 开始
+    r = client.post("/api/projects", json={"category": "招标", "name": "B", "owner": "x", "market": "拉美区"})
+    assert r.status_code == 201, r.text
+    assert r.json()["code"] == "1"
+    # 再建 → 2
+    r = client.post("/api/projects", json={"category": "招标", "name": "C", "owner": "x", "market": "拉美区"})
+    assert r.json()["code"] == "2"
+    # 显式传数字 code 仍生效
+    r = client.post("/api/projects", json={"code": "9", "category": "招标", "name": "D", "owner": "x", "market": "拉美区"})
+    assert r.status_code == 201
+    assert r.json()["code"] == "9"
+    # 自动编号取最大值+1（9 已存在 → 10）
+    r = client.post("/api/projects", json={"category": "招标", "name": "E", "owner": "x", "market": "拉美区"})
+    assert r.status_code == 201
+    assert r.json()["code"] == "10"
+
+
 # ---------- 阶段 + 返工 ----------
 
 def test_phase_create_and_rework(client, db_session):
