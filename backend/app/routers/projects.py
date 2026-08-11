@@ -153,6 +153,9 @@ def delete_project(
             status.HTTP_403_FORBIDDEN,
             "项目负责人不能直接删除项目，请申请删除（调用 delete-request 接口）",
         )
+    # 先记日志再删（删后拿不到项目信息）
+    log_operation(db, user, "delete_project", "project", project.id, project.name,
+                  detail=f"管理员直接删除项目「{project.name}」")
     db.delete(project)
     db.commit()
 

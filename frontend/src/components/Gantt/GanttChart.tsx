@@ -4,6 +4,7 @@ import { setupPan, cleanupPan } from './panUtils'
 import { getProjectGantt, getProject } from '../../api/projects'
 import { createDependency, deleteDependency } from '../../api/phases'
 import { listResources } from '../../api/resources'
+import 'dhtmlx-gantt/codebase/dhtmlxgantt.css'
 import './gantt.css'
 
 interface Props {
@@ -31,7 +32,6 @@ export default function GanttChart({ projectId, scale = 'week', onPhaseClick }: 
         gantt = mod.gantt
         ganttRef.current = gantt
         if (destroyed || !containerRef.current) return
-        ensureGanttCss()
         applyGanttConfig(gantt)
         // 拖拽创建依赖连线 → 保存到后端
         const linkAddH = gantt.attachEvent('onAfterLinkAdd', async (_id: any, link: any) => {
@@ -126,16 +126,6 @@ export default function GanttChart({ projectId, scale = 'week', onPhaseClick }: 
   }, [scale])
 
   return <div ref={containerRef} className="pm-gantt-container" style={{ width: '100%', height: '60vh' }} />
-}
-
-let cssLoaded = false
-function ensureGanttCss() {
-  if (cssLoaded) return
-  const link = document.createElement('link')
-  link.rel = 'stylesheet'
-  link.href = '/node_modules/dhtmlx-gantt/codebase/dhtmlxgantt.css'
-  document.head.appendChild(link)
-  cssLoaded = true
 }
 
 // dhtmlxGantt link type 映射："0"→FS "1"→SS "2"→FF "3"→SF

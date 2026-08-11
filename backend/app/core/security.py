@@ -7,16 +7,25 @@
 from __future__ import annotations
 
 import os
+import secrets
 from datetime import datetime, timedelta, timezone
 from typing import Any
 
 from jose import JWTError, jwt
 from passlib.context import CryptContext
 
-# JWT 密钥：优先从环境变量读（生产必须设），开发期用默认值
-SECRET_KEY = os.environ.get("JWT_SECRET_KEY", "pm-platform-dev-secret-change-in-production-2026")
+# ---------------------------------------------------------------------------
+# JWT 密钥：生产环境 **必须** 通过环境变量 JWT_SECRET_KEY 设置强随机字符串
+#   生成方式: python -c "import secrets; print(secrets.token_urlsafe(48))"
+# 开发环境允许使用不安全的默认值；生产环境未设置时启动会报错（见 main.py 的 startup check）
+# ---------------------------------------------------------------------------
+_DEV_FALLBACK_SECRET = "pm-platform-dev-secret-change-in-production-2026"
+SECRET_KEY = os.environ.get("JWT_SECRET_KEY", _DEV_FALLBACK_SECRET)
 ALGORITHM = "HS256"
-TOKEN_EXPIRE_HOURS = 24
+TOKEN_EXPIRE_HOURS = int(os.environ.get("TOKEN_EXPIRE_HOURS", "24"))
+
+# 运行模式：production | development（默认 development）
+APP_ENV = os.environ.get("APP_ENV", "development")
 
 # bcrypt 密码上下文
 pwd_context = CryptContext(schemes=["bcrypt"], deprecated="auto")

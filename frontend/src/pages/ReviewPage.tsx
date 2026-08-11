@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Card, Table, Tag, Button, Space, Tabs, Modal, Input, message, Popconfirm } from 'antd'
+import { Card, Table, Tag, Button, Space, Tabs, Modal, Input, message, Popconfirm, Popover } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import { listDeleteRequests, reviewDeleteRequest, listOperationLogs, listPhaseChangeRequests, reviewPhaseChangeRequest } from '../api/audit'
 import type { DeleteRequest, OperationLog, PhaseChangeRequest } from '../api/audit'
@@ -137,6 +137,9 @@ export default function ReviewPage({ userRole = 'admin' }: { userRole?: string }
     reject_delete_project: '拒绝删除',
     update_phase: '编辑阶段',
     rework_phase: '阶段返工',
+    submit_phase_change: '提交阶段变更',
+    approve_phase_change: '通过阶段变更',
+    reject_phase_change: '拒绝阶段变更',
   }
   const logColumns: ColumnsType<OperationLog> = [
     { title: '时间', dataIndex: 'created_at', width: 160 },
@@ -150,6 +153,36 @@ export default function ReviewPage({ userRole = 'admin' }: { userRole?: string }
     { title: '详情', dataIndex: 'detail', ellipsis: true },
   ]
 
+  // 阶段变更字段中文映射
+  const FIELD_LABEL: Record<string, string> = {
+    status: '状态',
+    progress: '进度',
+    plan_start: '计划开始',
+    plan_end: '计划结束',
+    actual_start: '实际开始',
+    actual_end: '实际结束',
+    phase_type: '阶段类型',
+    remark: '备注',
+    handover_to: '交接人',
+    assignee_ids: '负责人',
+  }
+
+  /** 解析 proposed_changes JSON，返回可读的变更摘要 */
+  const formatChanges = (jsonStr: string | null): { items: { field: string; value: string }[]; summary: string } => {
+    if (!jsonStr) return { items: [], summary: '无变更' }
+    try {
+      const obj = JSON.parse(jsonStr)
+      const items = Object.entries(obj).map(([key, value]) => ({
+        field: FIELD_LABEL[key] || key,
+        value: String(value ?? '—'),
+      }))
+      const summary = items.map(i => `${i.field}: ${i.value}`).join('；')
+      return { items, summary: summary || '无变更' }
+    } catch {
+      return { items: [], summary: jsonStr }
+    }
+  }
+
   // 阶段变更审批列
   const phaseColumns: ColumnsType<PhaseChangeRequest> = [
     { title: '#', dataIndex: 'id', width: 50, align: 'center' },
@@ -161,6 +194,28 @@ export default function ReviewPage({ userRole = 'admin' }: { userRole?: string }
       render: (s: string) => <Tag color={STATUS_TAG[s]}>{STATUS_LABEL[s] || s}</Tag>,
     },
     { title: '提交时间', dataIndex: 'created_at', width: 160 },
+    {
+      title: '变更内容', dataIndex: 'proposed_changes', width: 200, ellipsis: true,
+      render: (json: string | null) => {
+        const { summary, items } = formatChanges(json)
+        if (items.length === 0) return <span style={{ color: '#999' }}>{summary}</span>
+        const content = (
+          <div style={{ maxWidth: 320 }}>
+            {items.map((item, i) => (
+              <div key={i} style={{ marginBottom: 4 }}>
+                <Tag style={{ marginRight: 6 }}>{item.field}</Tag>
+                <span>{item.value}</span>
+              </div>
+            ))}
+          </div>
+        )
+        return (
+          <Popover content={content} title="变更详情" trigger="hover">
+            <span style={{ cursor: 'pointer', color: '#1677ff' }}>{summary}</span>
+          </Popover>
+        )
+      },
+    },
     {
       title: '操作', width: 160, align: 'center',
       render: (_, r) => r.status === 'pending' ? (
