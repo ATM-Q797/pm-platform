@@ -116,11 +116,69 @@ Phase 4: 资源视图 + 收尾（第4周）
 
 ## 技术栈
 
-- **后端**: Python 3.12 + FastAPI + SQLAlchemy + SQLite
-- **前端**: React 18 + TypeScript + Vite + Ant Design 5
+- **后端**: Python 3.12 + FastAPI + SQLAlchemy + PostgreSQL
+- **前端**: React 19 + TypeScript + Vite + Ant Design 6
 - **甘特图**: dhtmlxGantt 社区版
 - **Excel**: openpyxl + pandas
+- **部署**: Docker + Nginx + Gunicorn
+
+## 生产部署
+
+### 环境要求
+
+| 组件 | 版本 | 说明 |
+|------|------|------|
+| Docker | ≥ 24 | 容器运行时 |
+| Docker Compose | ≥ 2.0 | 容器编排 |
+| 服务器 | 2核4G+ | 推荐 Ubuntu 22.04 |
+
+### 快速部署（Docker）
+
+```bash
+# 1. 克隆仓库
+git clone https://github.com/ATM-Q797/pm-platform.git
+cd pm-platform
+
+# 2. 配置环境变量
+cp deploy/.env.example deploy/.env
+vim deploy/.env  # 填写 JWT_SECRET_KEY、POSTGRES_PASSWORD 等必填项
+
+# 3. 一键部署
+chmod +x deploy/deploy.sh
+./deploy/deploy.sh
+```
+
+部署完成后访问 `http://your-server-ip` 即可使用。默认管理员账号：`admin / admin123`。
+
+### 环境变量说明
+
+| 变量 | 必填 | 说明 |
+|------|------|------|
+| `JWT_SECRET_KEY` | 是 | JWT 签名密钥（≥32字符），`python3 -c "import secrets; print(secrets.token_urlsafe(48))"` |
+| `POSTGRES_PASSWORD` | 是 | 数据库密码 |
+| `CORS_ORIGINS` | 是 | 前端域名，逗号分隔，如 `https://pm.example.com` |
+| `COOKIE_SECURE` | 否 | HTTPS 环境设为 `true`，默认 `false` |
+| `WORKERS` | 否 | 后端 worker 数，默认 4 |
+
+### HTTPS 配置
+
+1. 获取 SSL 证书（推荐 Let's Encrypt）
+2. 将证书放入 `deploy/docker/ssl/` 目录
+3. 编辑 `deploy/nginx/nginx.conf`，取消 HTTPS server 块的注释
+4. 编辑 `deploy/docker/docker-compose.yml`，取消 SSL 证书挂载的注释
+5. 设置 `COOKIE_SECURE=true`
+6. `docker compose restart nginx backend`
+
+### 数据库备份
+
+```bash
+# 备份
+docker compose exec db pg_dump -U pm_user pm_platform > backup_$(date +%Y%m%d).sql
+
+# 恢复
+cat backup.sql | docker compose exec -T db psql -U pm_user pm_platform
+```
 
 ---
 
-> 🦞 Phoebe | 2026-08-02
+> Phoebe | 2026-08-02

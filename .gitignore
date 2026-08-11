@@ -28,5 +28,10 @@ dist/
 Thumbs.db
 Desktop.ini
 
+# Deployment secrets
+deploy/.env
+*.pem
+*.key
+
 # 样例数据（含真实业务数据，不入库）
 样例/
