@@ -11,15 +11,6 @@ interface Props {
   onPhaseClick: (phaseId: number) => void
 }
 
-// 阶段状态 → CSS class（与 GanttChart 一致，用于甘特条着色）
-const STATUS_CLASS: Record<string, string> = {
-  已完成: 'gantt-task-done',
-  进行中: 'gantt-task-active',
-  未开始: 'gantt-task-pending',
-  延期: 'gantt-task-delayed',
-  已搁置: 'gantt-task-blocked',
-}
-
 /**
  * 资源负载视图：多行甘特图，每人一行。
  *

@@ -194,7 +194,7 @@ export default function PhaseEditor({ phaseId, projectId, defaultSequence, reado
           const oldDependedBy = currentDeps.filter(d => d.from_phase_id === phase.id).map(d => d.to_phase_id)
 
           // 构建所有依赖变更操作
-          const depOps: Promise<void>[] = []
+          const depOps: Promise<unknown>[] = []
 
           // 删除取消的前置依赖
           for (const fromId of oldDependsOn.filter(id => !newDependsOn.includes(id))) {
