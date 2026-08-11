@@ -42,7 +42,9 @@ services:
       DATABASE_URL: postgresql://${POSTGRES_USER:-pm_user}:${POSTGRES_PASSWORD}@db:5432/${POSTGRES_DB:-pm_platform}
       JWT_SECRET_KEY: ${JWT_SECRET_KEY:?请设置 JWT_SECRET_KEY}
       CORS_ORIGINS: ${CORS_ORIGINS:-http://localhost}
-      COOKIE_SECURE: "${COOKIE_SECURE:-true}"
+      # Cookie Secure 属性：默认 false（配合默认 HTTP 部署）。
+      # 启用 HTTPS（nginx SSL server 块）后必须设为 true
+      COOKIE_SECURE: "${COOKIE_SECURE:-false}"
       TOKEN_EXPIRE_HOURS: "${TOKEN_EXPIRE_HOURS:-24}"
       WORKERS: "${WORKERS:-4}"
       LOG_LEVEL: "${LOG_LEVEL:-info}"
