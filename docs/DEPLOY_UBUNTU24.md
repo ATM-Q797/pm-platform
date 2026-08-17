@@ -110,6 +110,8 @@ cp deploy/.env.example deploy/.env
 vim deploy/.env
 ```
 
+> 💡 Ubuntu 精简安装默认**没有 vim**。若提示 `Command 'vim' not found`，用系统自带的 **nano** 代替：`nano deploy/.env`（保存 `Ctrl+O`，退出 `Ctrl+X`）；或先 `apt install vim -y` 再编辑。
+
 **必须修改的三项**：
 
 ```ini
