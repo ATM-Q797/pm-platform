@@ -157,12 +157,34 @@ chmod +x deploy/deploy.sh
   默认管理员账号: admin / admin123
 ```
 
-> ⚠️ **镜像拉取失败**（公司内网无法访问 Docker Hub）时，配置镜像加速：
-> 编辑 `/etc/docker/daemon.json`：
+> ⚠️ **镜像拉取失败**（公司内网无法访问 Docker Hub）时，按优先级尝试：
+>
+> **① 配置国内镜像加速器**：编辑 `/etc/docker/daemon.json`：
 > ```json
-> { "registry-mirrors": ["https://docker.m.daocloud.io", "https://dockerproxy.com"] }
+> {
+>   "registry-mirrors": [
+>     "https://docker.m.daocloud.io",
+>     "https://docker.1panel.live",
+>     "https://hub.rat.dev",
+>     "https://docker.xuanyuan.me"
+>   ]
+> }
 > ```
-> 然后 `sudo systemctl restart docker`，重新执行部署脚本。
+> `sudo systemctl restart docker` 后测试 `docker pull python:3.12-slim`，成功即可重新部署。
+> 云服务器（阿里云/腾讯云/华为云）建议用控制台「容器镜像服务」提供的**专属加速器地址**，更稳定。
+>
+> **② 离线导入镜像**（加速器不通时的兜底）：在能访问外网的机器上执行
+> ```powershell
+> docker pull python:3.12-slim
+> docker pull node:20-alpine
+> docker pull nginx:1.27-alpine
+> docker pull postgres:16-alpine
+> docker save python:3.12-slim node:20-alpine nginx:1.27-alpine postgres:16-alpine -o images.tar
+> scp images.tar 用户名@服务器IP:/opt/
+> ```
+> 服务器上 `docker load -i /opt/images.tar` 后重新 `./deploy/deploy.sh`。
+>
+> **③ 公司内网镜像仓库**：如有 Harbor/Nexus，向 IT 申请上述 4 个镜像，配置 daemon.json 指向内网 registry。
 
 ---
 
