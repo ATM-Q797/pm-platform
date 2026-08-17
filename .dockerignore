@@ -1,0 +1,38 @@
+# ============================================================
+# Docker 构建上下文排除清单（防止本机开发文件污染镜像）
+# 注意：COPY frontend/ / COPY backend/ 会复制整个目录，
+# 没有本文件时 node_modules / venv 会被打进镜像导致构建失败或镜像臃肿
+# ============================================================
+
+# 版本控制
+.git
+.gitignore
+.gitattributes
+
+# 工具/IDE 目录
+.thincoder
+.codegraph
+
+# 前端：依赖与构建产物（容器内由 pnpm install / build 重新生成）
+frontend/node_modules
+frontend/dist
+
+# 后端：Python 虚拟环境与缓存（容器内由 pip install 重新安装）
+backend/venv
+**/__pycache__
+backend/pm_platform.db
+backend/*.db
+
+# 打包/备份产物
+*.zip
+*.tar
+*.dump
+*.bak
+docs/*.bak
+
+# 敏感配置（含数据库密码，严禁进镜像）
+deploy/.env
+
+# 本地示例数据与用户文件
+样例/
+项目填报模板.xlsx
