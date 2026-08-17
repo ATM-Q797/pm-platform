@@ -56,6 +56,10 @@ services:
         condition: service_healthy
     ports:
       - "127.0.0.1:${BACKEND_PORT:-8000}:8000"
+    volumes:
+      # 把宿主机 docs/ 挂载到容器 /docs（只读）：
+      # init_db.py 读取 docs/templates.json 需要；容器内无需重新构建镜像
+      - ../../docs:/docs:ro
 
   # ----------------------------------------------------------
   # Nginx 反向代理 + 前端静态文件
