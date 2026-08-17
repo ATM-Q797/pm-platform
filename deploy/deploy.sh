@@ -71,9 +71,16 @@ echo "[2/4] Docker 环境就绪"
 # ----------------------------------------------------------
 # 3. 构建并启动
 # ----------------------------------------------------------
-echo "[3/4] 构建 Docker 镜像（首次可能需要几分钟）..."
+# 离线部署（内网无外网）时镜像由外部机器构建后导入，
+# 通过 PM_SKIP_BUILD=1 跳过构建步骤（例如: PM_SKIP_BUILD=1 ./deploy/deploy.sh）
+echo "[3/4] 准备镜像..."
 cd "$SCRIPT_DIR/docker"
-docker compose --env-file "$ENV_FILE" build --pull
+if [ "${PM_SKIP_BUILD:-0}" = "1" ]; then
+    echo "    PM_SKIP_BUILD=1，跳过镜像构建（使用已导入的镜像）"
+else
+    echo "    构建 Docker 镜像（首次可能需要几分钟）..."
+    docker compose --env-file "$ENV_FILE" build --pull
+fi
 
 echo ""
 echo "[4/4] 启动服务..."

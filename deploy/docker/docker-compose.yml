@@ -33,6 +33,7 @@ services:
   # 后端 API（FastAPI + Gunicorn）
   # ----------------------------------------------------------
   backend:
+    image: pm-backend:latest
     build:
       context: ../..
       dockerfile: deploy/docker/Dockerfile.backend
@@ -60,6 +61,7 @@ services:
   # Nginx 反向代理 + 前端静态文件
   # ----------------------------------------------------------
   nginx:
+    image: pm-frontend:latest
     build:
       context: ../..
       dockerfile: deploy/docker/Dockerfile.frontend
