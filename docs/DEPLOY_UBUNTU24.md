@@ -126,6 +126,11 @@ JWT_SECRET_KEY=
 CORS_ORIGINS=http://192.168.1.100
 ```
 
+> ⚠️ **密码/密钥字符规则**：`POSTGRES_PASSWORD` 与 `JWT_SECRET_KEY` **只能使用字母和数字**。
+> 不要包含 `@` `:` `/` `#` `$` 等符号——它们会破坏数据库连接串解析
+> （典型故障：登录 500，后端日志报 `could not translate host name "2026@db"`）或被 shell 变量展开截断。
+> 修改密码后必须 `docker compose down -v` 清空旧数据卷再重新部署（PostgreSQL 只在数据卷首次初始化时应用密码）。
+
 **确认这两项保持如下**（内网 HTTP 部署的关键，已修复过默认值）：
 
 ```ini
