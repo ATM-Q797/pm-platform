@@ -1,0 +1,21 @@
+# 统一行尾：Linux 部署环境要求 LF（防止 Windows 打包/检出带入 CRLF 导致部署失败）
+* text=auto
+
+# Linux 服务端/容器内运行的文件：强制 LF
+*.sh    text eol=lf
+*.py    text eol=lf
+*.yml   text eol=lf
+*.yaml  text eol=lf
+*.conf  text eol=lf
+*.md    text eol=lf
+*.sql   text eol=lf
+*.json  text eol=lf
+*.css   text eol=lf
+*.ts    text eol=lf
+*.tsx   text eol=lf
+*.html  text eol=lf
+Dockerfile* text eol=lf
+*.example text eol=lf
+
+# Windows 专用脚本：保持 CRLF
+*.bat text eol=crlf
