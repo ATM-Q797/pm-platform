@@ -173,18 +173,50 @@ chmod +x deploy/deploy.sh
 > `sudo systemctl restart docker` 后测试 `docker pull python:3.12-slim`，成功即可重新部署。
 > 云服务器（阿里云/腾讯云/华为云）建议用控制台「容器镜像服务」提供的**专属加速器地址**，更稳定。
 >
-> **② 离线导入镜像**（加速器不通时的兜底）：在能访问外网的机器上执行
-> ```powershell
-> docker pull python:3.12-slim
-> docker pull node:20-alpine
-> docker pull nginx:1.27-alpine
-> docker pull postgres:16-alpine
-> docker save python:3.12-slim node:20-alpine nginx:1.27-alpine postgres:16-alpine -o images.tar
-> scp images.tar 用户名@服务器IP:/opt/
-> ```
-> 服务器上 `docker load -i /opt/images.tar` 后重新 `./deploy/deploy.sh`。
+> **② 完全离线部署**（内网全封锁时的标准方案）：详见下文「第 4.5 节 完全离线部署」。
 >
 > **③ 公司内网镜像仓库**：如有 Harbor/Nexus，向 IT 申请上述 4 个镜像，配置 daemon.json 指向内网 registry。
+
+### 4.5 完全离线部署（内网无外网）
+
+> **原理**：`docker build` 过程需要联网（pip / apt / pnpm 下载依赖），所以**不能在服务器上构建**。
+> 正确流程：在**有外网的机器**（如开发电脑）上构建好最终镜像 → 导出 → 传到服务器 → 导入 → 跳过构建直接启动。
+
+**第 1 步：在有外网、装有 Docker 的机器上**（开发电脑，PowerShell）：
+
+```powershell
+# 1. 进入项目目录（确认代码为最新，含 deploy/ 目录）
+cd C:\Users\1\Desktop\pm-platform
+
+# 2. 构建两个业务镜像（首次需下载依赖，约 5-15 分钟）
+docker build -f deploy/docker/Dockerfile.backend  -t pm-backend:latest .
+docker build -f deploy/docker/Dockerfile.frontend -t pm-frontend:latest .
+
+# 3. 拉取数据库镜像
+docker pull postgres:16-alpine
+
+# 4. 导出 3 个镜像为单个文件（约 1GB）
+docker save pm-backend:latest pm-frontend:latest postgres:16-alpine -o C:\pm-images.tar
+
+# 5. 上传到服务器
+scp C:\pm-images.tar 用户名@服务器IP:/opt/
+```
+
+**第 2 步：服务器上导入并启动**：
+
+```bash
+# 6. 导入镜像（仅首次需要，约 1-2 分钟）
+docker load -i /opt/pm-images.tar
+
+# 7. 部署：PM_SKIP_BUILD=1 跳过构建（关键！离线环境构建必失败）
+cd /opt/pm-platform
+PM_SKIP_BUILD=1 ./deploy/deploy.sh
+```
+
+> 💡 `docker-compose.yml` 已为 backend/nginx 固定镜像名（`pm-backend:latest` / `pm-frontend:latest`），
+> 与 `docker build`/`docker save`/`docker load` 完全对应，无需额外 tag。
+>
+> **以后更新代码**：在有外网的机器重新执行第 2 步构建 → 第 4 步导出 → 上传 → 服务器 `docker load` → `PM_SKIP_BUILD=1 ./deploy/deploy.sh`（数据卷保留，不丢数据）。
 
 ---
 
