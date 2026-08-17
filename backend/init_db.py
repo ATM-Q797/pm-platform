@@ -27,8 +27,23 @@ from app.database import Base, SessionLocal, engine  # noqa: E402
 from app.models import Template, TemplateDependency, TemplatePhase, User  # noqa: E402
 from app.core.security import hash_password  # noqa: E402
 
-# templates.json 路径：backend/../docs/templates.json
-_TEMPLATES_JSON = Path(__file__).resolve().parent.parent / "docs" / "templates.json"
+# templates.json 路径：兼容本地开发（backend/ 子目录）与 Docker 容器（/app 根目录）
+def _find_templates_json() -> Path:
+    candidates = [
+        # 容器内：工作目录 /app，docs 在 /app/docs
+        Path("docs") / "templates.json",
+        # 本地开发：backend/init_db.py → 项目根/docs
+        Path(__file__).resolve().parent.parent / "docs" / "templates.json",
+        # 脚本同级 docs（兜底）
+        Path(__file__).resolve().parent / "docs" / "templates.json",
+    ]
+    for c in candidates:
+        if c.exists():
+            return c
+    return candidates[0]
+
+
+_TEMPLATES_JSON = _find_templates_json()
 
 
 def create_tables() -> None:
