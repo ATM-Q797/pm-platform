@@ -89,6 +89,15 @@ class GanttData(BaseModel):
     links: list[GanttLink]
 
 
+# ---------- 关键路径（CPM） ----------
+
+class CriticalPathResult(BaseModel):
+    """项目关键路径计算结果。"""
+    critical_phase_ids: list[int]  # 关键路径上的阶段 id
+    total_duration: int            # 关键路径总工期（天）
+    path: list[str]                # 关键路径阶段名（按开始顺序）
+
+
 # ---------- 资源负载 ----------
 
 class WorkloadItem(BaseModel):

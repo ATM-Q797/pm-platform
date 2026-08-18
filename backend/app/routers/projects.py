@@ -15,6 +15,7 @@ from app.database import get_db
 from app.models import Dependency, Phase, Project, User, phase_assignee
 from app.routers.audit import log_operation
 from app.schemas import (
+    CriticalPathResult,
     GanttData,
     ProjectCreate,
     ProjectDetail,
@@ -22,6 +23,7 @@ from app.schemas import (
     ProjectUpdate,
 )
 from app.services import apply_template, build_gantt
+from app.services.critical_path import compute_critical_path
 
 # 纯数字编号正则（自动编号用）
 _CODE_INT_RE = re.compile(r"^\d+$")
@@ -186,6 +188,19 @@ def get_project_gantt(
     if data is None:
         raise HTTPException(404, "项目不存在")
     return data
+
+
+@router.get("/{project_id}/critical-path", response_model=CriticalPathResult)
+def get_project_critical_path(
+    project_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """计算项目关键路径：关键阶段 id 列表 + 总工期 + 路径阶段名。"""
+    result = compute_critical_path(db, project_id)
+    if result is None:
+        raise HTTPException(404, "项目不存在")
+    return result
 
 
 @router.post("/{project_id}/apply-template/{template_id}", response_model=ProjectRead)
