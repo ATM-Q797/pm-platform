@@ -13,7 +13,14 @@ from app.core.deps import require_role
 from app.database import get_db
 from app.models import User
 from app.schemas.import_report import ImportPreview, ImportReport
-from app.services import build_preview, get_last_report, import_excel, parse_workbook
+from app.services import (
+    build_preview,
+    get_last_report,
+    import_excel,
+    import_merged,
+    import_parsed,
+    parse_workbook,
+)
 
 router = APIRouter(prefix="/api/import", tags=["Excel导入"])
 
@@ -53,13 +60,18 @@ async def import_excel_file(
     file: UploadFile = File(...),
     db: Session = Depends(get_db),
     default_category: str = "新需求",
+    mode: str = "merge",
     user: User = Depends(require_role("admin")),
 ):
     """上传 Excel 文件并导入（multipart/form-data）。
 
-    全量重置：先删所有项目/阶段/资源（保留模板），再导入。
-    返回导入校验报告（同步），并存为最近报告供 GET /api/import/report 查询。
+    - mode=merge（默认）：增量合并——同名项目合并更新、新项目新增、现有数据保留不动
+    - mode=replace：全量重置——清空现有项目/阶段/资源（保留模板）后导入
+    返回导入报告，并存为最近报告供 GET /api/import/report 查询。
     """
+    if mode not in ("merge", "replace"):
+        raise HTTPException(400, "mode 仅支持 merge（合并）或 replace（全量替换）")
+
     # 校验文件扩展名
     filename = file.filename or ""
     if not filename.lower().endswith((".xlsx", ".xls")):
@@ -70,7 +82,11 @@ async def import_excel_file(
         raise HTTPException(400, "上传的文件为空")
 
     try:
-        report = import_excel(db, file_bytes, default_category=default_category)
+        parsed = parse_workbook(file_bytes, default_category=default_category)
+        if mode == "replace":
+            report = import_parsed(db, parsed)
+        else:
+            report = import_merged(db, parsed)
     except Exception as e:
         # 未预期的解析异常
         raise HTTPException(400, f"导入失败: {e}")

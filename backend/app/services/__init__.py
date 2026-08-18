@@ -5,6 +5,7 @@ from app.services.excel_importer import (
     build_preview,
     get_last_report,
     import_excel,
+    import_merged,
     import_parsed,
     parse_workbook,
 )
@@ -13,6 +14,7 @@ __all__ = [
     "build_gantt",
     "apply_template",
     "import_excel",
+    "import_merged",
     "import_parsed",
     "parse_workbook",
     "build_preview",

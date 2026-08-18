@@ -177,6 +177,12 @@ export interface ImportReport {
   resources_created: number
   errors: ImportError[]
   warnings: ImportError[]
+  // 合并模式统计（替换模式为 0）
+  projects_created: number
+  projects_updated: number
+  phases_created: number
+  phases_updated: number
+  pending_link_phases: { project_name: string; phase_name: string }[]
 }
 
 // 导入前差异报告（预览）
@@ -187,6 +193,13 @@ export interface ImportPreview {
   errors: ImportError[]
   warnings: ImportError[]
   projects_preview: { name: string; market: string; category: string; phases: number }[]
+  // 合并模式明细
+  created_projects: { name: string; market: string; category: string; phases: number }[]
+  updated_projects: { name: string; market: string; category: string; phases: number }[]
+  kept_count: number
+  phases_created: number
+  phases_updated: number
+  pending_link_phases: { project_name: string; phase_name: string }[]
 }
 
 // ---------- 首页看板 ----------
