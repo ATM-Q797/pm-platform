@@ -35,6 +35,7 @@ from app.schemas.import_report import (
     ImportPreview,
     ImportReport,
     ImportWarning,
+    PendingLinkPhase,
     PreviewProject,
     ProjectMatchInfo,
 )
@@ -276,6 +277,9 @@ class ParsedPhase:
     progress: int = 0
     remark: str | None = None
     assignees: list[str] = field(default_factory=list)
+    # 显式标记：单元格是否有值（合并模式下"未填"不覆盖系统值）
+    status_explicit: bool = False
+    progress_explicit: bool = False
 
 
 @dataclass
@@ -291,6 +295,8 @@ class ParsedProject:
     plan_end: date | None = None
     remark: str | None = None
     phases: list[ParsedPhase] = field(default_factory=list)
+    # 显式标记：项目状态单元格是否有值（合并模式下"未填"不覆盖系统状态）
+    status_explicit: bool = False
 
 
 @dataclass
@@ -360,6 +366,7 @@ def parse_workbook(file_bytes: bytes, default_category: str = "新需求") -> Pa
 
             name_str = str(name).strip() if name is not None else ""
             status_str = str(status).strip() if status is not None else "未开始"
+            status_explicit = status is not None and str(status).strip() != ""
 
             if row_kind == "project":
                 # 项目行
@@ -385,6 +392,7 @@ def parse_workbook(file_bytes: bytes, default_category: str = "新需求") -> Pa
                     plan_start=plan_start,
                     plan_end=plan_end,
                     remark=str(remark).strip() if remark else None,
+                    status_explicit=status_explicit,
                 )
                 projects.append(current_project)
                 report.projects_imported += 1
@@ -425,11 +433,13 @@ def parse_workbook(file_bytes: bytes, default_category: str = "新需求") -> Pa
                 sequence = int(seq_match.group(1)) if seq_match else len(current_project.phases) + 1
 
                 # 进度：显式列优先（新格式），否则按状态推断
-                if progress is not None and str(progress).strip() not in ("", "/"):
+                progress_explicit = progress is not None and str(progress).strip() not in ("", "/")
+                if progress_explicit:
                     try:
                         p = int(float(str(progress).strip()))
                         progress_val = max(0, min(100, p))
                     except ValueError:
+                        progress_explicit = False
                         progress_val = 100 if status_str == "已完成" else (50 if status_str == "进行中" else 0)
                 else:
                     progress_val = 100 if status_str == "已完成" else (50 if status_str == "进行中" else 0)
@@ -446,6 +456,8 @@ def parse_workbook(file_bytes: bytes, default_category: str = "新需求") -> Pa
                     progress=progress_val,
                     remark=str(remark).strip() if remark else None,
                     assignees=split_persons(assignees),
+                    status_explicit=status_explicit,
+                    progress_explicit=progress_explicit,
                 ))
                 report.phases_imported += 1
 
@@ -542,10 +554,258 @@ def import_excel(db: Session, file_bytes: bytes, default_category: str = "新需
     return import_parsed(db, parse_workbook(file_bytes, default_category))
 
 
+# ---------- 阶段三：增量合并导入（默认模式） ----------
+
+# 纯数字编号正则（合并模式新项目自动编号用）
+_CODE_INT_RE = re.compile(r"^\d+$")
+
+
+def _next_project_code(db: Session) -> str:
+    """生成下一个项目编号：现有纯数字编号最大值 + 1（无则从 1 开始）。"""
+    codes = db.scalars(select(Project.code)).all()
+    nums = [int(c) for c in codes if c and _CODE_INT_RE.match(c)]
+    return str(max(nums) + 1) if nums else "1"
+
+
+# 阶段类型自然顺序（P1 最前 ... P8 最后），用于新增阶段的插入排序
+_PHASE_TYPE_ORDER = {f"P{i}": i for i in range(1, 9)}
+
+
+def _phase_type_rank(phase_type: str) -> int:
+    return _PHASE_TYPE_ORDER.get(phase_type, 9)
+
+
+def _merge_project(
+    db: Session,
+    project: Project,
+    parsed_p: ParsedProject,
+    resource_cache: dict[str, Resource],
+    counters: dict[str, int],
+    pending_links: list[tuple[str, str]],
+) -> None:
+    """合并同名项目：项目字段非空覆盖 + 阶段按类型匹配更新/自然序插入新增。
+
+    counters: {"phases_created", "phases_updated"} 统计累加
+    pending_links: 收集"新增阶段待关联依赖"（项目名, 阶段名）
+    """
+    # ---------- 项目字段：非空覆盖 ----------
+    if parsed_p.owner:
+        project.owner = parsed_p.owner
+    if parsed_p.market:
+        project.market = parsed_p.market
+    if parsed_p.category:
+        project.category = parsed_p.category
+    if parsed_p.plan_start:
+        project.plan_start = parsed_p.plan_start
+    if parsed_p.plan_end:
+        project.plan_end = parsed_p.plan_end
+    if parsed_p.remark:
+        project.remark = parsed_p.remark
+    if parsed_p.status_explicit:
+        project.status = parsed_p.status
+
+    # ---------- 阶段合并 ----------
+    existing = sorted(project.phases, key=lambda p: p.sequence)
+    # 类型 → 阶段映射（同类型多个时只匹配第一个，其余文件同类型按新增处理）
+    by_type: dict[str, Phase] = {}
+    for ph in existing:
+        by_type.setdefault(ph.phase_type, ph)
+
+    for pp in parsed_p.phases:
+        ph = by_type.get(pp.phase_type)
+        if ph is not None:
+            _merge_phase(db, ph, pp, resource_cache)
+            counters["phases_updated"] += 1
+        else:
+            new_phase = _insert_phase(db, project.id, existing, pp, resource_cache)
+            counters["phases_created"] += 1
+            pending_links.append((project.name, pp.name))
+            existing = sorted(project.phases, key=lambda p: p.sequence)
+            by_type.setdefault(pp.phase_type, new_phase)
+
+    # 负责人：项目负责人也作为资源（只增不删）
+    if project.owner:
+        _get_or_create_resource(db, resource_cache, project.owner)
+
+
+def _merge_phase(db: Session, phase: Phase, pp: ParsedPhase, resource_cache: dict[str, Resource]) -> None:
+    """更新已有阶段：文件非空字段覆盖；未填保留系统值。"""
+    if pp.name:
+        phase.name = pp.name
+    if pp.plan_start:
+        phase.plan_start = pp.plan_start
+    if pp.plan_end:
+        phase.plan_end = pp.plan_end
+    if pp.actual_start:
+        phase.actual_start = pp.actual_start
+    if pp.actual_end:
+        phase.actual_end = pp.actual_end
+    if pp.status_explicit:
+        phase.status = pp.status
+    if pp.progress_explicit:
+        phase.progress = pp.progress
+    if pp.remark:
+        phase.remark = pp.remark
+    if pp.assignees:
+        # 文件有值 → 覆盖负责人列表（resource 本身只增不删）
+        assignees = []
+        for pname in pp.assignees:
+            assignees.append(_get_or_create_resource(db, resource_cache, pname))
+        phase.assignees = assignees
+
+
+def _insert_phase(
+    db: Session,
+    project_id: int,
+    existing: list[Phase],
+    pp: ParsedPhase,
+    resource_cache: dict[str, Resource],
+) -> Phase:
+    """按阶段类型自然顺序插入新阶段（P1 最前 ... P8 最后），后续阶段序号顺延。返回新阶段。"""
+    # 找插入点：第一个类型顺序大于新阶段的现有阶段
+    pos = 0
+    for ph in existing:
+        if _phase_type_rank(ph.phase_type) > _phase_type_rank(pp.phase_type):
+            break
+        pos += 1
+
+    # 插入点及之后的阶段序号顺延
+    for ph in existing[pos:]:
+        ph.sequence += 1
+
+    if pos == 0:
+        new_seq = 1
+    else:
+        new_seq = existing[pos - 1].sequence + 1
+
+    phase = Phase(
+        project_id=project_id,
+        phase_type=pp.phase_type,
+        name=pp.name,
+        sequence=new_seq,
+        plan_start=pp.plan_start,
+        plan_end=pp.plan_end,
+        actual_start=pp.actual_start,
+        actual_end=pp.actual_end,
+        status=pp.status,
+        progress=pp.progress,
+        rework_count=0,
+        remark=pp.remark,
+    )
+    db.add(phase)
+    db.flush()
+    if pp.assignees:
+        assignee_resources = []
+        for pname in pp.assignees:
+            assignee_resources.append(_get_or_create_resource(db, resource_cache, pname))
+        phase.assignees = assignee_resources
+    return phase
+
+
+def import_merged(db: Session, parsed: ParsedWorkbook) -> ImportReport:
+    """增量合并导入（默认模式）：新增 + 更新 + 保留，**不删除任何现有数据**。
+
+    - 同名项目 → 项目字段非空覆盖 + 阶段按类型匹配更新/自然序插入新增
+    - 新项目 → 创建（含 FS 串联依赖）
+    - 已有依赖完全不动；同名项目的新增阶段不自动建依赖（报告提示待关联）
+    """
+    report = parsed.report
+
+    # 文件级错误（无法读取/无数据 sheet）：不落库，直接返回
+    if not parsed.projects and report.errors:
+        _set_last_report(report)
+        return report
+
+    resource_cache: dict[str, Resource] = {}
+    resources_created = 0
+    counters = {"phases_created": 0, "phases_updated": 0}
+    pending_links: list[tuple[str, str]] = []
+    created_projects: list[Project] = []  # 新建项目（收尾建 FS 链）
+
+    for parsed_p in parsed.projects:
+        existing = db.scalars(select(Project).where(Project.name == parsed_p.name)).first()
+        if existing:
+            _merge_project(db, existing, parsed_p, resource_cache, counters, pending_links)
+            report.projects_updated += 1
+        else:
+            # 新建项目：项目编号沿用系统自动编号（解析编号仅作行归类用，避免与现有项目冲突）
+            proj = Project(
+                code=_next_project_code(db),
+                category=parsed_p.category,
+                name=parsed_p.name,
+                owner=parsed_p.owner,
+                market=parsed_p.market,
+                status=parsed_p.status,
+                plan_start=parsed_p.plan_start,
+                plan_end=parsed_p.plan_end,
+                remark=parsed_p.remark,
+            )
+            db.add(proj)
+            db.flush()
+            if proj.owner:
+                before = len(resource_cache)
+                _get_or_create_resource(db, resource_cache, proj.owner)
+                if len(resource_cache) > before:
+                    resources_created += 1
+
+            for pp in parsed_p.phases:
+                phase = Phase(
+                    project_id=proj.id,
+                    phase_type=pp.phase_type,
+                    name=pp.name,
+                    sequence=pp.sequence,
+                    plan_start=pp.plan_start,
+                    plan_end=pp.plan_end,
+                    actual_start=pp.actual_start,
+                    actual_end=pp.actual_end,
+                    status=pp.status,
+                    progress=pp.progress,
+                    rework_count=0,
+                    remark=pp.remark,
+                )
+                db.add(phase)
+                db.flush()
+                if pp.assignees:
+                    assignee_resources = []
+                    for pname in pp.assignees:
+                        before = len(resource_cache)
+                        res = _get_or_create_resource(db, resource_cache, pname)
+                        if len(resource_cache) > before:
+                            resources_created += 1
+                        assignee_resources.append(res)
+                    phase.assignees = assignee_resources
+            created_projects.append(proj)
+            report.projects_created += 1
+            counters["phases_created"] += len(parsed_p.phases)
+
+    # 新建项目：按 sequence 建 FS 串联链（同名项目已有依赖不动）
+    for proj in created_projects:
+        phases = list(db.scalars(
+            select(Phase).where(Phase.project_id == proj.id).order_by(Phase.sequence)
+        ))
+        _build_sequence_dependencies(db, phases)
+
+    report.phases_created = counters["phases_created"]
+    report.phases_updated = counters["phases_updated"]
+    report.resources_created = resources_created
+    report.pending_link_phases = [
+        PendingLinkPhase(project_name=pn, phase_name=phn) for pn, phn in pending_links
+    ]
+    db.commit()
+
+    _set_last_report(report)
+    return report
+
+
 # ---------- 导入前差异报告（预览） ----------
 
 def build_preview(db: Session, parsed: ParsedWorkbook) -> ImportPreview:
-    """基于解析结果 + 当前库生成差异报告（只读统计，无任何副作用）。"""
+    """基于解析结果 + 当前库生成差异报告（只读统计，无任何副作用）。
+
+    包含两类信息：
+    - 全量替换视角：existing（将被清空）/ incoming / match（同名对比）
+    - 增量合并视角：created/updated/kept 明细 + 新增阶段待关联依赖提示
+    """
     existing_projects = db.query(Project).count()
     existing_phases = db.query(Phase).count()
     existing_resources = db.query(Resource).count()
@@ -560,16 +820,40 @@ def build_preview(db: Session, parsed: ParsedWorkbook) -> ImportPreview:
     new = len(incoming_names - existing_names)
     missing = len(existing_names - incoming_names)
 
-    # 项目概览（前 20 个）
-    projects_preview = [
-        PreviewProject(
+    def _preview(p: ParsedProject) -> PreviewProject:
+        return PreviewProject(
             name=p.name,
             market=p.market,
             category=p.category,
             phases=len(p.phases),
         )
-        for p in parsed.projects[:20]
-    ]
+
+    # 项目概览（前 20 个）
+    projects_preview = [_preview(p) for p in parsed.projects[:20]]
+
+    # 增量合并明细
+    existing_proj_map = {
+        p.name: p for p in db.scalars(select(Project)).all()
+    }
+    created_projects = [_preview(p) for p in parsed.projects if p.name not in existing_proj_map]
+    updated_projects = [_preview(p) for p in parsed.projects if p.name in existing_proj_map]
+
+    # 阶段统计与待关联提示（基于现有同名项目的阶段类型）
+    phases_created = 0
+    phases_updated = 0
+    pending: list[PendingLinkPhase] = []
+    for p in parsed.projects:
+        ep = existing_proj_map.get(p.name)
+        if ep is None:
+            phases_created += len(p.phases)  # 新项目全部阶段为新增
+            continue
+        existing_types = {ph.phase_type for ph in ep.phases}
+        for pp in p.phases:
+            if pp.phase_type in existing_types:
+                phases_updated += 1
+            else:
+                phases_created += 1
+                pending.append(PendingLinkPhase(project_name=p.name, phase_name=pp.name))
 
     return ImportPreview(
         existing=ImportExistingCounts(
@@ -585,6 +869,12 @@ def build_preview(db: Session, parsed: ParsedWorkbook) -> ImportPreview:
         errors=list(parsed.report.errors),
         warnings=list(parsed.report.warnings),
         projects_preview=projects_preview,
+        created_projects=created_projects,
+        updated_projects=updated_projects,
+        kept_count=missing,
+        phases_created=phases_created,
+        phases_updated=phases_updated,
+        pending_link_phases=pending,
     )
 
 

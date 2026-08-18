@@ -39,6 +39,7 @@ from app.schemas.import_report import (
     ImportPreview,
     ImportReport,
     ImportWarning as ImportWarn,
+    PendingLinkPhase,
     PreviewProject,
     ProjectMatchInfo,
 )
@@ -76,7 +77,7 @@ __all__ = [
     "DependencyCreate", "DependencyRead",
     "ImportReport", "ImportIssue", "ImportWarn",
     "ImportPreview", "ImportExistingCounts", "ImportIncomingCounts",
-    "ProjectMatchInfo", "PreviewProject",
+    "ProjectMatchInfo", "PreviewProject", "PendingLinkPhase",
     "DashboardStats", "DelayedProject", "ReworkPhase", "StatusCount",
     "UserCreate", "UserRead", "UserUpdate", "LoginRequest", "LoginResponse", "PasswordChange",
     "DeleteRequestCreate", "DeleteRequestRead", "DeleteReview", "OperationLogRead",

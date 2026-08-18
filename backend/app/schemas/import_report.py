@@ -31,6 +31,18 @@ class ImportReport(BaseModel):
     resources_created: int = 0
     errors: list[ImportError] = []
     warnings: list[ImportWarning] = []
+    # 合并模式统计（全量替换模式保持 0）
+    projects_created: int = 0     # 新增项目数
+    projects_updated: int = 0     # 更新项目数（同名合并）
+    phases_created: int = 0       # 新增阶段数
+    phases_updated: int = 0       # 更新阶段数
+    pending_link_phases: list[PendingLinkPhase] = []  # 新增阶段待关联依赖清单
+
+
+class PendingLinkPhase(BaseModel):
+    """同名项目新增阶段：未自动建依赖，提示用户手动关联。"""
+    project_name: str
+    phase_name: str
 
 
 # ---------- 导入前差异报告（预览） ----------
@@ -71,3 +83,10 @@ class ImportPreview(BaseModel):
     errors: list[ImportError] = []
     warnings: list[ImportWarning] = []
     projects_preview: list[PreviewProject] = []
+    # 合并模式明细（增量合并：新增/更新/保留 + 待关联依赖提示）
+    created_projects: list[PreviewProject] = []   # 文件新增项目
+    updated_projects: list[PreviewProject] = []   # 同名将被合并更新的项目
+    kept_count: int = 0                           # 现有项目不在文件中（合并模式保留不动）
+    phases_created: int = 0                       # 文件将新增的阶段数
+    phases_updated: int = 0                       # 文件将更新的阶段数
+    pending_link_phases: list[PendingLinkPhase] = []  # 新增阶段待关联依赖提示
