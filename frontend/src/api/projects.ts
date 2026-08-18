@@ -38,3 +38,11 @@ export async function applyTemplate(projectId: number, templateId: number): Prom
   const { data } = await client.post<Project>(`/projects/${projectId}/apply-template/${templateId}`)
   return data
 }
+
+export async function setFavorite(id: number, favorited: boolean): Promise<void> {
+  if (favorited) {
+    await client.put(`/projects/${id}/favorite`)
+  } else {
+    await client.delete(`/projects/${id}/favorite`)
+  }
+}

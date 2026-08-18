@@ -1,10 +1,10 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Table, Card, Select, Input, Button, Space, Tag, Upload, Modal, Form, DatePicker, message, Spin, Popconfirm, Radio } from 'antd'
-import { DownloadOutlined, ReloadOutlined, UploadOutlined, PlusOutlined, EditOutlined, DeleteOutlined } from '@ant-design/icons'
+import { DownloadOutlined, ReloadOutlined, UploadOutlined, PlusOutlined, EditOutlined, DeleteOutlined, StarFilled, StarOutlined } from '@ant-design/icons'
 import dayjs from 'dayjs'
 import type { ColumnsType } from 'antd/es/table'
-import { listProjects, createProject, updateProject, deleteProject, applyTemplate } from '../api/projects'
+import { listProjects, createProject, updateProject, deleteProject, applyTemplate, setFavorite } from '../api/projects'
 import { listTemplates } from '../api/templates'
 import { listUsers } from '../api/users'
 import { requestDeleteProject } from '../api/audit'
@@ -319,7 +319,37 @@ export default function ProjectListPage() {
     }
   }
 
+  const toggleFavorite = async (r: Project) => {
+    const target = !r.is_favorite
+    // 乐观更新：立即切换星标状态，失败回滚
+    setProjects((prev) => prev.map((p) => (p.id === r.id ? { ...p, is_favorite: target } : p)))
+    try {
+      await setFavorite(r.id, target)
+      // 置顶：关注后项目应排到前面（后端排序规则：is_favorite DESC, id）
+      if (target) {
+        load()
+      }
+    } catch (e) {
+      setProjects((prev) => prev.map((p) => (p.id === r.id ? { ...p, is_favorite: !target } : p)))
+      message.error('操作失败：' + (e as Error).message)
+    }
+  }
+
   const columns: ColumnsType<Project> = [
+    {
+      title: '★',
+      width: 50,
+      align: 'center',
+      render: (_, r) => (
+        <a
+          onClick={(e) => { e.stopPropagation(); toggleFavorite(r) }}
+          style={{ fontSize: 16, color: r.is_favorite ? '#fadb14' : '#d9d9d9' }}
+          title={r.is_favorite ? '取消关注' : '关注（置顶）'}
+        >
+          {r.is_favorite ? <StarFilled /> : <StarOutlined />}
+        </a>
+      ),
+    },
     { title: '编号', width: 70, align: 'center',
       render: (_: unknown, _r: Project, index: number) => index + 1 },
     {

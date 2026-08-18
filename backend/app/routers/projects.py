@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 
 from app.core.deps import get_current_user, require_role, check_project_access
 from app.database import get_db
-from app.models import Dependency, Phase, Project, User, phase_assignee
+from app.models import Dependency, Phase, Project, User, UserFavorite, phase_assignee
 from app.routers.audit import log_operation
 from app.schemas import (
     CriticalPathResult,
@@ -83,7 +83,66 @@ def list_projects(
     if market:
         stmt = stmt.where(Project.market == market)
     stmt = stmt.order_by(Project.id)
-    return list(db.scalars(stmt))
+
+    # 关注标记 + 置顶排序（关注的项目优先，组内按 id）
+    favorite_ids = set(db.scalars(
+        select(UserFavorite.project_id).where(UserFavorite.user_id == user.id)
+    ).all())
+    projects = [ProjectRead.model_validate(p) for p in db.scalars(stmt)]
+    for item in projects:
+        item.is_favorite = item.id in favorite_ids
+    projects.sort(key=lambda x: (not x.is_favorite, x.id))
+    return projects
+
+
+# ---------- 关注项目（置顶） ----------
+
+@router.get("/favorites", response_model=list[int])
+def get_my_favorites(
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """返回当前用户关注的 project_id 列表。"""
+    return list(db.scalars(
+        select(UserFavorite.project_id).where(UserFavorite.user_id == user.id)
+    ))
+
+
+@router.put("/{project_id}/favorite")
+def add_favorite(
+    project_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """关注项目（幂等：重复关注不报错）。"""
+    project = db.get(Project, project_id)
+    if project is None:
+        raise HTTPException(404, "项目不存在")
+    exists = db.scalars(select(UserFavorite).where(
+        UserFavorite.user_id == user.id,
+        UserFavorite.project_id == project_id,
+    )).first()
+    if exists is None:
+        db.add(UserFavorite(user_id=user.id, project_id=project_id))
+        db.commit()
+    return {"favorited": True}
+
+
+@router.delete("/{project_id}/favorite")
+def remove_favorite(
+    project_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """取消关注（幂等：未关注时也不报错）。"""
+    exists = db.scalars(select(UserFavorite).where(
+        UserFavorite.user_id == user.id,
+        UserFavorite.project_id == project_id,
+    )).first()
+    if exists is not None:
+        db.delete(exists)
+        db.commit()
+    return {"favorited": False}
 
 
 @router.post("", response_model=ProjectRead, status_code=status.HTTP_201_CREATED)

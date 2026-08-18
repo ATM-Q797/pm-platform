@@ -27,6 +27,7 @@ export interface Project {
   updated_at?: string | null
   template?: { id: number; name: string; category: string } | null
   phases?: Phase[]
+  is_favorite?: boolean // 当前用户是否关注（置顶）
 }
 
 export interface ProjectDetail extends Project {
