@@ -24,10 +24,10 @@ from datetime import date, datetime
 from typing import Any
 
 import openpyxl
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
-from app.models import Dependency, Phase, Project, Resource
+from app.models import Dependency, Phase, Project, Resource, User
 from app.schemas.import_report import (
     ImportError,
     ImportExistingCounts,
@@ -468,6 +468,8 @@ def import_parsed(db: Session, parsed: ParsedWorkbook) -> ImportReport:
         return report
 
     # 全量重置：删 Project（级联）+ Resource（保留 Template）
+    # 先解除 user→resource 引用：PG 外键约束下直接删被引用的 resource 会失败
+    db.execute(update(User).values(resource_id=None).where(User.resource_id.is_not(None)))
     db.query(Project).delete()
     db.query(Resource).delete()
     db.flush()

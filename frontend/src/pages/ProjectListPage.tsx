@@ -113,6 +113,10 @@ export default function ProjectListPage() {
     setImporting(true)
     try {
       const resp = await fetch('/api/import/excel', { method: 'POST', body: formData })
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => null)
+        throw new Error(err?.detail || `导入失败 (HTTP ${resp.status})`)
+      }
       const report: ImportReport = await resp.json()
       hide()
       setImportPreview(null)
@@ -138,9 +142,9 @@ export default function ProjectListPage() {
             {report.resources_created} 个人员
           </p>
           <p>
-            错误 {report.errors.length} 条，警告 {report.warnings.length} 条
+            错误 {(report.errors || []).length} 条，警告 {(report.warnings || []).length} 条
           </p>
-          {report.errors.length > 0 && (
+          {(report.errors || []).length > 0 && (
             <>
               <b>错误：</b>
               <ul style={{ maxHeight: 120, overflow: 'auto', fontSize: 12 }}>
@@ -152,7 +156,7 @@ export default function ProjectListPage() {
               </ul>
             </>
           )}
-          {report.warnings.length > 0 && (
+          {(report.warnings || []).length > 0 && (
             <>
               <b>警告：</b>
               <ul style={{ maxHeight: 120, overflow: 'auto', fontSize: 12 }}>
