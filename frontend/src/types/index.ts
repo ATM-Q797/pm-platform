@@ -179,6 +179,16 @@ export interface ImportReport {
   warnings: ImportError[]
 }
 
+// 导入前差异报告（预览）
+export interface ImportPreview {
+  existing: { projects: number; phases: number; resources: number }
+  incoming: { projects: number; phases: number }
+  match: { matched: number; new: number; missing: number }
+  errors: ImportError[]
+  warnings: ImportError[]
+  projects_preview: { name: string; market: string; category: string; phases: number }[]
+}
+
 // ---------- 首页看板 ----------
 export interface StatusCount {
   status: string

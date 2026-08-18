@@ -10,7 +10,7 @@ import { listUsers } from '../api/users'
 import { requestDeleteProject } from '../api/audit'
 import { getMe } from '../api/auth'
 import { MARKET_OPTION_ITEMS, MARKET_OPTIONS } from '../types'
-import type { Project, ImportReport, Template, UserInfo } from '../types'
+import type { ImportPreview, Project, ImportReport, Template, UserInfo } from '../types'
 
 // 状态 → Tag 颜色
 const STATUS_COLOR: Record<string, string> = {
@@ -36,6 +36,11 @@ export default function ProjectListPage() {
   const [myRole, setMyRole] = useState<string>('viewer')
   const [deleteReasonOpen, setDeleteReasonOpen] = useState<Project | null>(null)
   const [deleteReason, setDeleteReason] = useState('')
+  // 导入预检（差异报告确认后执行导入）
+  const [importPreview, setImportPreview] = useState<ImportPreview | null>(null)
+  const [pendingImportFile, setPendingImportFile] = useState<File | null>(null)
+  const [previewLoading, setPreviewLoading] = useState(false)
+  const [importing, setImporting] = useState(false)
   const [form] = Form.useForm()
   const [editForm] = Form.useForm()
 
@@ -77,59 +82,91 @@ export default function ProjectListPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filters])
 
+  // 第一步：选择文件 → 只解析生成差异报告（不导入）
   const handleImport = async (file: File) => {
-    const hide = message.loading('正在导入 Excel...', 0)
     const formData = new FormData()
     formData.append('file', file)
+    setPreviewLoading(true)
+    try {
+      const resp = await fetch('/api/import/preview', { method: 'POST', body: formData })
+      if (!resp.ok) {
+        const err = await resp.json().catch(() => null)
+        throw new Error(err?.detail || `预览失败 (HTTP ${resp.status})`)
+      }
+      const preview: ImportPreview = await resp.json()
+      setImportPreview(preview)
+      setPendingImportFile(file)
+    } catch (e) {
+      message.error('解析失败：' + (e as Error).message)
+    } finally {
+      setPreviewLoading(false)
+    }
+    return false // 阻止 antd Upload 默认上传行为
+  }
+
+  // 第二步：确认后真正导入
+  const confirmImport = async () => {
+    if (!pendingImportFile) return
+    const hide = message.loading('正在导入 Excel...', 0)
+    const formData = new FormData()
+    formData.append('file', pendingImportFile)
+    setImporting(true)
     try {
       const resp = await fetch('/api/import/excel', { method: 'POST', body: formData })
       const report: ImportReport = await resp.json()
       hide()
-      Modal.info({
-        title: '导入完成',
-        width: 640,
-        content: (
-          <div>
-            <p>
-              导入 <b>{report.projects_imported}</b> 个项目 / {report.phases_imported} 个阶段 /{' '}
-              {report.resources_created} 个人员
-            </p>
-            <p>
-              错误 {report.errors.length} 条，警告 {report.warnings.length} 条
-            </p>
-            {report.errors.length > 0 && (
-              <>
-                <b>错误：</b>
-                <ul style={{ maxHeight: 120, overflow: 'auto', fontSize: 12 }}>
-                  {report.errors.map((e, i) => (
-                    <li key={i}>
-                      [{e.sheet} R{e.row}] {e.message}
-                    </li>
-                  ))}
-                </ul>
-              </>
-            )}
-            {report.warnings.length > 0 && (
-              <>
-                <b>警告：</b>
-                <ul style={{ maxHeight: 120, overflow: 'auto', fontSize: 12 }}>
-                  {report.warnings.map((w, i) => (
-                    <li key={i}>
-                      [{w.sheet} R{w.row}] {w.message}
-                    </li>
-                  ))}
-                </ul>
-              </>
-            )}
-          </div>
-        ),
-      })
+      setImportPreview(null)
+      setPendingImportFile(null)
+      showImportResult(report)
       load()
     } catch (e) {
       hide()
       message.error('导入失败：' + (e as Error).message)
+    } finally {
+      setImporting(false)
     }
-    return false // 阻止 antd Upload 默认上传行为
+  }
+
+  const showImportResult = (report: ImportReport) => {
+    Modal.info({
+      title: '导入完成',
+      width: 640,
+      content: (
+        <div>
+          <p>
+            导入 <b>{report.projects_imported}</b> 个项目 / {report.phases_imported} 个阶段 /{' '}
+            {report.resources_created} 个人员
+          </p>
+          <p>
+            错误 {report.errors.length} 条，警告 {report.warnings.length} 条
+          </p>
+          {report.errors.length > 0 && (
+            <>
+              <b>错误：</b>
+              <ul style={{ maxHeight: 120, overflow: 'auto', fontSize: 12 }}>
+                {report.errors.map((e, i) => (
+                  <li key={i}>
+                    [{e.sheet} R{e.row}] {e.message}
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+          {report.warnings.length > 0 && (
+            <>
+              <b>警告：</b>
+              <ul style={{ maxHeight: 120, overflow: 'auto', fontSize: 12 }}>
+                {report.warnings.map((w, i) => (
+                  <li key={i}>
+                    [{w.sheet} R{w.row}] {w.message}
+                  </li>
+                ))}
+              </ul>
+            </>
+          )}
+        </div>
+      ),
+    })
   }
 
   const handleCreate = async () => {
@@ -308,7 +345,7 @@ export default function ProjectListPage() {
             </Button>
           )}
           <Upload accept=".xlsx,.xls" beforeUpload={handleImport} showUploadList={false}>
-            <Button icon={<DownloadOutlined />}>导入 Excel</Button>
+            <Button icon={<DownloadOutlined />} loading={previewLoading}>导入 Excel</Button>
           </Upload>
           <Button icon={<UploadOutlined />} onClick={() => window.open('/api/export/excel')}>
             导出 Excel
@@ -496,6 +533,88 @@ export default function ProjectListPage() {
           value={deleteReason}
           onChange={(e) => setDeleteReason(e.target.value)}
         />
+      </Modal>
+
+      {/* 导入预检：差异报告确认（确认后才真正导入） */}
+      <Modal
+        title="导入确认 — 差异报告"
+        open={!!importPreview}
+        onCancel={() => { setImportPreview(null); setPendingImportFile(null) }}
+        onOk={confirmImport}
+        okText="确认导入并清空现有数据"
+        okType="danger"
+        confirmLoading={importing}
+        okButtonProps={{ disabled: !!importPreview && importPreview.errors.length > 0 }}
+        width={680}
+      >
+        {importPreview && (
+          <div>
+            {/* 将被清空 vs 将导入 */}
+            <div style={{ background: '#fff7e6', padding: '12px 16px', borderRadius: 6, marginBottom: 12 }}>
+              <p style={{ margin: 0, color: '#fa8c16', fontWeight: 600 }}>
+                ⚠️ 本次导入将【清空现有 {importPreview.existing.projects} 个项目
+                （{importPreview.existing.phases} 个阶段 / {importPreview.existing.resources} 个人员）】
+              </p>
+              <p style={{ margin: '4px 0 0', color: '#389e0d', fontWeight: 600 }}>
+                ✅ 文件包含 {importPreview.incoming.projects} 个项目 / {importPreview.incoming.phases} 个阶段
+              </p>
+            </div>
+
+            {/* 同名项目对比（防传错文件） */}
+            <p style={{ margin: '0 0 8px', fontSize: 13 }}>
+              项目对比：
+              <Tag color="green">{importPreview.match.matched} 个与现有同名</Tag>
+              <Tag color="blue">{importPreview.match.new} 个新增</Tag>
+              <Tag color={importPreview.match.missing > 0 ? 'red' : 'default'}>
+                {importPreview.match.missing} 个现有项目不在文件中
+              </Tag>
+              {importPreview.match.missing > 0 && (
+                <span style={{ color: '#ff4d4f', fontSize: 12, marginLeft: 4 }}>
+                  （文件可能不完整，请确认）
+                </span>
+              )}
+            </p>
+
+            {/* 项目概览 */}
+            {importPreview.projects_preview.length > 0 && (
+              <div style={{ marginBottom: 12 }}>
+                <b style={{ fontSize: 13 }}>文件内项目：</b>
+                <ul style={{ maxHeight: 140, overflow: 'auto', fontSize: 12, margin: '4px 0 0', paddingLeft: 20 }}>
+                  {importPreview.projects_preview.map((p, i) => (
+                    <li key={i}>
+                      {p.name} <Tag style={{ fontSize: 11 }}>{p.market}</Tag>
+                      <span style={{ color: '#999' }}>（{p.phases} 阶段）</span>
+                    </li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {/* 错误（存在则禁用确认） */}
+            {importPreview.errors.length > 0 && (
+              <div style={{ marginBottom: 12 }}>
+                <b style={{ color: '#ff4d4f', fontSize: 13 }}>❌ 错误 {importPreview.errors.length} 条（请修正后重新上传）：</b>
+                <ul style={{ maxHeight: 120, overflow: 'auto', fontSize: 12, color: '#ff4d4f', margin: '4px 0 0', paddingLeft: 20 }}>
+                  {importPreview.errors.map((e, i) => (
+                    <li key={i}>[{e.sheet} R{e.row}] {e.message}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+
+            {/* 警告 */}
+            {importPreview.warnings.length > 0 && (
+              <div>
+                <b style={{ fontSize: 13 }}>⚠️ 警告 {importPreview.warnings.length} 条：</b>
+                <ul style={{ maxHeight: 120, overflow: 'auto', fontSize: 12, color: '#faad14', margin: '4px 0 0', paddingLeft: 20 }}>
+                  {importPreview.warnings.map((w, i) => (
+                    <li key={i}>[{w.sheet} R{w.row}] {w.message}</li>
+                  ))}
+                </ul>
+              </div>
+            )}
+          </div>
+        )}
       </Modal>
     </>
   )

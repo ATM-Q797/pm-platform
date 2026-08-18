@@ -34,8 +34,13 @@ from app.schemas.dependency import (
 )
 from app.schemas.import_report import (
     ImportError as ImportIssue,
+    ImportExistingCounts,
+    ImportIncomingCounts,
+    ImportPreview,
     ImportReport,
     ImportWarning as ImportWarn,
+    PreviewProject,
+    ProjectMatchInfo,
 )
 from app.schemas.dashboard import (
     DashboardStats,
@@ -70,6 +75,8 @@ __all__ = [
     "PhaseCreate", "PhaseRead", "PhaseUpdate", "ReworkRequest", "ReworkLogRead",
     "DependencyCreate", "DependencyRead",
     "ImportReport", "ImportIssue", "ImportWarn",
+    "ImportPreview", "ImportExistingCounts", "ImportIncomingCounts",
+    "ProjectMatchInfo", "PreviewProject",
     "DashboardStats", "DelayedProject", "ReworkPhase", "StatusCount",
     "UserCreate", "UserRead", "UserUpdate", "LoginRequest", "LoginResponse", "PasswordChange",
     "DeleteRequestCreate", "DeleteRequestRead", "DeleteReview", "OperationLogRead",

@@ -250,6 +250,145 @@ def test_import_rejects_non_excel(client, db_session):
     assert resp.status_code == 400
 
 
+
+# ---------- 导入前差异报告（预览） ----------
+
+def _make_preview_workbook() -> bytes:
+    """构造 14 列模板格式 Excel（2 项目 / 3 阶段），用于预览测试。"""
+    import openpyxl
+    from datetime import datetime
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "项目填报"
+    headers = ["项目编号", "项目类目", "项目名称", "项目负责人", "市场", "阶段类型",
+               "计划开始", "计划结束", "实际开始", "实际结束",
+               "阶段负责人", "阶段状态", "阶段进度", "备注"]
+    for c, h in enumerate(headers, 1):
+        ws.cell(1, c, h)
+    # 项目 1（与库中已有"现有项目A"同名）
+    ws.cell(3, 1, "1")
+    ws.cell(3, 3, "现有项目A")
+    ws.cell(3, 5, "拉美区")
+    ws.cell(3, 7, datetime(2026, 7, 1))
+    ws.cell(3, 8, datetime(2026, 8, 1))
+    ws.cell(4, 1, "1-1")
+    ws.cell(4, 6, "工业设计")
+    ws.cell(4, 7, datetime(2026, 7, 1))
+    ws.cell(4, 8, datetime(2026, 7, 10))
+    ws.cell(4, 11, "李四")
+    ws.cell(4, 12, "已完成")
+    ws.cell(4, 13, 100)
+    # 项目 2（全新项目）
+    ws.cell(5, 1, "2")
+    ws.cell(5, 3, "全新项目B")
+    ws.cell(5, 5, "中东区")
+    ws.cell(6, 1, "2-1")
+    ws.cell(6, 6, "结构设计")
+    ws.cell(6, 7, datetime(2026, 8, 1))
+    ws.cell(6, 8, datetime(2026, 8, 30))
+    ws.cell(6, 11, "王五")
+    ws.cell(6, 12, "未开始")
+
+    import io
+    buf = io.BytesIO()
+    wb.save(buf)
+    return buf.getvalue()
+
+
+def test_preview_no_side_effect(client, db_session):
+    """预览不落库：调用后现有数据保持不变。"""
+    # 先建一个项目
+    r = client.post("/api/projects", json={
+        "category": "新需求", "name": "现有项目A", "owner": "张三", "market": "拉美区",
+    })
+    assert r.status_code == 201
+
+    data = _make_preview_workbook()
+    resp = client.post("/api/import/preview", files={"file": ("test.xlsx", data)})
+    assert resp.status_code == 200, resp.text
+    preview = resp.json()
+
+    # 现有数据统计
+    assert preview["existing"]["projects"] == 1
+    assert preview["existing"]["phases"] == 0
+
+    # 文件数据统计
+    assert preview["incoming"]["projects"] == 2
+    assert preview["incoming"]["phases"] == 2
+
+    # 同名对比：1 个同名匹配 / 1 个新增 / 0 个缺失
+    assert preview["match"]["matched"] == 1
+    assert preview["match"]["new"] == 1
+    assert preview["match"]["missing"] == 0
+
+    # 项目概览
+    assert len(preview["projects_preview"]) == 2
+    assert preview["projects_preview"][0]["phases"] == 1
+
+    # 无错误无警告
+    assert preview["errors"] == []
+    assert preview["warnings"] == []
+
+    # 关键：预览后库中数据未变（项目仍在）
+    projects = client.get("/api/projects").json()
+    assert len(projects) == 1
+    assert projects[0]["name"] == "现有项目A"
+
+
+def test_preview_missing_projects_detected(client, db_session):
+    """同名对比：现有项目不在文件中时 missing 正确计数（防传错文件）。"""
+    client.post("/api/projects", json={
+        "category": "新需求", "name": "库中项目X", "owner": "张三", "market": "拉美区",
+    })
+    client.post("/api/projects", json={
+        "category": "新需求", "name": "库中项目Y", "owner": "李四", "market": "中东区",
+    })
+
+    data = _make_preview_workbook()
+    resp = client.post("/api/import/preview", files={"file": ("test.xlsx", data)})
+    preview = resp.json()
+
+    # 文件只有 1 个与库同名（现有项目A 在库中不存在了——因为库中是 X/Y）
+    assert preview["match"]["matched"] == 0
+    assert preview["match"]["new"] == 2
+    assert preview["match"]["missing"] == 2  # X、Y 都不在文件中
+
+
+def test_preview_invalid_file(client, db_session):
+    """非法文件：返回错误且不落库。"""
+    resp = client.post("/api/import/preview", files={"file": ("bad.xlsx", b"not an excel")})
+    assert resp.status_code == 200
+    preview = resp.json()
+    assert len(preview["errors"]) == 1
+    assert preview["incoming"]["projects"] == 0
+
+    # 库中没有项目（无副作用）
+    assert client.get("/api/projects").json() == []
+
+
+def test_preview_rejects_wrong_extension(client, db_session):
+    """非 Excel 扩展名被拒绝。"""
+    resp = client.post("/api/import/preview", files={"file": ("a.txt", b"hello")})
+    assert resp.status_code == 400
+
+
+def test_preview_matches_import_result(client, db_session):
+    """一致性：预览统计与确认导入后的实际结果一致。"""
+    data = _make_preview_workbook()
+    preview_resp = client.post("/api/import/preview", files={"file": ("test.xlsx", data)})
+    preview = preview_resp.json()
+
+    import_resp = client.post("/api/import/excel", files={"file": ("test.xlsx", data)})
+    report = import_resp.json()
+
+    assert preview["incoming"]["projects"] == report["projects_imported"]
+    assert preview["incoming"]["phases"] == report["phases_imported"]
+
+    # 导入后库中数据与预览一致
+    projects = client.get("/api/projects").json()
+    assert len(projects) == preview["incoming"]["projects"]
+
 # ---------- 直接调用 import_excel 的单元测试（构造内存 Excel） ----------
 
 def test_import_excel_direct_with_constructed_workbook(client, db_session):
