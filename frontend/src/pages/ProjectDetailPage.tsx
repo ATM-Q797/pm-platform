@@ -1,8 +1,8 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { Card, Descriptions, Tag, Button, Space, Segmented, Spin, message, Input } from 'antd'
-import { ArrowLeftOutlined, PlusOutlined } from '@ant-design/icons'
-import { getProject, updateProject } from '../api/projects'
+import { ArrowLeftOutlined, PlusOutlined, StarFilled, StarOutlined } from '@ant-design/icons'
+import { getProject, updateProject, setFavorite } from '../api/projects'
 import { getMe } from '../api/auth'
 import type { ProjectDetail } from '../types'
 import GanttChart from '../components/Gantt/GanttChart'
@@ -26,6 +26,7 @@ export default function ProjectDetailPage() {
   const [tempName, setTempName] = useState('')
   // 用于强制刷新甘特图组件（数据变更后重新加载）
   const [ganttKey, setGanttKey] = useState(0)
+  const [favorited, setFavorited] = useState(false)
   // 甘特图时间轴尺度
   const [ganttScale, setGanttScale] = useState<'day' | 'week' | 'month'>('week')
   const [userRole, setUserRole] = useState<string>('viewer')
@@ -33,8 +34,12 @@ export default function ProjectDetailPage() {
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const data = await getProject(projectId)
+      const [data, favorites] = await Promise.all([
+        getProject(projectId),
+        fetch('/api/projects/favorites').then((r) => r.json()),
+      ])
       setProject(data)
+      setFavorited((favorites as number[]).includes(data.id))
     } catch (e) {
       message.error((e as Error).message)
     } finally {
@@ -116,6 +121,20 @@ export default function ProjectDetailPage() {
             ) : (
               <Space>
                 <span>#{project.code} {project.name}</span>
+                <a
+                  onClick={() => {
+                    const target = !favorited
+                    setFavorited(target)
+                    setFavorite(project.id, target).catch((e) => {
+                      setFavorited(!target)
+                      message.error('操作失败：' + (e as Error).message)
+                    })
+                  }}
+                  style={{ fontSize: 18, color: favorited ? '#fadb14' : '#d9d9d9' }}
+                  title={favorited ? '取消关注' : '关注（置顶）'}
+                >
+                  {favorited ? <StarFilled /> : <StarOutlined />}
+                </a>
                 <Button size="small" type="link" onClick={() => { setTempName(project.name); setEditingName(true) }}>
                   改名
                 </Button>

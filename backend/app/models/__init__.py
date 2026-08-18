@@ -10,6 +10,7 @@ from app.models.project import Project
 from app.models.phase import Phase, ReworkLog, phase_assignee
 from app.models.dependency import Dependency
 from app.models.audit import ProjectDeleteRequest, OperationLog, PhaseChangeRequest
+from app.models.user_favorite import UserFavorite
 
 __all__ = [
     "Resource",
@@ -25,4 +26,5 @@ __all__ = [
     "ProjectDeleteRequest",
     "OperationLog",
     "PhaseChangeRequest",
+    "UserFavorite",
 ]

@@ -55,6 +55,7 @@ class ProjectRead(ProjectBase):
     updated_at: datetime | None = None
     template: TemplateBrief | None = None
     phases: list[PhaseRead] = []
+    is_favorite: bool = False  # 当前用户是否关注（列表接口填充）
 
 
 class ProjectDetail(ProjectRead):
