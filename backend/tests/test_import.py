@@ -409,7 +409,11 @@ def test_import_with_user_linked_resource(client, db_session):
     db_session.commit()
 
     data = _make_preview_workbook()
-    resp = client.post("/api/import/excel", files={"file": ("test.xlsx", data)})
+    resp = client.post(
+        "/api/import/excel",
+        files={"file": ("test.xlsx", data)},
+        params={"mode": "replace"},
+    )
     assert resp.status_code == 200, resp.text
     report = resp.json()
     assert report["projects_imported"] == 2
