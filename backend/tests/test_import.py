@@ -389,6 +389,37 @@ def test_preview_matches_import_result(client, db_session):
     projects = client.get("/api/projects").json()
     assert len(projects) == preview["incoming"]["projects"]
 
+
+def test_import_with_user_linked_resource(client, db_session):
+    """用户账户关联了 resource 时导入仍成功：先解除引用再删资源（PG 外键约束回归）。"""
+    from app.models import Resource, User
+
+    # 建 resource + 用户关联它
+    res = Resource(name="关联人员")
+    db_session.add(res)
+    db_session.flush()
+    from app.core.security import hash_password
+    db_session.add(User(
+        username="linkeduser",
+        name="关联用户",
+        role="manager",
+        password_hash=hash_password("testpass"),
+        resource_id=res.id,
+    ))
+    db_session.commit()
+
+    data = _make_preview_workbook()
+    resp = client.post("/api/import/excel", files={"file": ("test.xlsx", data)})
+    assert resp.status_code == 200, resp.text
+    report = resp.json()
+    assert report["projects_imported"] == 2
+
+    # 用户仍在，resource_id 已被解除（资源被清空重建）
+    users = db_session.query(User).all()
+    assert any(u.username == "linkeduser" for u in users)
+    assert all(u.resource_id is None for u in users)
+
+
 # ---------- 直接调用 import_excel 的单元测试（构造内存 Excel） ----------
 
 def test_import_excel_direct_with_constructed_workbook(client, db_session):
