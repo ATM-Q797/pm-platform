@@ -19,6 +19,7 @@ from __future__ import annotations
 
 import io
 import re
+from dataclasses import dataclass, field
 from datetime import date, datetime
 from typing import Any
 
@@ -27,7 +28,16 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.models import Dependency, Phase, Project, Resource
-from app.schemas.import_report import ImportError, ImportReport, ImportWarning
+from app.schemas.import_report import (
+    ImportError,
+    ImportExistingCounts,
+    ImportIncomingCounts,
+    ImportPreview,
+    ImportReport,
+    ImportWarning,
+    PreviewProject,
+    ProjectMatchInfo,
+)
 
 # ---------- 新格式（14 列，项目填报模板）列索引 ----------
 _NEW_COL_CODE = 1
@@ -250,15 +260,57 @@ def _get_or_create_resource(db: Session, cache: dict[str, Resource], name: str) 
     return r
 
 
-# ---------- 主导入流程 ----------
+# ---------- 内存数据结构（解析阶段产出，零 DB 副作用） ----------
 
-def import_excel(db: Session, file_bytes: bytes, default_category: str = "新需求") -> ImportReport:
-    """解析 Excel 文件并全量导入。
+@dataclass
+class ParsedPhase:
+    """解析出的阶段（未落库）。"""
+    name: str
+    phase_type: str
+    sequence: int
+    plan_start: date | None = None
+    plan_end: date | None = None
+    actual_start: date | None = None
+    actual_end: date | None = None
+    status: str = "未开始"
+    progress: int = 0
+    remark: str | None = None
+    assignees: list[str] = field(default_factory=list)
 
-    全量重置：先删所有 Project（级联 Phase/Dependency）、清空 Resource（保留 Template）。
-    返回 ImportReport，并存为最近报告供 GET /api/import/report 查询。
+
+@dataclass
+class ParsedProject:
+    """解析出的项目（未落库），phases 内按 sequence 有序。"""
+    code: str
+    category: str
+    name: str
+    owner: str
+    market: str
+    status: str
+    plan_start: date | None = None
+    plan_end: date | None = None
+    remark: str | None = None
+    phases: list[ParsedPhase] = field(default_factory=list)
+
+
+@dataclass
+class ParsedWorkbook:
+    """解析结果：项目列表 + 解析报告（errors/warnings/统计）。"""
+    projects: list[ParsedProject]
+    report: ImportReport
+
+
+# ---------- 阶段一：解析（纯函数，不碰数据库） ----------
+
+def parse_workbook(file_bytes: bytes, default_category: str = "新需求") -> ParsedWorkbook:
+    """解析 Excel 文件为内存数据结构。
+
+    - 不访问数据库、无任何副作用
+    - 返回 ParsedWorkbook：项目列表 + 报告（错误/警告/行数统计）
+    - 文件级错误（无法读取/无数据 sheet）时 projects 为空、errors 非空
     """
     report = ImportReport()
+    projects: list[ParsedProject] = []
 
     # 解析工作簿
     try:
@@ -268,8 +320,7 @@ def import_excel(db: Session, file_bytes: bytes, default_category: str = "新需
             row=0, sheet="(文件)", field="file",
             message=f"无法读取 Excel 文件: {e}",
         ))
-        _set_last_report(report)
-        return report
+        return ParsedWorkbook(projects, report)
 
     # 选 sheet：识别出格式（new/old）的数据 sheet；'unknown'（如"填报说明"）跳过
     target_sheets = [(name, detect_format(wb[name])) for name in wb.sheetnames]
@@ -283,24 +334,15 @@ def import_excel(db: Session, file_bytes: bytes, default_category: str = "新需
                 "（表头含：项目编号/项目类目/项目名称/项目负责人/市场/阶段类型）"
             ),
         ))
-        _set_last_report(report)
-        return report
+        return ParsedWorkbook(projects, report)
 
-    # 全量重置：删 Project（级联）+ Resource（保留 Template）
-    db.query(Project).delete()
-    db.query(Resource).delete()
-    db.flush()
-
-    resource_cache: dict[str, Resource] = {}
-    resources_created = 0
     # 全局项目编号计数器：跨 sheet 连续编号（1,2,3...），避免两表编号冲突
     project_seq = 0
 
     for sheet_name, fmt in target_sheets:
         ws = wb[sheet_name]
         # 当前项目（阶段挂载用）：遇到项目行时更新
-        current_project: Project | None = None
-        current_project_phases: list[Phase] = []  # 用于按 sequence 建依赖
+        current_project: ParsedProject | None = None
 
         for r in range(_DATA_START_ROW, ws.max_row + 1):
             if fmt == "new":
@@ -333,7 +375,7 @@ def import_excel(db: Session, file_bytes: bytes, default_category: str = "新需
                 # 新格式优先用列内类目；旧格式沿用 default_category（历史行为）
                 cat = str(category).strip() if fmt == "new" and category else default_category
 
-                project = Project(
+                current_project = ParsedProject(
                     code=unique_code,
                     category=cat or default_category,
                     name=name_str,
@@ -344,17 +386,8 @@ def import_excel(db: Session, file_bytes: bytes, default_category: str = "新需
                     plan_end=plan_end,
                     remark=str(remark).strip() if remark else None,
                 )
-                db.add(project)
-                db.flush()
-                current_project = project
-                current_project_phases = []
+                projects.append(current_project)
                 report.projects_imported += 1
-                # 项目负责人也作为资源
-                if owner_str:
-                    before = len(resource_cache)
-                    _get_or_create_resource(db, resource_cache, owner_str)
-                    if len(resource_cache) > before:
-                        resources_created += 1
 
             elif row_kind == "phase":
                 # 阶段行
@@ -389,7 +422,7 @@ def import_excel(db: Session, file_bytes: bytes, default_category: str = "新需
 
                 # sequence 从项目编号的子序号提取（如 1-3 → 3）
                 seq_match = re.search(r"-(\d+)$", str(code).strip())
-                sequence = int(seq_match.group(1)) if seq_match else len(current_project_phases) + 1
+                sequence = int(seq_match.group(1)) if seq_match else len(current_project.phases) + 1
 
                 # 进度：显式列优先（新格式），否则按状态推断
                 if progress is not None and str(progress).strip() not in ("", "/"):
@@ -401,10 +434,9 @@ def import_excel(db: Session, file_bytes: bytes, default_category: str = "新需
                 else:
                     progress_val = 100 if status_str == "已完成" else (50 if status_str == "进行中" else 0)
 
-                phase = Phase(
-                    project_id=current_project.id,
-                    phase_type=phase_type,
+                current_project.phases.append(ParsedPhase(
                     name=phase_name,
+                    phase_type=phase_type,
                     sequence=sequence,
                     plan_start=plan_start,
                     plan_end=plan_end,
@@ -412,25 +444,86 @@ def import_excel(db: Session, file_bytes: bytes, default_category: str = "新需
                     actual_end=actual_end,
                     status=status_str or "未开始",
                     progress=progress_val,
-                    rework_count=0,
                     remark=str(remark).strip() if remark else None,
-                )
-                db.add(phase)
-                db.flush()
-                current_project_phases.append(phase)
+                    assignees=split_persons(assignees),
+                ))
                 report.phases_imported += 1
 
-                # 拆分负责人，建/匹配 Resource 并关联
-                persons = split_persons(assignees)
-                if persons:
-                    assignee_resources = []
-                    for pname in persons:
-                        before = len(resource_cache)
-                        res = _get_or_create_resource(db, resource_cache, pname)
-                        if len(resource_cache) > before:
-                            resources_created += 1
-                        assignee_resources.append(res)
-                    phase.assignees = assignee_resources
+    return ParsedWorkbook(projects, report)
+
+
+# ---------- 阶段二：落库 ----------
+
+def import_parsed(db: Session, parsed: ParsedWorkbook) -> ImportReport:
+    """把解析结果写入数据库（全量重置：先删所有 Project/Resource，保留 Template）。
+
+    - parsed.report 中的 errors/warnings/统计原样保留，补充 resources_created
+    - 返回 ImportReport，并存为最近报告供 GET /api/import/report 查询
+    """
+    report = parsed.report
+
+    # 文件级错误（无法读取/无数据 sheet）：不落库，直接返回
+    if not parsed.projects and report.errors:
+        _set_last_report(report)
+        return report
+
+    # 全量重置：删 Project（级联）+ Resource（保留 Template）
+    db.query(Project).delete()
+    db.query(Resource).delete()
+    db.flush()
+
+    resource_cache: dict[str, Resource] = {}
+    resources_created = 0
+
+    for project in parsed.projects:
+        proj = Project(
+            code=project.code,
+            category=project.category,
+            name=project.name,
+            owner=project.owner,
+            market=project.market,
+            status=project.status,
+            plan_start=project.plan_start,
+            plan_end=project.plan_end,
+            remark=project.remark,
+        )
+        db.add(proj)
+        db.flush()
+        # 项目负责人也作为资源
+        if project.owner:
+            before = len(resource_cache)
+            _get_or_create_resource(db, resource_cache, project.owner)
+            if len(resource_cache) > before:
+                resources_created += 1
+
+        for ph in project.phases:
+            phase = Phase(
+                project_id=proj.id,
+                phase_type=ph.phase_type,
+                name=ph.name,
+                sequence=ph.sequence,
+                plan_start=ph.plan_start,
+                plan_end=ph.plan_end,
+                actual_start=ph.actual_start,
+                actual_end=ph.actual_end,
+                status=ph.status,
+                progress=ph.progress,
+                rework_count=0,
+                remark=ph.remark,
+            )
+            db.add(phase)
+            db.flush()
+
+            # 拆分负责人，建/匹配 Resource 并关联
+            if ph.assignees:
+                assignee_resources = []
+                for pname in ph.assignees:
+                    before = len(resource_cache)
+                    res = _get_or_create_resource(db, resource_cache, pname)
+                    if len(resource_cache) > before:
+                        resources_created += 1
+                    assignee_resources.append(res)
+                phase.assignees = assignee_resources
 
     # 收尾：对所有项目的阶段按 sequence 建 FS 串联依赖
     _build_all_project_dependencies(db)
@@ -440,6 +533,57 @@ def import_excel(db: Session, file_bytes: bytes, default_category: str = "新需
 
     _set_last_report(report)
     return report
+
+
+def import_excel(db: Session, file_bytes: bytes, default_category: str = "新需求") -> ImportReport:
+    """解析 Excel 文件并全量导入（兼容入口 = parse_workbook + import_parsed）。"""
+    return import_parsed(db, parse_workbook(file_bytes, default_category))
+
+
+# ---------- 导入前差异报告（预览） ----------
+
+def build_preview(db: Session, parsed: ParsedWorkbook) -> ImportPreview:
+    """基于解析结果 + 当前库生成差异报告（只读统计，无任何副作用）。"""
+    existing_projects = db.query(Project).count()
+    existing_phases = db.query(Phase).count()
+    existing_resources = db.query(Resource).count()
+
+    incoming_projects = len(parsed.projects)
+    incoming_phases = sum(len(p.phases) for p in parsed.projects)
+
+    # 同名项目对比（防传错文件）
+    existing_names = set(db.scalars(select(Project.name)).all())
+    incoming_names = {p.name for p in parsed.projects if p.name}
+    matched = len(incoming_names & existing_names)
+    new = len(incoming_names - existing_names)
+    missing = len(existing_names - incoming_names)
+
+    # 项目概览（前 20 个）
+    projects_preview = [
+        PreviewProject(
+            name=p.name,
+            market=p.market,
+            category=p.category,
+            phases=len(p.phases),
+        )
+        for p in parsed.projects[:20]
+    ]
+
+    return ImportPreview(
+        existing=ImportExistingCounts(
+            projects=existing_projects,
+            phases=existing_phases,
+            resources=existing_resources,
+        ),
+        incoming=ImportIncomingCounts(
+            projects=incoming_projects,
+            phases=incoming_phases,
+        ),
+        match=ProjectMatchInfo(matched=matched, new=new, missing=missing),
+        errors=list(parsed.report.errors),
+        warnings=list(parsed.report.warnings),
+        projects_preview=projects_preview,
+    )
 
 
 def _read_new_format_row(ws, r: int) -> list[Any]:
