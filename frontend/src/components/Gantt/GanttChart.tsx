@@ -1,7 +1,7 @@
 import { useEffect, useRef } from 'react'
-import { applyGanttConfig, setScale } from './ganttConfig'
+import { applyGanttConfig, setScale, setCriticalHighlight } from './ganttConfig'
 import { setupPan, cleanupPan } from './panUtils'
-import { getProjectGantt, getProject } from '../../api/projects'
+import { getProjectGantt, getProject, getCriticalPath } from '../../api/projects'
 import { createDependency, deleteDependency } from '../../api/phases'
 import { listResources } from '../../api/resources'
 import 'dhtmlx-gantt/codebase/dhtmlxgantt.css'
@@ -10,10 +10,11 @@ import './gantt.css'
 interface Props {
   projectId: number
   scale?: 'day' | 'week' | 'month'
+  showCritical?: boolean // 关键路径高亮开关（默认关）
   onPhaseClick: (phaseId: number) => void
 }
 
-export default function GanttChart({ projectId, scale = 'week', onPhaseClick }: Props) {
+export default function GanttChart({ projectId, scale = 'week', showCritical = false, onPhaseClick }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   // 保存 gantt 实例引用，供 scale 切换 useEffect 使用
   const ganttRef = useRef<any>(null)
@@ -21,6 +22,32 @@ export default function GanttChart({ projectId, scale = 'week', onPhaseClick }: 
   // gantt.init 之后立即应用正确尺度，避免组件重建后尺度与 Segmented 控件不一致
   const scaleRef = useRef(scale)
   scaleRef.current = scale
+  // 同步关键路径开关状态（初始化/切换时读取）
+  const showCriticalRef = useRef(showCritical)
+  showCriticalRef.current = showCritical
+  // 缓存关键路径 phase id（避免重复请求）
+  const criticalIdsRef = useRef<Set<number> | null>(null)
+
+  // 切换关键路径开关：开 → 请求并高亮；关 → 清除高亮
+  useEffect(() => {
+    const gantt = ganttRef.current
+    if (!gantt || !containerRef.current) return
+    if (showCritical) {
+      getCriticalPath(projectId).then((r) => {
+        if (!showCriticalRef.current) return // 已切换关闭，丢弃结果
+        criticalIdsRef.current = new Set(r.critical_phase_ids)
+        setCriticalHighlight(criticalIdsRef.current)
+        gantt.render()
+      }).catch(() => {
+        gantt.message({ text: '关键路径计算失败', type: 'error', expire: 3000 })
+      })
+    } else {
+      criticalIdsRef.current = null
+      setCriticalHighlight(null)
+      gantt.render()
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [showCritical])
 
   useEffect(() => {
     let gantt: any = null
@@ -61,6 +88,14 @@ export default function GanttChart({ projectId, scale = 'week', onPhaseClick }: 
           getProjectGantt(projectId), getProject(projectId), listResources(),
         ])
         if (destroyed) return
+        // 初始开关打开：请求关键路径并准备高亮（render 时生效）
+        if (showCriticalRef.current) {
+          try {
+            const cp = await getCriticalPath(projectId)
+            criticalIdsRef.current = new Set(cp.critical_phase_ids)
+            setCriticalHighlight(criticalIdsRef.current)
+          } catch { /* 计算失败不阻塞甘特图渲染 */ }
+        }
         const phaseMap = new Map<number, any>()
         for (const ph of projectDetail.phases || []) phaseMap.set(ph.id, ph)
         const resourceMap = new Map<number, string>()

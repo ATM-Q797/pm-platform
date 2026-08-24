@@ -68,6 +68,13 @@
   border-left: 4px solid #fa8c16 !important;
 }
 
+/* 关键路径高亮 - 红色粗边框 + 阴影（定义在返工之后，同优先级后声明胜出；
+   且用 !important 确保覆盖返工橙色左边框与状态色边框）*/
+.gantt_task_line.gantt-task-critical {
+  border: 3px solid #ff4d4f !important;
+  box-shadow: 0 0 6px rgba(255, 77, 79, 0.35);
+}
+
 /* 顶层项目行 - 深色 */
 .gantt_task_line.gantt_project {
   background-color: #001529;

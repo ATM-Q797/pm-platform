@@ -11,6 +11,14 @@ const STATUS_CLASS: Record<string, string> = {
   已搁置: 'gantt-task-blocked',
 }
 
+// 关键路径高亮：null = 关闭；Set<phase_id> = 高亮哪些阶段
+let criticalHighlightIds: Set<number> | null = null
+
+/** 设置关键路径高亮（null 关闭）。调用后需 gantt.render() 生效。 */
+export function setCriticalHighlight(ids: Set<number> | null) {
+  criticalHighlightIds = ids
+}
+
 // 用 any 接收 gantt 实例，避免顶层类型 import
 type GanttInstance = any
 
@@ -77,7 +85,7 @@ export function applyGanttConfig(gantt: GanttInstance) {
     { unit: 'week', step: 1, format: weekInMonthFormat },
   ]
 
-  // task_class：按状态着色 + 返工标记
+  // task_class：按状态着色 + 返工标记 + 关键路径高亮
   gantt.templates.task_class = function (_start: any, _end: any, task: any) {
     const classes: string[] = []
     if (task.type === 'task') {
@@ -86,6 +94,10 @@ export function applyGanttConfig(gantt: GanttInstance) {
       }
       if (task.rework_count && task.rework_count > 0) {
         classes.push('gantt-task-rework')
+      }
+      // 关键路径（开关打开时）：红色粗边框，CSS 优先级高于返工标记
+      if (criticalHighlightIds?.has(task.id)) {
+        classes.push('gantt-task-critical')
       }
     }
     return classes.join(' ')

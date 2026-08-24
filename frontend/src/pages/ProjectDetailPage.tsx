@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { Card, Descriptions, Tag, Button, Space, Segmented, Spin, message, Input } from 'antd'
+import { Card, Descriptions, Tag, Button, Space, Segmented, Spin, message, Input, Switch } from 'antd'
 import { ArrowLeftOutlined, PlusOutlined, StarFilled, StarOutlined } from '@ant-design/icons'
 import { getProject, updateProject, setFavorite } from '../api/projects'
 import { getMe } from '../api/auth'
@@ -29,6 +29,7 @@ export default function ProjectDetailPage() {
   const [favorited, setFavorited] = useState(false)
   // 甘特图时间轴尺度
   const [ganttScale, setGanttScale] = useState<'day' | 'week' | 'month'>('week')
+  const [showCritical, setShowCritical] = useState(false) // 关键路径高亮开关
   const [userRole, setUserRole] = useState<string>('viewer')
 
   const load = useCallback(async () => {
@@ -186,6 +187,15 @@ export default function ProjectDetailPage() {
               value={ganttScale}
               onChange={(val) => setGanttScale(val as 'day' | 'week' | 'month')}
             />
+            <span style={{ fontSize: 13, color: '#666' }}>
+              关键路径
+              <Switch
+                size="small"
+                style={{ marginLeft: 6 }}
+                checked={showCritical}
+                onChange={setShowCritical}
+              />
+            </span>
           </Space>
         }
       >
@@ -196,6 +206,7 @@ export default function ProjectDetailPage() {
             key={ganttKey}
             projectId={projectId}
             scale={ganttScale}
+            showCritical={showCritical}
             onPhaseClick={handlePhaseClick}
           />
         )}
