@@ -228,6 +228,42 @@ export interface ReworkPhase {
   rework_count: number
 }
 
+// T5：阶段级延期 / 即将到期（看板）
+export interface DelayedPhase {
+  phase_id: number
+  phase_name: string
+  project_id: number
+  project_name: string
+  overdue_days: number
+}
+
+export interface DueSoonPhase {
+  phase_id: number
+  phase_name: string
+  project_id: number
+  project_name: string
+  days_left: number
+}
+
+// T4：资源冲突
+export interface ConflictPair {
+  phase_a_id: number
+  phase_a_name: string
+  project_a_id: number
+  project_a_name: string
+  phase_b_id: number
+  phase_b_name: string
+  project_b_id: number
+  project_b_name: string
+  overlap_days: number
+}
+
+export interface ResourceConflict {
+  resource_id: number
+  resource_name: string
+  conflicts: ConflictPair[]
+}
+
 export interface DashboardStats {
   total_projects: number
   active_projects: number
@@ -238,6 +274,11 @@ export interface DashboardStats {
   delayed_projects: DelayedProject[]
   total_rework_count: number
   rework_phases: ReworkPhase[]
+  // T5
+  delayed_phases: DelayedPhase[]
+  due_soon_phases: DueSoonPhase[]
+  due_soon_count: number
+  conflict_count: number
 }
 
 // ---------- 用户与认证 ----------
