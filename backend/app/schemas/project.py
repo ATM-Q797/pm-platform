@@ -116,3 +116,25 @@ class WorkloadItem(BaseModel):
 class ResourceWorkload(BaseModel):
     resource: dict[str, Any]  # {id, name, role}
     workloads: list[WorkloadItem]
+
+
+# ---------- 资源冲突（T4） ----------
+
+class ConflictPair(BaseModel):
+    """一对冲突阶段。"""
+    phase_a_id: int
+    phase_a_name: str
+    project_a_id: int
+    project_a_name: str
+    phase_b_id: int
+    phase_b_name: str
+    project_b_id: int
+    project_b_name: str
+    overlap_days: int
+
+
+class ResourceConflict(BaseModel):
+    """某资源的全部冲突对。"""
+    resource_id: int
+    resource_name: str
+    conflicts: list[ConflictPair]
