@@ -13,9 +13,26 @@ from sqlalchemy.orm import Session
 from app.core.deps import get_current_user
 from app.database import get_db
 from app.models import Phase, Resource, User
-from app.schemas import ResourceCreate, ResourceRead, ResourceUpdate, ResourceWorkload
+from app.schemas import (
+    ResourceConflict,
+    ResourceCreate,
+    ResourceRead,
+    ResourceUpdate,
+    ResourceWorkload,
+)
+from app.services.resource_conflicts import detect_conflicts
 
 router = APIRouter(prefix="/api/resources", tags=["资源/人员"])
+
+
+@router.get("/conflicts", response_model=list[ResourceConflict])
+def get_conflicts(db: Session = Depends(get_db)):
+    """资源冲突检测：同一资源在重叠时间段被分配到不同项目的阶段。
+
+    规则：严格重叠（背靠背不算）、同项目不算、缺日期/已完成/已搁置跳过。
+    返回按资源分组，冲突对按重叠天数降序。
+    """
+    return detect_conflicts(db)
 
 
 def _phase_to_workload(ph: Phase) -> dict:

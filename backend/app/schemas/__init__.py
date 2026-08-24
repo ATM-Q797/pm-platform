@@ -10,6 +10,7 @@ from app.schemas.template import (
     TemplateUpdate,
 )
 from app.schemas.project import (
+    ConflictPair,
     CriticalPathResult,
     GanttData,
     GanttLink,
@@ -18,6 +19,7 @@ from app.schemas.project import (
     ProjectDetail,
     ProjectRead,
     ProjectUpdate,
+    ResourceConflict,
     ResourceWorkload,
     WorkloadItem,
 )
@@ -73,6 +75,7 @@ __all__ = [
     "ProjectCreate", "ProjectRead", "ProjectUpdate", "ProjectDetail",
     "GanttData", "GanttLink", "GanttTask", "ResourceWorkload", "WorkloadItem",
     "CriticalPathResult",
+    "ConflictPair", "ResourceConflict",
     "PhaseCreate", "PhaseRead", "PhaseUpdate", "ReworkRequest", "ReworkLogRead",
     "DependencyCreate", "DependencyRead",
     "ImportReport", "ImportIssue", "ImportWarn",
