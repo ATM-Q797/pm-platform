@@ -1,5 +1,5 @@
 import client from './client'
-import type { Resource, ResourceWorkload } from '../types'
+import type { Resource, ResourceConflict, ResourceWorkload } from '../types'
 
 export async function listResources(): Promise<Resource[]> {
   const { data } = await client.get<Resource[]>('/resources')
@@ -18,5 +18,10 @@ export async function getAllWorkloads(): Promise<ResourceWorkload[]> {
 
 export async function createResource(payload: { name: string; role?: string; department?: string }): Promise<Resource> {
   const { data } = await client.post<Resource>('/resources', payload)
+  return data
+}
+
+export async function getResourceConflicts(): Promise<ResourceConflict[]> {
+  const { data } = await client.get<ResourceConflict[]>('/resources/conflicts')
   return data
 }
