@@ -47,7 +47,9 @@ from app.schemas.import_report import (
 )
 from app.schemas.dashboard import (
     DashboardStats,
+    DelayedPhase,
     DelayedProject,
+    DueSoonPhase,
     ReworkPhase,
     StatusCount,
 )
@@ -82,6 +84,7 @@ __all__ = [
     "ImportPreview", "ImportExistingCounts", "ImportIncomingCounts",
     "ProjectMatchInfo", "PreviewProject", "PendingLinkPhase",
     "DashboardStats", "DelayedProject", "ReworkPhase", "StatusCount",
+    "DelayedPhase", "DueSoonPhase",
     "UserCreate", "UserRead", "UserUpdate", "LoginRequest", "LoginResponse", "PasswordChange",
     "DeleteRequestCreate", "DeleteRequestRead", "DeleteReview", "OperationLogRead",
     "PhaseChangeRequestCreate", "PhaseChangeRequestRead", "PhaseChangeReview",
