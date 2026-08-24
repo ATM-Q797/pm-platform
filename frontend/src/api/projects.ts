@@ -39,6 +39,17 @@ export async function applyTemplate(projectId: number, templateId: number): Prom
   return data
 }
 
+export interface CriticalPathResult {
+  critical_phase_ids: number[]
+  total_duration: number
+  path: string[]
+}
+
+export async function getCriticalPath(id: number): Promise<CriticalPathResult> {
+  const { data } = await client.get<CriticalPathResult>(`/projects/${id}/critical-path`)
+  return data
+}
+
 export async function setFavorite(id: number, favorited: boolean): Promise<void> {
   if (favorited) {
     await client.put(`/projects/${id}/favorite`)
