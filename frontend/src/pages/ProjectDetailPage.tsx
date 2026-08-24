@@ -102,7 +102,7 @@ export default function ProjectDetailPage() {
   return (
     <div>
       <Space style={{ marginBottom: 16 }}>
-        <Button icon={<ArrowLeftOutlined />} onClick={() => navigate('/')}>
+        <Button icon={<ArrowLeftOutlined />} onClick={() => navigate('/projects')}>
           返回列表
         </Button>
       </Space>
