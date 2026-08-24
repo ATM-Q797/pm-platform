@@ -31,6 +31,26 @@ class ReworkPhase(BaseModel):
     rework_count: int
 
 
+# ---------- T5：阶段级延期 / 即将到期 / 冲突计数 ----------
+
+class DelayedPhase(BaseModel):
+    """阶段级实际延期项（计算式，不写库）。"""
+    phase_id: int
+    phase_name: str
+    project_id: int
+    project_name: str
+    overdue_days: int  # 逾期天数（今天 - plan_end）
+
+
+class DueSoonPhase(BaseModel):
+    """即将到期阶段项（未来 7 天内到期且未完成）。"""
+    phase_id: int
+    phase_name: str
+    project_id: int
+    project_name: str
+    days_left: int  # 剩余天数（plan_end - 今天）
+
+
 class DashboardStats(BaseModel):
     """首页看板聚合统计数据（一次请求返回全部）。"""
     # 顶部统计卡片
@@ -47,3 +67,8 @@ class DashboardStats(BaseModel):
     # 返工统计
     total_rework_count: int  # 返工总次数
     rework_phases: list[ReworkPhase]  # 有返工的阶段（按返工次数倒序）
+    # T5：阶段级预警 + 冲突
+    delayed_phases: list[DelayedPhase] = []  # 阶段级实际延期（按逾期天数倒序）
+    due_soon_phases: list[DueSoonPhase] = []  # 即将到期阶段（按剩余天数升序）
+    due_soon_count: int = 0  # 即将到期阶段数
+    conflict_count: int = 0  # 资源冲突对数（复用 T4 检测）
