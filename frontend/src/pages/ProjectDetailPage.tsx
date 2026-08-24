@@ -2,7 +2,7 @@ import { useEffect, useState, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { Card, Descriptions, Tag, Button, Space, Segmented, Spin, message, Input, Switch } from 'antd'
 import { ArrowLeftOutlined, PlusOutlined, StarFilled, StarOutlined } from '@ant-design/icons'
-import { getProject, updateProject, setFavorite } from '../api/projects'
+import { getProject, updateProject, setFavorite, getCriticalPath } from '../api/projects'
 import { getMe } from '../api/auth'
 import type { ProjectDetail } from '../types'
 import GanttChart from '../components/Gantt/GanttChart'
@@ -30,17 +30,23 @@ export default function ProjectDetailPage() {
   // 甘特图时间轴尺度
   const [ganttScale, setGanttScale] = useState<'day' | 'week' | 'month'>('week')
   const [showCritical, setShowCritical] = useState(false) // 关键路径高亮开关
+  // 关键路径工期（详情页展示，T3）
+  const [criticalDuration, setCriticalDuration] = useState<number | null>(null)
+  const [criticalPathNames, setCriticalPathNames] = useState<string[]>([])
   const [userRole, setUserRole] = useState<string>('viewer')
 
   const load = useCallback(async () => {
     setLoading(true)
     try {
-      const [data, favorites] = await Promise.all([
+      const [data, favorites, cp] = await Promise.all([
         getProject(projectId),
         fetch('/api/projects/favorites').then((r) => r.json()),
+        getCriticalPath(projectId).catch(() => null), // 关键路径计算失败不阻塞页面
       ])
       setProject(data)
       setFavorited((favorites as number[]).includes(data.id))
+      setCriticalDuration(cp && cp.total_duration > 0 ? cp.total_duration : null)
+      setCriticalPathNames(cp?.path || [])
     } catch (e) {
       message.error((e as Error).message)
     } finally {
@@ -155,6 +161,27 @@ export default function ProjectDetailPage() {
           <Descriptions.Item label="负责人">{project.owner}</Descriptions.Item>
           <Descriptions.Item label="计划周期">
             {project.plan_start || '?'} ~ {project.plan_end || '?'}
+          </Descriptions.Item>
+          <Descriptions.Item label="关键路径工期">
+            {criticalDuration !== null ? (
+              <span style={{ color: '#ff4d4f', fontWeight: 600 }}>{criticalDuration} 天</span>
+            ) : (
+              <span style={{ color: '#999' }}>—</span>
+            )}
+          </Descriptions.Item>
+          <Descriptions.Item label="关键路径" span={4}>
+            {criticalPathNames.length > 0 ? (
+              <span>
+                {criticalPathNames.map((n, i) => (
+                  <span key={i}>
+                    <Tag color="red" style={{ marginBottom: 4 }}>{n}</Tag>
+                    {i < criticalPathNames.length - 1 && <span style={{ color: '#999' }}>→</span>}
+                  </span>
+                ))}
+              </span>
+            ) : (
+              <span style={{ color: '#999' }}>（无有效日期阶段，无法计算）</span>
+            )}
           </Descriptions.Item>
           <Descriptions.Item label="阶段数">{project.phases?.length || 0}</Descriptions.Item>
           <Descriptions.Item label="依赖数">{project.dependencies?.length || 0}</Descriptions.Item>
