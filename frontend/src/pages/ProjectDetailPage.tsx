@@ -126,8 +126,11 @@ export default function ProjectDetailPage() {
                 </Button>
               </Space>
             ) : (
-              <Space>
-                <span>#{project.code} {project.name}</span>
+              <Space wrap>
+                <span style={{ fontSize: 16, fontWeight: 600 }}>
+                  #{project.code} {project.name}
+                </span>
+                <Tag color={STATUS_COLOR[project.status] || 'default'}>{project.status}</Tag>
                 <a
                   onClick={() => {
                     const target = !favorited
@@ -171,10 +174,10 @@ export default function ProjectDetailPage() {
           </Descriptions.Item>
           <Descriptions.Item label="关键路径" span={4}>
             {criticalPathNames.length > 0 ? (
-              <span>
+              <span style={{ display: 'inline-flex', flexWrap: 'wrap', gap: 4, alignItems: 'center' }}>
                 {criticalPathNames.map((n, i) => (
-                  <span key={i}>
-                    <Tag color="red" style={{ marginBottom: 4 }}>{n}</Tag>
+                  <span key={i} style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
+                    <Tag color="red" style={{ margin: 0 }}>{n}</Tag>
                     {i < criticalPathNames.length - 1 && <span style={{ color: '#999' }}>→</span>}
                   </span>
                 ))}
@@ -197,7 +200,7 @@ export default function ProjectDetailPage() {
 
       <Card
         size="small"
-        title="甘特图"
+        title={`甘特图 · ${project.phases?.length || 0} 个阶段`}
         extra={
           <Space>
             {(userRole === 'admin' || userRole === 'manager') && (

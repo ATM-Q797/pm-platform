@@ -5,3 +5,73 @@ html, body, #root {
   font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue',
     Arial, 'PingFang SC', 'Microsoft YaHei', sans-serif;
 }
+
+/* ---------- 全局 UI 优化（2026-08-25） ---------- */
+
+/* 卡片统一阴影，弱化边框（看板/列表/详情一致） */
+.ant-card {
+  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03), 0 1px 6px rgba(0, 0, 0, 0.06);
+  border-color: #f0f0f0;
+}
+
+/* 看板卡片 hover 轻抬升 */
+.ant-card-hoverable:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+}
+
+/* 顶栏用户区 hover 背景 */
+.header-user:hover {
+  background: rgba(255, 255, 255, 0.12);
+}
+
+/* 周报 Markdown 预览排版 */
+.report-markdown {
+  max-width: 860px;
+  margin: 0 auto;
+  line-height: 1.75;
+  font-size: 14px;
+  color: #333;
+}
+.report-markdown h1 {
+  font-size: 20px;
+  margin: 16px 0 8px;
+  border-bottom: 1px solid #eee;
+  padding-bottom: 6px;
+}
+.report-markdown h2 {
+  font-size: 17px;
+  margin: 14px 0 6px;
+  color: #333;
+}
+.report-markdown h3 {
+  font-size: 15px;
+  margin: 10px 0 4px;
+}
+.report-markdown ul {
+  padding-left: 20px;
+}
+.report-markdown li {
+  margin: 3px 0;
+}
+.report-markdown table {
+  border-collapse: collapse;
+  width: 100%;
+  margin: 8px 0;
+}
+.report-markdown th,
+.report-markdown td {
+  border: 1px solid #e8e8e8;
+  padding: 6px 10px;
+  text-align: left;
+}
+.report-markdown th {
+  background: #fafafa;
+  font-weight: 600;
+}
+.report-markdown blockquote {
+  margin: 8px 0;
+  padding: 4px 12px;
+  border-left: 3px solid #1677ff;
+  background: #f5f8ff;
+  color: #666;
+}

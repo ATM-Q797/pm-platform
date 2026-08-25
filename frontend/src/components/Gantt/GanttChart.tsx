@@ -160,7 +160,7 @@ export default function GanttChart({ projectId, scale = 'week', showCritical = f
     }
   }, [scale])
 
-  return <div ref={containerRef} className="pm-gantt-container" style={{ width: '100%', height: '60vh' }} />
+  return <div ref={containerRef} className="pm-gantt-container" style={{ width: '100%', height: 'clamp(420px, calc(100vh - 380px), 900px)' }} />
 }
 
 // dhtmlxGantt link type 映射："0"→FS "1"→SS "2"→FF "3"→SF

@@ -34,6 +34,33 @@ export default function ResourcePage() {
         />
       }
     >
+      <div style={{ marginBottom: 8 }}>
+        <Space size="middle" wrap>
+          <span style={{ fontSize: 12, color: '#666' }}>图例：</span>
+          {[
+            { color: '#73d13d', label: '已完成' },
+            { color: '#69b1ff', label: '进行中' },
+            { color: '#d9d9d9', label: '未开始' },
+            { color: '#ff7875', label: '延期' },
+            { color: '#8c8c8c', label: '已搁置' },
+            { color: 'transparent', label: '黄色边框+⚠ = 资源冲突', border: '2px solid #faad14' },
+          ].map((item) => (
+            <span key={item.label} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, color: '#666' }}>
+              <span
+                style={{
+                  display: 'inline-block',
+                  width: 14,
+                  height: 10,
+                  borderRadius: 2,
+                  background: item.color,
+                  border: item.border || '1px solid #d9d9d9',
+                }}
+              />
+              {item.label}
+            </span>
+          ))}
+        </Space>
+      </div>
       <ResourceView scale={scale} onPhaseClick={setEditingPhase} />
       <div style={{ marginTop: 8, fontSize: 12, color: '#999' }}>
         提示：每人一行，行内的甘特条为其参与的项目阶段（按状态着色）。点击阶段条可查看详情（只读）。阶段调整请在项目管理页面操作。

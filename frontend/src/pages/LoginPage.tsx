@@ -31,7 +31,7 @@ export default function LoginPage({ onLogin }: Props) {
         display: 'flex',
         alignItems: 'center',
         justifyContent: 'center',
-        background: 'linear-gradient(135deg, #667eea 0%, #764ba2 100%)',
+        background: 'linear-gradient(135deg, #1e3a5f 0%, #2563eb 50%, #1e40af 100%)',
       }}
     >
       <Card style={{ width: 380, boxShadow: '0 8px 32px rgba(0,0,0,0.2)' }}>
@@ -39,7 +39,7 @@ export default function LoginPage({ onLogin }: Props) {
           <Typography.Title level={3} style={{ margin: 0 }}>
             🦞 研发项目管理平台
           </Typography.Title>
-          <Typography.Text type="secondary">请登录以继续</Typography.Text>
+          <Typography.Text type="secondary">智能终端研发 · 项目管理中心</Typography.Text>
         </div>
         <Form onFinish={handleSubmit} size="large">
           <Form.Item name="username" rules={[{ required: true, message: '请输入用户名' }]}>
