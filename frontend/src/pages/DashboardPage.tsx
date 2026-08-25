@@ -70,8 +70,8 @@ export default function DashboardPage() {
 
   return (
     <div>
-      {/* 6 张统计卡片：2 行 × 3 列 */}
-      <Row gutter={16} style={{ marginBottom: 16 }}>
+      {/* 6 张统计卡片：2 行 × 3 列，行间大间距 */}
+      <Row gutter={16} style={{ marginBottom: 32 }}>
         <Col span={8}>
           <Card hoverable onClick={() => navigate('/projects')} style={{ cursor: 'pointer' }}>
             <Statistic title="项目总数" value={stats.total_projects} prefix={<ProjectOutlined />} />
@@ -97,6 +97,8 @@ export default function DashboardPage() {
             />
           </Card>
         </Col>
+      </Row>
+      <Row gutter={16}>
         <Col span={8}>
           <Card hoverable onClick={() => openDrawer('due')} style={{ cursor: 'pointer' }}>
             <Statistic
