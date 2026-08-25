@@ -28,6 +28,7 @@ from app.routers import (
     imports,
     phases,
     projects,
+    reports,
     resources,
     templates,
     users,
@@ -68,7 +69,7 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
-for r in (auth, users, audit, projects, phases, dependencies, resources, templates, imports, exports, dashboard):
+for r in (auth, users, audit, projects, phases, dependencies, resources, templates, imports, exports, dashboard, reports):
     app.include_router(r.router)
 
 
