@@ -26,6 +26,8 @@ _SKIP_STATUSES = ("已完成", "已搁置")
 # 冲突判定阈值：重叠需足够"深"（方案 A，2026-08-25 用户确认）
 _MIN_OVERLAP_DAYS = 10  # 绝对下限（天）：两周以上的整段重叠
 _MIN_OVERLAP_RATIO = 0.6  # 重叠天数 ≥ 较短阶段工期的比例
+# 并行上限：重叠窗口内该资源同时活跃的阶段数 ≤ 3 视为正常并行，不报冲突
+_MAX_PARALLEL = 3
 
 
 def _active_phases(resource: Resource) -> list:
@@ -37,13 +39,31 @@ def _active_phases(resource: Resource) -> list:
     ]
 
 
-def _overlap_days(a_start, a_end, b_start, b_end) -> int | None:
-    """重叠天数；不重叠（含背靠背）返回 None。"""
+def _overlap_interval(a_start, a_end, b_start, b_end) -> tuple | None:
+    """重叠区间 (start, end)；不重叠（含背靠背）返回 None。"""
     start = max(a_start, b_start)
     end = min(a_end, b_end)
     if start < end:
-        return (end - start).days
+        return (start, end)
     return None
+
+
+def _overlap_days(a_start, a_end, b_start, b_end) -> int | None:
+    """重叠天数；不重叠（含背靠背）返回 None。"""
+    interval = _overlap_interval(a_start, a_end, b_start, b_end)
+    return (interval[1] - interval[0]).days if interval else None
+
+
+def _parallel_count(phases: list, overlap_start, overlap_end) -> int:
+    """重叠窗口内该资源同时活跃的阶段总数（含冲突双方）。
+
+    活跃 = 计划窗口与重叠区间有交集（plan_start < overlap_end 且 plan_end > overlap_start）。
+    """
+    return sum(
+        1 for ph in phases
+        if ph.plan_start is not None and ph.plan_end is not None
+        and ph.plan_start < overlap_end and ph.plan_end > overlap_start
+    )
 
 
 def _is_deep_conflict(days: int, a_duration: int, b_duration: int) -> bool:
@@ -81,6 +101,10 @@ def detect_conflicts(db: Session) -> list[ResourceConflict]:
                 a_duration = max((a.plan_end - a.plan_start).days, 1)
                 b_duration = max((b.plan_end - b.plan_start).days, 1)
                 if not _is_deep_conflict(days, a_duration, b_duration):
+                    continue
+                # 并行判定：重叠窗口内活跃阶段 ≤ 3 视为正常并行，不报冲突
+                interval = _overlap_interval(a.plan_start, a.plan_end, b.plan_start, b.plan_end)
+                if _parallel_count(phases, interval[0], interval[1]) <= _MAX_PARALLEL:
                     continue
                 pairs.append(ConflictPair(
                     phase_a_id=a.id,
