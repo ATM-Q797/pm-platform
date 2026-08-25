@@ -135,13 +135,13 @@ def test_pair_reported_once(client, db_session):
 
 
 def test_three_way_overlap_sorted_by_days(client, db_session):
-    """多冲突排序：重叠天数降序（最严重在前）。"""
+    """多冲突排序：重叠天数降序（最严重在前）；深度不足的不算冲突。"""
     r = _mk_resource(db_session, "吴十")
     p1 = _mk_project(db_session, "项目甲")
     p2 = _mk_project(db_session, "项目乙")
     p3 = _mk_project(db_session, "项目丙")
-    a = _mk_phase(db_session, p1, "阶段一", date(2026, 7, 1), date(2026, 7, 30))   # 与 b 重叠 20 天
-    b = _mk_phase(db_session, p2, "阶段二", date(2026, 7, 10), date(2026, 8, 10))  # 与 c 重叠 9 天
+    a = _mk_phase(db_session, p1, "阶段一", date(2026, 7, 1), date(2026, 7, 30))   # 与 b 重叠 20 天（b 工期 32 天 → 20≥16 ✅）
+    b = _mk_phase(db_session, p2, "阶段二", date(2026, 7, 10), date(2026, 8, 10))  # 与 c 重叠 9 天（c 工期 20 天 → 9<10 ❌ 深度不足）
     c = _mk_phase(db_session, p3, "阶段三", date(2026, 8, 1), date(2026, 8, 20))   # 与 a 不重叠
     a.assignees = [r]
     b.assignees = [r]
@@ -150,9 +150,41 @@ def test_three_way_overlap_sorted_by_days(client, db_session):
 
     data = client.get("/api/resources/conflicts").json()
     pairs = data[0]["conflicts"]
-    assert len(pairs) == 2  # a-b、b-c
-    assert pairs[0]["overlap_days"] == 20  # 最严重的在前
-    assert pairs[1]["overlap_days"] == 9
+    assert len(pairs) == 1  # 仅 a-b（20 天深度足够）；b-c 9 天 < c 工期一半 10 天，不算
+    assert pairs[0]["overlap_days"] == 20
+
+
+def test_shallow_overlap_not_conflict(client, db_session):
+    """浅重叠不算冲突：重叠 < 较短阶段工期一半（项目并行是常态）。"""
+    r = _mk_resource(db_session, "郑浅")
+    p1 = _mk_project(db_session, "项目甲")
+    p2 = _mk_project(db_session, "项目乙")
+    # 两个 30 天阶段，重叠 10 天（7-20~7-30）→ 10 < 15（较短工期一半）→ 不算冲突
+    a = _mk_phase(db_session, p1, "阶段甲", date(2026, 7, 1), date(2026, 7, 30))
+    b = _mk_phase(db_session, p2, "阶段乙", date(2026, 7, 20), date(2026, 8, 18))
+    a.assignees = [r]
+    b.assignees = [r]
+    db_session.commit()
+
+    data = client.get("/api/resources/conflicts").json()
+    assert data == []  # 10 天 ≥ 3 天但 < 15 天（30 天的一半）→ 深度不足
+
+
+def test_deep_overlap_short_phase_conflict(client, db_session):
+    """短阶段几乎被整段占用 → 深度足够，算冲突。"""
+    r = _mk_resource(db_session, "冯深")
+    p1 = _mk_project(db_session, "项目甲")
+    p2 = _mk_project(db_session, "项目乙")
+    # 长阶段 30 天；短阶段 8 天完全落在长阶段窗口内 → 重叠 8 天 ≥ 4（8 天的一半）→ 冲突
+    a = _mk_phase(db_session, p1, "长阶段", date(2026, 7, 1), date(2026, 7, 30))
+    b = _mk_phase(db_session, p2, "短阶段", date(2026, 7, 10), date(2026, 7, 18))
+    a.assignees = [r]
+    b.assignees = [r]
+    db_session.commit()
+
+    data = client.get("/api/resources/conflicts").json()
+    assert len(data) == 1
+    assert data[0]["conflicts"][0]["overlap_days"] == 8
 
 
 def test_unassigned_resource_no_conflict(client, db_session):
