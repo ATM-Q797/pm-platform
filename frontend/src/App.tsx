@@ -11,6 +11,7 @@ import {
   DownOutlined,
   AuditOutlined,
   CheckSquareOutlined,
+  FileTextOutlined,
 } from '@ant-design/icons'
 import ErrorBoundary from './components/ErrorBoundary'
 import LoginPage from './pages/LoginPage'
@@ -26,6 +27,7 @@ const ResourcePage = lazy(() => import('./pages/ResourcePage'))
 const UserManagePage = lazy(() => import('./pages/UserManagePage'))
 const ReviewPage = lazy(() => import('./pages/ReviewPage'))
 const MyTasksPage = lazy(() => import('./pages/MyTasksPage'))
+const ReportPage = lazy(() => import('./pages/ReportPage'))
 
 const { Header, Content } = Layout
 
@@ -99,6 +101,8 @@ export default function App() {
     ? 'review'
     : location.pathname.startsWith('/my-tasks')
     ? 'my-tasks'
+    : location.pathname.startsWith('/reports')
+    ? 'reports'
     : 'dashboard'
 
   if (loading) {
@@ -124,6 +128,7 @@ export default function App() {
           { key: 'dashboard', icon: <DashboardOutlined />, label: '看板' },
           { key: 'projects', icon: <ProjectOutlined />, label: '项目列表' },
           { key: 'resources', icon: <TeamOutlined />, label: '资源负载' },
+          { key: 'reports', icon: <FileTextOutlined />, label: '周报' },
           { key: 'users', icon: <UserOutlined />, label: '用户管理' },
           { key: 'review', icon: <AuditOutlined />, label: '审核中心' },
         ]
@@ -132,7 +137,10 @@ export default function App() {
           { key: 'projects', icon: <ProjectOutlined />, label: '项目列表' },
           { key: 'my-tasks', icon: <CheckSquareOutlined />, label: '我的任务' },
           ...(user.role === 'manager'
-            ? [{ key: 'review', icon: <AuditOutlined />, label: '审核中心' }]
+            ? [
+                { key: 'reports', icon: <FileTextOutlined />, label: '周报' },
+                { key: 'review', icon: <AuditOutlined />, label: '审核中心' },
+              ]
             : []),
         ]
       : // viewer
@@ -180,6 +188,7 @@ export default function App() {
                 else if (key === 'users') navigate('/users')
                 else if (key === 'review') navigate('/review')
                 else if (key === 'my-tasks') navigate('/my-tasks')
+                else if (key === 'reports') navigate('/reports')
               }}
               items={navItems}
               style={{ minWidth: 280, background: 'transparent' }}
@@ -225,6 +234,12 @@ export default function App() {
               <Route path="/my-tasks" element={
                 user.role === 'manager' || user.role === 'engineer'
                   ? <MyTasksPage />
+                  : <Navigate to="/" replace />
+              } />
+              {/* 周报仅 admin + manager */}
+              <Route path="/reports" element={
+                user.role === 'admin' || user.role === 'manager'
+                  ? <ReportPage />
                   : <Navigate to="/" replace />
               } />
               <Route path="/login" element={<Navigate to="/" replace />} />
