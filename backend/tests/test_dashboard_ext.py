@@ -95,12 +95,17 @@ def test_conflict_count_matches_t4(client, db_session):
     b = _mk_phase(db_session, p2, "阶段二", t + timedelta(days=8), t + timedelta(days=28))  # 重叠 12 天 ≥ 10 且 ≥ 12 ✅
     a.assignees = [r]
     b.assignees = [r]
+    # 并行数推到 4 → 报冲突（2 个干扰阶段与窗口重叠）
+    for i in range(2):
+        p3 = _mk_project(db_session, f"并行项目{i + 1}")
+        ph = _mk_phase(db_session, p3, f"并行阶段{i + 1}", t, t + timedelta(days=28))
+        ph.assignees = [r]
     db_session.commit()
 
     stats = client.get("/api/dashboard/stats").json()
     conflicts = client.get("/api/resources/conflicts").json()
     t4_pairs = sum(len(rc["conflicts"]) for rc in conflicts)
-    assert stats["conflict_count"] == t4_pairs == 1
+    assert stats["conflict_count"] == t4_pairs == 6  # 4 阶段两两组合
 
 
 def test_no_risk_data_empty_lists(client, db_session):

@@ -33,6 +33,14 @@ def _mk_resource(db_session, name: str) -> Resource:
     return r
 
 
+def _add_parallel(db_session, r: Resource, n: int, start: date, end: date) -> None:
+    """给资源追加 n 个不同项目的活跃阶段（同一时间窗口），用于把并行数推过阈值。"""
+    for i in range(n):
+        p = _mk_project(db_session, f"并行项目{i + 1}")
+        ph = _mk_phase(db_session, p, f"并行阶段{i + 1}", start, end)
+        ph.assignees = [r]
+
+
 def test_overlap_detected(client, db_session):
     """深度重叠（≥10 天 且 ≥较短工期 60%）：检测出冲突与重叠天数。"""
     r = _mk_resource(db_session, "李四")
@@ -43,6 +51,8 @@ def test_overlap_detected(client, db_session):
     b = _mk_phase(db_session, p2, "样机打样", date(2026, 7, 10), date(2026, 7, 30))
     a.assignees = [r]
     b.assignees = [r]
+    # 并行数推到 4（2 冲突阶段 + 2 干扰阶段在同一窗口）→ 超过并行上限，报冲突
+    _add_parallel(db_session, r, 2, date(2026, 7, 1), date(2026, 7, 30))
     db_session.commit()
 
     resp = client.get("/api/resources/conflicts")
@@ -51,9 +61,10 @@ def test_overlap_detected(client, db_session):
     assert len(data) == 1
     assert data[0]["resource_name"] == "李四"
     pairs = data[0]["conflicts"]
-    assert len(pairs) == 1
+    # 4 个阶段两两组合 = 6 对（2 冲突阶段 + 2 干扰阶段互相也构成冲突）
+    assert len(pairs) == 6
     pair = pairs[0]
-    assert pair["overlap_days"] == 20
+    assert pair["overlap_days"] in (20, 21, 29, 30)
     assert pair["project_a_name"] == "项目甲" or pair["project_a_name"] == "项目乙"
     assert pair["phase_a_name"] in ("结构设计", "样机打样")
 
@@ -130,10 +141,16 @@ def test_pair_reported_once(client, db_session):
     b = _mk_phase(db_session, p2, "样机打样", date(2026, 7, 8), date(2026, 7, 28))
     a.assignees = [r]
     b.assignees = [r]
+    # 并行数推到 4 → 报冲突
+    _add_parallel(db_session, r, 2, date(2026, 7, 1), date(2026, 7, 30))
     db_session.commit()
 
     data = client.get("/api/resources/conflicts").json()
-    assert len(data[0]["conflicts"]) == 1
+    # 4 个阶段 = 6 对，每对只出现一次（i<j 天然去重）
+    assert len(data) == 1
+    assert len(data[0]["conflicts"]) == 6
+    ids = [(c["phase_a_id"], c["phase_b_id"]) for c in data[0]["conflicts"]]
+    assert len(ids) == len(set(ids))  # 无重复对
 
 
 def test_three_way_overlap_sorted_by_days(client, db_session):
@@ -148,12 +165,17 @@ def test_three_way_overlap_sorted_by_days(client, db_session):
     a.assignees = [r]
     b.assignees = [r]
     c.assignees = [r]
+    # 并行数推到 5（a-b 重叠窗口 7-10~7-30 内活跃 = a,b,+2 干扰）→ 报冲突
+    _add_parallel(db_session, r, 2, date(2026, 7, 1), date(2026, 7, 30))
     db_session.commit()
 
     data = client.get("/api/resources/conflicts").json()
     pairs = data[0]["conflicts"]
-    assert len(pairs) == 1  # 仅 a-b（20 天深度足够）；b-c 9 天 < 10 天下限
-    assert pairs[0]["overlap_days"] == 20
+    # 活跃窗口内的 4 个阶段（a、b、2 干扰）两两组合 = 6 对；
+    # c 与 a 不重叠、与 b 重叠 9 天 <10 下限 → 不计入
+    assert len(pairs) == 6
+    assert all(p["overlap_days"] >= 10 for p in pairs)
+    assert max(p["overlap_days"] for p in pairs) == 29  # 干扰阶段(30天) × a(30天) 重叠 29 天最严重
 
 
 def test_shallow_overlap_not_conflict(client, db_session):
@@ -173,7 +195,7 @@ def test_shallow_overlap_not_conflict(client, db_session):
 
 
 def test_deep_overlap_short_phase_conflict(client, db_session):
-    """短阶段几乎被整段占用（≥10 天且 ≥60%）→ 深度足够，算冲突。"""
+    """短阶段几乎被整段占用（≥10 天且 ≥60%）且并行超限 → 深度足够，算冲突。"""
     r = _mk_resource(db_session, "冯深")
     p1 = _mk_project(db_session, "项目甲")
     p2 = _mk_project(db_session, "项目乙")
@@ -182,11 +204,44 @@ def test_deep_overlap_short_phase_conflict(client, db_session):
     b = _mk_phase(db_session, p2, "短阶段", date(2026, 7, 10), date(2026, 7, 22))
     a.assignees = [r]
     b.assignees = [r]
+    # 并行数推到 4 → 报冲突
+    _add_parallel(db_session, r, 2, date(2026, 7, 1), date(2026, 7, 30))
     db_session.commit()
 
     data = client.get("/api/resources/conflicts").json()
     assert len(data) == 1
-    assert data[0]["conflicts"][0]["overlap_days"] == 12
+    assert len(data[0]["conflicts"]) == 6  # 4 阶段两两组合
+    assert any(c["overlap_days"] == 12 for c in data[0]["conflicts"])  # a-b 对存在
+
+
+def test_parallel_within_limit_not_conflict(client, db_session):
+    """并行 ≤3：即使深度重叠也不报冲突（用户确认：3 个并行是正常状态）。"""
+    r = _mk_resource(db_session, "蒋三")
+    # 3 个阶段（3 个项目）在 7-1~7-30 窗口内两两深度重叠（31 天×3 互叠）
+    for i in range(3):
+        p = _mk_project(db_session, f"三并行项目{i + 1}")
+        ph = _mk_phase(db_session, p, f"三并行阶段{i + 1}", date(2026, 7, 1), date(2026, 8, 1))
+        ph.assignees = [r]
+    db_session.commit()
+
+    data = client.get("/api/resources/conflicts").json()
+    assert data == []  # 并行数 3 ≤ 3 → 不报
+
+
+def test_parallel_over_limit_conflict(client, db_session):
+    """并行 ≥4：深度重叠时报冲突。"""
+    r = _mk_resource(db_session, "沈四")
+    for i in range(4):
+        p = _mk_project(db_session, f"四并行项目{i + 1}")
+        ph = _mk_phase(db_session, p, f"四并行阶段{i + 1}", date(2026, 7, 1), date(2026, 8, 1))
+        ph.assignees = [r]
+    db_session.commit()
+
+    data = client.get("/api/resources/conflicts").json()
+    # 4 个阶段两两组合：C(4,2) = 6 对冲突
+    assert len(data) == 1
+    assert len(data[0]["conflicts"]) == 6
+    assert all(c["overlap_days"] == 31 for c in data[0]["conflicts"])
 
 
 def test_unassigned_resource_no_conflict(client, db_session):
