@@ -26,6 +26,7 @@ export default function ProjectListPage() {
   const [projects, setProjects] = useState<Project[]>([])
   const [loading, setLoading] = useState(false)
   const [filters, setFilters] = useState({ status: '', market: '', category: '' })
+  const [searchText, setSearchText] = useState('') // 项目名称搜索（前端过滤）
   // 创建项目
   const [createOpen, setCreateOpen] = useState(false)
   const [creating, setCreating] = useState(false)
@@ -417,16 +418,23 @@ export default function ProjectListPage() {
             </Button>
           )}
           <Upload accept=".xlsx,.xls" beforeUpload={handleImport} showUploadList={false}>
-            <Button icon={<DownloadOutlined />} loading={previewLoading}>导入 Excel</Button>
+            <Button icon={<UploadOutlined />} loading={previewLoading}>导入 Excel</Button>
           </Upload>
-          <Button icon={<UploadOutlined />} onClick={() => window.open('/api/export/excel')}>
+          <Button icon={<DownloadOutlined />} onClick={() => window.open('/api/export/excel')}>
             导出 Excel
           </Button>
           <Button icon={<ReloadOutlined />} onClick={load} />
         </Space>
       }
     >
-      <Space style={{ marginBottom: 16 }} size="middle">
+      <Space style={{ marginBottom: 16 }} size="middle" wrap>
+        <Input.Search
+          placeholder="搜索项目名称"
+          allowClear
+          style={{ width: 240 }}
+          value={searchText}
+          onChange={(e) => setSearchText(e.target.value)}
+        />
         <Select
           placeholder="状态筛选"
           allowClear
@@ -466,8 +474,14 @@ export default function ProjectListPage() {
         <Table
           rowKey="id"
           columns={columns}
-          dataSource={projects}
-          pagination={{ pageSize: 20, showSizeChanger: false }}
+          dataSource={searchText
+            ? projects.filter((p) => p.name.toLowerCase().includes(searchText.trim().toLowerCase()))
+            : projects}
+          pagination={{
+            pageSize: 20,
+            showSizeChanger: false,
+            showTotal: (t) => `共 ${t} 个项目`,
+          }}
           size="middle"
         />
       </Spin>

@@ -1,39 +1,31 @@
-/* 甘特图状态着色（与 PROJECT_SPEC §6.3 颜色方案一致）*/
+/* 甘特图状态着色（2026-08-25 调色：AntD 色板浅阶 + 圆角条）*/
 .pm-gantt-container {
   border: 1px solid #e8e8e8;
-  border-radius: 4px;
+  border-radius: 8px;
   overflow: hidden;
 }
 
-/* 滚动条控制：
-   - 隐藏左侧 grid 区和右侧 timeline 区各自的独立滚动条，
-     让它们由外层 layout 统一联动，左右保持一致
-   - 只保留最底部一条横向滚动条（.gantt_hor_scroll）*/
-.pm-gantt-container .gantt_layout_cell.grid_cell,
-.pm-gantt-container .gantt_layout_cell.timeline_cell {
-  overflow: hidden !important;
-}
-/* 底部横向滚动条始终可见（修复切换尺度后偶尔消失的问题）*/
-.pm-gantt-container .gantt_hor_scroll {
-  overflow-x: scroll !important;
+/* 甘特条圆角（状态/项目行统一）*/
+.gantt_task_line {
+  border-radius: 4px;
 }
 
 /* 已完成 - 绿色 */
 .gantt_task_line.gantt-task-done {
-  background-color: #52c41a;
-  border-color: #389e0d;
+  background-color: #73d13d;
+  border-color: #52c41a;
 }
 .gantt_task_line.gantt-task-done .gantt_task_progress {
-  background-color: #389e0d;
+  background-color: #52c41a;
 }
 
 /* 进行中 - 蓝色 */
 .gantt_task_line.gantt-task-active {
-  background-color: #1890ff;
-  border-color: #096dd9;
+  background-color: #69b1ff;
+  border-color: #1677ff;
 }
 .gantt_task_line.gantt-task-active .gantt_task_progress {
-  background-color: #096dd9;
+  background-color: #1677ff;
 }
 
 /* 未开始 - 灰色 */
@@ -47,11 +39,11 @@
 
 /* 延期 - 红色 */
 .gantt_task_line.gantt-task-delayed {
-  background-color: #ff4d4f;
-  border-color: #cf1322;
+  background-color: #ff7875;
+  border-color: #ff4d4f;
 }
 .gantt_task_line.gantt-task-delayed .gantt_task_progress {
-  background-color: #cf1322;
+  background-color: #ff4d4f;
 }
 
 /* 已搁置 - 深灰 */
@@ -61,6 +53,24 @@
 }
 .gantt_task_line.gantt-task-blocked .gantt_task_progress {
   background-color: #595959;
+}
+
+/* 网格表头底色 */
+.gantt_grid_head_cell {
+  background: #fafbfc !important;
+}
+
+/* 滚动条控制：
+   - 隐藏左侧 grid 区和右侧 timeline 区各自的独立滚动条，
+     让它们由外层 layout 统一联动，左右保持一致
+   - 只保留最底部一条横向滚动条（.gantt_hor_scroll）*/
+.pm-gantt-container .gantt_layout_cell.grid_cell,
+.pm-gantt-container .gantt_layout_cell.timeline_cell {
+  overflow: hidden !important;
+}
+/* 底部横向滚动条始终可见（修复切换尺度后偶尔消失的问题）*/
+.pm-gantt-container .gantt_hor_scroll {
+  overflow-x: scroll !important;
 }
 
 /* 返工标记 - 橙色左边框（叠加在原状态颜色上）*/

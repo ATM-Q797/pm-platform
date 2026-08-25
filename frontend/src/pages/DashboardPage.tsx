@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Card, Col, Row, Statistic, Tag, Empty, Spin, message, Drawer, List } from 'antd'
+import { Card, Col, Row, Tag, Empty, Spin, message, Drawer, List } from 'antd'
 import {
   ProjectOutlined,
   ClockCircleOutlined,
@@ -8,6 +8,7 @@ import {
   FieldTimeOutlined,
   ThunderboltOutlined,
   ToolOutlined,
+  FireOutlined,
 } from '@ant-design/icons'
 import { getDashboardStats } from '../api/dashboard'
 import { getResourceConflicts } from '../api/resources'
@@ -15,6 +16,16 @@ import type { DashboardStats, ResourceConflict } from '../types'
 
 // 明细抽屉类型
 type DrawerKey = 'delayed' | 'due' | 'conflict' | 'rework' | null
+
+// 卡片左侧图标块配色（语义色）
+const CARD_STYLE: Record<string, { bg: string; color: string }> = {
+  total: { bg: 'rgba(22,119,255,.1)', color: '#1677ff' },
+  active: { bg: 'rgba(22,119,255,.1)', color: '#1677ff' },
+  delayed: { bg: 'rgba(255,77,79,.1)', color: '#ff4d4f' },
+  due: { bg: 'rgba(250,173,20,.12)', color: '#d48806' },
+  conflict: { bg: 'rgba(250,140,22,.12)', color: '#fa8c16' },
+  rework: { bg: 'rgba(250,140,22,.12)', color: '#fa8c16' },
+}
 
 export default function DashboardPage() {
   const navigate = useNavigate()
@@ -68,73 +79,146 @@ export default function DashboardPage() {
     return <Card>暂无数据</Card>
   }
 
+  // 统计卡片渲染：左侧着色图标块 + 右侧数值
+  const renderCard = (
+    key: string,
+    title: string,
+    value: number,
+    icon: React.ReactNode,
+    onClick: () => void,
+    dangerHighlight = false,
+  ) => {
+    const c = CARD_STYLE[key] || CARD_STYLE.total
+    return (
+      <Col span={8}>
+        <Card hoverable onClick={onClick} style={{ cursor: 'pointer' }}>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
+            <div
+              style={{
+                width: 44,
+                height: 44,
+                borderRadius: 10,
+                background: c.bg,
+                color: c.color,
+                display: 'flex',
+                alignItems: 'center',
+                justifyContent: 'center',
+                fontSize: 22,
+                flexShrink: 0,
+              }}
+            >
+              {icon}
+            </div>
+            <div>
+              <div style={{ fontSize: 13, color: '#666', marginBottom: 2 }}>{title}</div>
+              <div
+                style={{
+                  fontSize: 28,
+                  fontWeight: 600,
+                  lineHeight: 1.2,
+                  color: dangerHighlight && value > 0 ? c.color : '#1f1f1f',
+                }}
+              >
+                {value}
+              </div>
+            </div>
+          </div>
+        </Card>
+      </Col>
+    )
+  }
+
   return (
     <div>
       {/* 6 张统计卡片：2 行 × 3 列，行间大间距 */}
       <Row gutter={16} style={{ marginBottom: 32 }}>
-        <Col span={8}>
-          <Card hoverable onClick={() => navigate('/projects')} style={{ cursor: 'pointer' }}>
-            <Statistic title="项目总数" value={stats.total_projects} prefix={<ProjectOutlined />} />
-          </Card>
-        </Col>
-        <Col span={8}>
-          <Card hoverable onClick={() => navigate('/projects')} style={{ cursor: 'pointer' }}>
-            <Statistic
-              title="进行中"
-              value={stats.active_projects}
-              prefix={<ClockCircleOutlined />}
-              valueStyle={{ color: '#1890ff' }}
-            />
-          </Card>
-        </Col>
-        <Col span={8}>
-          <Card hoverable onClick={() => openDrawer('delayed')} style={{ cursor: 'pointer' }}>
-            <Statistic
-              title="延期项目"
-              value={stats.delayed_count}
-              prefix={<WarningOutlined />}
-              valueStyle={{ color: stats.delayed_count > 0 ? '#ff4d4f' : undefined }}
-            />
-          </Card>
-        </Col>
+        {renderCard('total', '项目总数', stats.total_projects, <ProjectOutlined />, () => navigate('/projects'))}
+        {renderCard('active', '进行中', stats.active_projects, <ClockCircleOutlined />, () => navigate('/projects'))}
+        {renderCard('delayed', '延期项目', stats.delayed_count, <WarningOutlined />, () => openDrawer('delayed'), true)}
       </Row>
       <Row gutter={16}>
-        <Col span={8}>
-          <Card hoverable onClick={() => openDrawer('due')} style={{ cursor: 'pointer' }}>
-            <Statistic
-              title="即将到期"
-              value={stats.due_soon_count}
-              prefix={<FieldTimeOutlined />}
-              valueStyle={{ color: stats.due_soon_count > 0 ? '#faad14' : undefined }}
-            />
-          </Card>
-        </Col>
-        <Col span={8}>
-          <Card hoverable onClick={() => openDrawer('conflict')} style={{ cursor: 'pointer' }}>
-            <Statistic
-              title="资源冲突"
-              value={stats.conflict_count}
-              prefix={<ThunderboltOutlined />}
-              valueStyle={{ color: stats.conflict_count > 0 ? '#fa8c16' : undefined }}
-            />
-          </Card>
-        </Col>
-        <Col span={8}>
-          <Card hoverable onClick={() => openDrawer('rework')} style={{ cursor: 'pointer' }}>
-            <Statistic
-              title="返工次数"
-              value={stats.total_rework_count}
-              prefix={<ToolOutlined />}
-              valueStyle={{ color: stats.total_rework_count > 0 ? '#fa8c16' : undefined }}
-            />
-          </Card>
-        </Col>
+        {renderCard('due', '即将到期', stats.due_soon_count, <FieldTimeOutlined />, () => openDrawer('due'), true)}
+        {renderCard('conflict', '资源冲突', stats.conflict_count, <ThunderboltOutlined />, () => openDrawer('conflict'), true)}
+        {renderCard('rework', '返工次数', stats.total_rework_count, <ToolOutlined />, () => openDrawer('rework'), true)}
       </Row>
+
+      {/* 今日聚焦：延期项目 + 即将到期 各前 5 */}
+      <Card
+        title={
+          <span>
+            <FireOutlined style={{ color: '#fa8c16', marginRight: 8 }} />
+            今日聚焦
+          </span>
+        }
+        style={{ marginTop: 32 }}
+      >
+        <Row gutter={24}>
+          <Col span={12}>
+            <div style={{ marginBottom: 8, color: '#666', fontSize: 13 }}>
+              🔴 延期项目（{stats.delayed_projects.length}）
+            </div>
+            {stats.delayed_projects.length > 0 ? (
+              <List
+                size="small"
+                dataSource={stats.delayed_projects.slice(0, 5)}
+                locale={{ emptyText: <Empty description="暂无" image={Empty.PRESENTED_IMAGE_SIMPLE} /> }}
+                renderItem={(d) => (
+                  <List.Item
+                    style={{ cursor: 'pointer', padding: '6px 0' }}
+                    onClick={() => navigate(`/projects/${d.id}`)}
+                  >
+                    <List.Item.Meta
+                      title={
+                        <span style={{ fontSize: 13 }}>
+                          {d.name}
+                          <Tag color="blue" style={{ marginLeft: 8, fontSize: 11 }}>{d.market}</Tag>
+                        </span>
+                      }
+                    />
+                    <Tag color="error">逾期 {d.overdue_days} 天</Tag>
+                  </List.Item>
+                )}
+              />
+            ) : (
+              <Empty description="暂无延期项目 🎉" image={Empty.PRESENTED_IMAGE_SIMPLE} />
+            )}
+          </Col>
+          <Col span={12}>
+            <div style={{ marginBottom: 8, color: '#666', fontSize: 13 }}>
+              🟡 即将到期（{stats.due_soon_count}）
+            </div>
+            {stats.due_soon_phases.length > 0 ? (
+              <List
+                size="small"
+                dataSource={stats.due_soon_phases.slice(0, 5)}
+                locale={{ emptyText: <Empty description="暂无" image={Empty.PRESENTED_IMAGE_SIMPLE} /> }}
+                renderItem={(d) => (
+                  <List.Item
+                    style={{ cursor: 'pointer', padding: '6px 0' }}
+                    onClick={() => navigate(`/projects/${d.project_id}`)}
+                  >
+                    <List.Item.Meta
+                      title={
+                        <span style={{ fontSize: 13 }}>
+                          {d.project_name} · {d.phase_name}
+                        </span>
+                      }
+                    />
+                    <Tag color={d.days_left <= 3 ? 'error' : 'warning'}>{d.days_left} 天后到期</Tag>
+                  </List.Item>
+                )}
+              />
+            ) : (
+              <Empty description="暂无即将到期" image={Empty.PRESENTED_IMAGE_SIMPLE} />
+            )}
+          </Col>
+        </Row>
+      </Card>
 
       {/* 明细抽屉 */}
       <Drawer
         title={drawerKey ? drawerTitle[drawerKey] : ''}
-        width={560}
+        width={640}
         open={drawerKey !== null}
         onClose={() => setDrawerKey(null)}
       >

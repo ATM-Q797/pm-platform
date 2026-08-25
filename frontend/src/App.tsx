@@ -1,6 +1,6 @@
 import { useEffect, useState, lazy, Suspense } from 'react'
 import { Routes, Route, useNavigate, useLocation, Navigate } from 'react-router-dom'
-import { Layout, Menu, Spin, Dropdown, Button, Space, Tag } from 'antd'
+import { Layout, Menu, Spin, Dropdown, Space, Tag, Avatar } from 'antd'
 import {
   DashboardOutlined,
   ProjectOutlined,
@@ -31,12 +31,18 @@ const ReportPage = lazy(() => import('./pages/ReportPage'))
 
 const { Header, Content } = Layout
 
-// 角色显示名
+// 角色显示名 + Tag 颜色
 const ROLE_LABEL: Record<string, string> = {
   admin: '管理员',
   manager: '项目负责人',
   engineer: '工程师',
   viewer: '观察者',
+}
+const ROLE_COLOR: Record<string, string> = {
+  admin: 'red',
+  manager: 'blue',
+  engineer: 'green',
+  viewer: 'default',
 }
 
 export default function App() {
@@ -174,8 +180,9 @@ export default function App() {
       <Layout style={{ minHeight: '100vh' }}>
         <Header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <Space>
-            <div style={{ color: '#fff', fontSize: 18, fontWeight: 600, marginRight: 32 }}>
-              🦞 研发项目管理平台
+            <div style={{ color: '#fff', fontSize: 17, fontWeight: 600, marginRight: 32, letterSpacing: 0.5, display: 'flex', alignItems: 'center', gap: 8 }}>
+              <ProjectOutlined style={{ fontSize: 20, color: '#1677ff' }} />
+              <span>研发项目管理平台</span>
             </div>
             <Menu
               theme="dark"
@@ -195,14 +202,12 @@ export default function App() {
             />
           </Space>
           <Dropdown menu={userMenu}>
-            <Button type="text" style={{ color: '#fff' }}>
-              <Space>
-                <UserOutlined />
-                <span>{user.name}</span>
-                <Tag color="blue" style={{ margin: 0 }}>{ROLE_LABEL[user.role]}</Tag>
-                <DownOutlined />
-              </Space>
-            </Button>
+            <div style={{ color: '#fff', display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', padding: '4px 8px', borderRadius: 6, transition: 'background .2s' }} className="header-user">
+              <Avatar size={28} style={{ background: '#1677ff', flexShrink: 0 }}>{user.name.charAt(0)}</Avatar>
+              <span>{user.name}</span>
+              <Tag color={ROLE_COLOR[user.role] || 'default'} style={{ margin: 0 }}>{ROLE_LABEL[user.role]}</Tag>
+              <DownOutlined style={{ fontSize: 10 }} />
+            </div>
           </Dropdown>
         </Header>
         <Content style={{ padding: 24 }}>

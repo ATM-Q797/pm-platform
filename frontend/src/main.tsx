@@ -6,6 +6,7 @@ import dayjs from 'dayjs'
 import 'dayjs/locale/zh-cn'
 import ErrorBoundary from './components/ErrorBoundary'
 import App from './App.tsx'
+import './index.css'
 
 dayjs.locale('zh-cn')
 
@@ -13,7 +14,25 @@ dayjs.locale('zh-cn')
 // StrictMode 的 useEffect 双调用会破坏 gantt 单例初始化。
 createRoot(document.getElementById('root')!).render(
   <ErrorBoundary>
-    <ConfigProvider locale={zhCN}>
+    <ConfigProvider
+      locale={zhCN}
+      theme={{
+        token: {
+          colorPrimary: '#1677ff',
+          borderRadius: 8,
+          colorBgLayout: '#f5f7fa',
+          fontFamily:
+            '-apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "PingFang SC", "Microsoft YaHei", sans-serif',
+        },
+        components: {
+          Layout: { headerBg: '#001529', headerHeight: 56, headerPadding: '0 24px' },
+          Menu: { darkItemBg: '#001529' },
+          Card: { paddingLG: 20 },
+          Table: { headerBg: '#fafbfc', rowHoverBg: '#f0f7ff' },
+          Segmented: { itemSelectedBg: '#e6f4ff' },
+        },
+      }}
+    >
       <BrowserRouter>
         <App />
       </BrowserRouter>

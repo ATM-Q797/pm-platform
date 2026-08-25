@@ -91,14 +91,29 @@ export default function MyTasksPage() {
 
   return (
     <div>
-      <Card style={{ marginBottom: 16 }}>
-        <div style={{ display: 'flex', gap: 32 }}>
-          <div><span style={{ fontSize: 24, fontWeight: 600 }}>{stats.total}</span> 总任务</div>
-          <div><span style={{ fontSize: 24, fontWeight: 600, color: '#1890ff' }}>{stats.active}</span> 进行中</div>
-          <div><span style={{ fontSize: 24, fontWeight: 600, color: '#999' }}>{stats.pending}</span> 未开始</div>
-          <div><span style={{ fontSize: 24, fontWeight: 600, color: '#52c41a' }}>{stats.done}</span> 已完成</div>
-        </div>
-      </Card>
+      {/* 统计卡：与看板风格统一 */}
+      <div style={{ display: 'flex', gap: 16, marginBottom: 16 }}>
+        {[
+          { label: '总任务', value: stats.total, color: '#1677ff' },
+          { label: '进行中', value: stats.active, color: '#1890ff' },
+          { label: '未开始', value: stats.pending, color: '#999' },
+          { label: '已完成', value: stats.done, color: '#52c41a' },
+        ].map((s) => (
+          <div
+            key={s.label}
+            style={{
+              flex: 1,
+              background: '#fff',
+              borderRadius: 8,
+              padding: '16px 20px',
+              boxShadow: '0 1px 2px rgba(0,0,0,.03), 0 1px 6px rgba(0,0,0,.06)',
+            }}
+          >
+            <div style={{ fontSize: 13, color: '#666', marginBottom: 2 }}>{s.label}</div>
+            <div style={{ fontSize: 28, fontWeight: 600, color: s.color }}>{s.value}</div>
+          </div>
+        ))}
+      </div>
 
       <Card title={`我的任务（${currentUser?.name || ''}）`} extra="提示：点击项目甘特图中的阶段条可填报进度">
         {tasks.length > 0 ? (
