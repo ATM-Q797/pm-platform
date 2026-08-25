@@ -55,6 +55,10 @@ class Phase(Base):
     progress: Mapped[int] = mapped_column(Integer, default=0, server_default="0")  # 0-100
     rework_count: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     remark: Mapped[str | None] = mapped_column(String)
+    # 最后更新时间（任何 ORM 更新自动刷新，周报"本周完成"判定依据）
+    updated_at: Mapped[datetime | None] = mapped_column(
+        DateTime, server_default=func.current_timestamp(), onupdate=func.current_timestamp()
+    )
 
     project: Mapped["Project"] = relationship(back_populates="phases")
     assignees: Mapped[list["Resource"]] = relationship(
