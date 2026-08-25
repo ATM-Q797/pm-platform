@@ -91,8 +91,8 @@ def test_conflict_count_matches_t4(client, db_session):
     db_session.flush()
     p1 = _mk_project(db_session, "项目甲")
     p2 = _mk_project(db_session, "项目乙")
-    a = _mk_phase(db_session, p1, "阶段一", t, t + timedelta(days=20))
-    b = _mk_phase(db_session, p2, "阶段二", t + timedelta(days=10), t + timedelta(days=30))
+    a = _mk_phase(db_session, p1, "阶段一", t, t + timedelta(days=20))          # 20 天
+    b = _mk_phase(db_session, p2, "阶段二", t + timedelta(days=8), t + timedelta(days=28))  # 重叠 12 天 ≥ 10 且 ≥ 12 ✅
     a.assignees = [r]
     b.assignees = [r]
     db_session.commit()

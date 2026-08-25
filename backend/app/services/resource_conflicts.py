@@ -23,9 +23,9 @@ from app.schemas import ConflictPair, ResourceConflict
 
 # 不参与冲突检测的状态（已结束/不活跃）
 _SKIP_STATUSES = ("已完成", "已搁置")
-# 冲突判定阈值：重叠需足够"深"
-_MIN_OVERLAP_DAYS = 3  # 绝对下限（天）
-_MIN_OVERLAP_RATIO = 0.5  # 重叠天数 ≥ 较短阶段工期的比例
+# 冲突判定阈值：重叠需足够"深"（方案 A，2026-08-25 用户确认）
+_MIN_OVERLAP_DAYS = 10  # 绝对下限（天）：两周以上的整段重叠
+_MIN_OVERLAP_RATIO = 0.6  # 重叠天数 ≥ 较短阶段工期的比例
 
 
 def _active_phases(resource: Resource) -> list:
@@ -47,14 +47,14 @@ def _overlap_days(a_start, a_end, b_start, b_end) -> int | None:
 
 
 def _is_deep_conflict(days: int, a_duration: int, b_duration: int) -> bool:
-    """深度冲突判定：重叠绝对天数达标 且 覆盖较短阶段一半以上。
+    """深度冲突判定：重叠绝对天数达标 且 覆盖较短阶段 60% 以上。
 
-    一定的项目并行是正常状态，只有"整段重叠"才值得标记。
+    一定的项目并行是正常状态，只有"两周以上的整段重叠"才值得标记。
     """
     if days < _MIN_OVERLAP_DAYS:
         return False
     shortest = min(a_duration, b_duration)
-    return days * 2 >= shortest  # days >= shortest * 0.5
+    return days * 10 >= shortest * 6  # days >= shortest * 0.6
 
 
 def detect_conflicts(db: Session) -> list[ResourceConflict]:
