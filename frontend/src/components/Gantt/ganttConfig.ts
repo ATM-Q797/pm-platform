@@ -99,8 +99,20 @@ export function applyGanttConfig(gantt: GanttInstance) {
       if (criticalHighlightIds?.has(task.id)) {
         classes.push('gantt-task-critical')
       }
+      // 资源冲突（资源视图）：黄色边框 + ⚠ 角标，tooltip 显示冲突详情
+      if (task.conflict_info) {
+        classes.push('gantt-task-conflict')
+      }
     }
     return classes.join(' ')
+  }
+
+  // tooltip：冲突阶段显示冲突详情，否则显示默认信息
+  gantt.templates.tooltip_text = function (_start: any, _end: any, task: any) {
+    if (task.conflict_info) {
+      return `<b>${task.text}</b><br/><span style="color:#d48806">⚠️ ${task.conflict_info}</span>`
+    }
+    return `<b>${task.text}</b>`
   }
 
   gantt.templates.task_row_class = function (_start: any, _end: any, task: any) {

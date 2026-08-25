@@ -1,8 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { applyGanttConfig, setScale } from '../Gantt/ganttConfig'
 import { setupPan, cleanupPan } from '../Gantt/panUtils'
-import { getAllWorkloads } from '../../api/resources'
-import type { ResourceWorkload } from '../../types'
+import { getAllWorkloads, getResourceConflicts } from '../../api/resources'
 import 'dhtmlx-gantt/codebase/dhtmlxgantt.css'
 import '../Gantt/gantt.css'
 import './resourceView.css'
@@ -55,9 +54,23 @@ export default function ResourceView({ scale = 'week', onPhaseClick }: Props) {
         gantt.config.touch = false
         gantt.config.order_branch = false
 
-        // 加载全员负载数据
-        const allWorkloads: ResourceWorkload[] = await getAllWorkloads()
+        // 加载全员负载数据 + 资源冲突（冲突阶段打黄色标记）
+        const [allWorkloads, conflicts] = await Promise.all([
+          getAllWorkloads(),
+          getResourceConflicts(),
+        ])
         if (destroyed) return
+
+        // phase_id → 冲突描述（"与 XX项目·XX阶段 重叠 N 天"，多条用分号连接）
+        const conflictMap = new Map<number, string>()
+        for (const rc of conflicts) {
+          for (const c of rc.conflicts) {
+            const desc = `与 ${c.project_b_name}·${c.phase_b_name} 重叠 ${c.overlap_days} 天`
+            conflictMap.set(c.phase_a_id, [conflictMap.get(c.phase_a_id), desc].filter(Boolean).join('；'))
+            const descB = `与 ${c.project_a_name}·${c.phase_a_name} 重叠 ${c.overlap_days} 天`
+            conflictMap.set(c.phase_b_id, [conflictMap.get(c.phase_b_id), descB].filter(Boolean).join('；'))
+          }
+        }
 
         // 过滤掉没有阶段的人员（不显示空行）
         const withWork = allWorkloads.filter((w) => w.workloads.length > 0)
@@ -76,10 +89,13 @@ export default function ResourceView({ scale = 'week', onPhaseClick }: Props) {
           const minDate = dates.length ? new Date(Math.min(...dates.map((d) => d.getTime()))) : today
           const maxDate = dates.length ? new Date(Math.max(...dates.map((d) => d.getTime()))) : today
 
+          // 该人员冲突阶段数（人员行角标）
+          const conflictCount = wl.workloads.filter((w) => conflictMap.has(w.phase_id)).length
+
           // 人员行（type=project，显示姓名 + 阶段数）
           tasks.push({
             id: personRowId,
-            text: `${wl.resource.name}${wl.resource.role ? '（' + wl.resource.role + '）' : ''}`,
+            text: `${wl.resource.name}${wl.resource.role ? '（' + wl.resource.role + '）' : ''}${conflictCount > 0 ? ` ⚠️${conflictCount}` : ''}`,
             start_date: fmt(minDate),
             duration: Math.max(1, Math.ceil((maxDate.getTime() - minDate.getTime()) / 86400000)),
             progress: 0,
@@ -92,6 +108,7 @@ export default function ResourceView({ scale = 'week', onPhaseClick }: Props) {
           for (const w of wl.workloads) {
             const start = w.plan_start ? new Date(w.plan_start) : today
             const end = w.plan_end ? new Date(w.plan_end) : today
+            const conflictInfo = conflictMap.get(w.phase_id)
             // 注意：id 必须全局唯一。同一阶段可能被多人参与（phase_id 重复），
             // 直接用 phase_id 会导致 dhtmlxGantt 内部索引混乱、甘特条错位。
             // 用 personId * 100000 + phaseId 保证唯一，真实 phase_id 存在自定义字段。
@@ -107,6 +124,7 @@ export default function ResourceView({ scale = 'week', onPhaseClick }: Props) {
               status: w.status, // 供 task_class 着色
               project_name: w.project_name,
               phase_id: w.phase_id, // 真实阶段 id，点击时取这个
+              conflict_info: conflictInfo, // 冲突描述（有值 → 黄色标记 + tooltip）
             })
           }
         }

@@ -75,6 +75,21 @@
   box-shadow: 0 0 6px rgba(255, 77, 79, 0.35);
 }
 
+/* 资源冲突标记 - 黄色边框 + ⚠ 角标（资源负载视图）*/
+.gantt_task_line.gantt-task-conflict {
+  border: 2px solid #faad14 !important;
+  box-shadow: 0 0 6px rgba(250, 173, 20, 0.35);
+}
+.gantt_task_line.gantt-task-conflict::after {
+  content: '⚠';
+  position: absolute;
+  top: -10px;
+  right: -4px;
+  font-size: 13px;
+  line-height: 1;
+  text-shadow: 0 0 2px #fff;
+}
+
 /* 顶层项目行 - 深色 */
 .gantt_task_line.gantt_project {
   background-color: #001529;
