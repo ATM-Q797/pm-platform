@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { applyGanttConfig, setScale } from '../Gantt/ganttConfig'
 import { setupPan, cleanupPan } from '../Gantt/panUtils'
+import { drawTodayMarker } from '../Gantt/todayMarker'
 import { getAllWorkloads, getResourceConflicts } from '../../api/resources'
 import 'dhtmlx-gantt/codebase/dhtmlxgantt.css'
 import '../Gantt/gantt.css'
@@ -197,28 +198,4 @@ function fmt(d: Date): string {
   return `${y}-${m}-${day}`
 }
 
-// 今天标记线（与 GanttChart 相同的自绘逻辑）
-function drawTodayMarker(gantt: any, container: HTMLElement) {
-  container.querySelectorAll('.pm-today-marker').forEach((el) => el.remove())
-  const taskArea = container.querySelector('.gantt_task') as HTMLElement | null
-  if (!taskArea) return
-  taskArea.querySelectorAll('.pm-today-marker').forEach((el) => el.remove())
-  const x = gantt.posFromDate(new Date())
-  if (typeof x !== 'number' || isNaN(x)) return
-
-  const marker = document.createElement('div')
-  marker.className = 'pm-today-marker'
-  marker.style.cssText = `position:absolute;left:${x}px;top:2px;z-index:10;pointer-events:none;white-space:nowrap;`
-
-  const label = document.createElement('span')
-  label.textContent = '今天'
-  label.style.cssText = 'font-size:10px;font-weight:600;color:#fff;background:#ff4d4f;padding:1px 4px;border-radius:2px;margin-right:2px;'
-
-  const arrow = document.createElement('span')
-  arrow.innerHTML = '▼'
-  arrow.style.cssText = 'color:#ff4d4f;font-size:8px;'
-
-  marker.appendChild(label)
-  marker.appendChild(arrow)
-  taskArea.appendChild(marker)
-}
+// 今日标记由共享 drawTodayMarker 绘制（见 ../Gantt/todayMarker.ts）

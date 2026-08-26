@@ -1,6 +1,7 @@
 import { useEffect, useRef } from 'react'
 import { applyGanttConfig, setScale, setCriticalHighlight } from './ganttConfig'
 import { setupPan, cleanupPan } from './panUtils'
+import { drawTodayMarker } from './todayMarker'
 import { getProjectGantt, getProject, getCriticalPath } from '../../api/projects'
 import { createDependency, deleteDependency } from '../../api/phases'
 import { listResources } from '../../api/resources'
@@ -170,30 +171,5 @@ function mapLinkType(type: string): string {
 }
 
 /**
- * 自绘"今天"标记 — 挂在于时间轴可视区顶部，冻结在日期刻度位置。
- * 挂在 .gantt_task 内（覆盖时间轴可视区的背景层），该元素随横向滚动但不纵向滚动。
+ * 甘特图渲染完成后的回调（今日标记由共享 drawTodayMarker 绘制，见 todayMarker.ts）
  */
-function drawTodayMarker(gantt: any, container: HTMLElement) {
-  container.querySelectorAll('.pm-today-marker').forEach((el) => el.remove())
-
-  // .gantt_task 是时间轴背景区域，固定在可视区内不随任务行纵向滚动
-  const taskArea = container.querySelector('.gantt_task') as HTMLElement | null
-  if (!taskArea) return
-
-  // 清除旧标记
-  taskArea.querySelectorAll('.pm-today-marker').forEach((el) => el.remove())
-
-  const x = gantt.posFromDate(new Date())
-  if (typeof x !== 'number' || isNaN(x)) return
-
-  const marker = document.createElement('div')
-  marker.className = 'pm-today-marker'
-  marker.style.cssText = `position:absolute;left:${x}px;top:2px;z-index:10;pointer-events:none;white-space:nowrap;`
-
-  const label = document.createElement('span')
-  label.textContent = '今天'
-  label.className = 'pm-today-label'
-
-  marker.appendChild(label)
-  taskArea.appendChild(marker)
-}
