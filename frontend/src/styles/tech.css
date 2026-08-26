@@ -187,14 +187,16 @@ body {
   background: rgba(0, 212, 255, 0.4);
 }
 
-/* ---------- 10. 降级：减少动效偏好 ---------- */
+/* ---------- 10. 降级：减少动效偏好 ----------
+   注意：不要用 `*` 全局覆盖 animation-duration！
+   antd rc-motion 检测到非零动画时长会等待 animationend，0.01ms 动画的事件
+   可能不触发 → Dropdown popup 永久卡在 -1000vw 离屏位（2026-08-26 实测）。
+   只禁用本项目自有动画类。 */
 @media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    animation-duration: 0.01ms !important;
-    animation-iteration-count: 1 !important;
-    transition-duration: 0.01ms !important;
+  .pm-fade-slide-up,
+  .gantt_task_line.gantt-task-critical,
+  .gantt_task_line.gantt-task-conflict {
+    animation: none !important;
   }
   .ant-card-hoverable:hover,
   .ant-card:hover {
