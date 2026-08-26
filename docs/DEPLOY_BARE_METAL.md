@@ -212,29 +212,65 @@ curl -s http://127.0.0.1:8000/health
 
 ---
 
-## 四、日常更新流程（以后每次更新，约 5 分钟）
+## 四、日常更新流程（一键脚本，约 4 分钟）
+
+> 更新脚本 `deploy/update.sh` 自动完成：备份当前版本 → 更新代码 → 更新前端（含权限修复）→ 重启后端 → 健康检查。
+> **全程不触碰数据库**（数据在 docker pg_data 卷 / PostgreSQL 中，与代码更新完全隔离）。
+
+### 4.1 本机：打包 + 构建 + 上传（约 3 分钟）
 
 ```powershell
-# 本机
 cd C:\Users\1\Desktop\pm-platform
+
+# ① 打包最新代码
 git archive --format=zip -o C:\pm-platform.zip HEAD
+
+# ② 构建前端
 cd frontend && npm run build
+
+# ③ 上传两个文件（zip 和 dist）
 scp C:\pm-platform.zip root@10.53.9.38:/opt/
 scp -r frontend\dist root@10.53.9.38:/tmp/pm-dist
-# 依赖变了才需要：重新执行 2.1 并 scp wheels
 ```
+
+### 4.2 服务器：一条命令完成更新（约 1 分钟）
 
 ```bash
-# 服务器
-cd /opt && unzip -o /opt/pm-platform.zip -d /opt/pm-platform
-sudo cp -r /tmp/pm-dist/* /var/www/pm-platform/
-sudo chmod -R a+rX /var/www/pm-platform   # 关键！修复 dist 权限为 700 导致 assets 404
-sudo systemctl restart pm-backend
-# 有迁移需求时：执行 3.6 的迁移命令
-curl -s http://127.0.0.1:8000/health
+bash /opt/pm-platform/deploy/update.sh
 ```
 
-前端文件是静态的，覆盖即生效（无需重启 nginx）。
+输出应为：
+```
+[1/4] 已备份当前版本 → /opt/backup / /var/www/pm-platform.bak
+[2/4] 后端代码已更新
+[3/4] 前端已更新
+[4/4] 后端健康 ✅
+```
+
+### 4.3 数据库迁移（仅当发布说明标注"需迁移"时）
+
+```bash
+bash /opt/pm-platform/deploy/migrate.sh
+```
+
+> 迁移脚本自动读取 .env 配置连接数据库，幂等可重复执行。
+> 不涉及模型变更的常规更新（改 UI、改接口逻辑）**不需要**执行此步。
+
+### 4.4 验证
+
+```bash
+curl -s http://127.0.0.1:8000/health
+```
+浏览器访问 `http://10.53.9.38`（若界面旧，Ctrl+F5 强刷）。
+
+### 4.5 数据安全说明
+
+| 问 | 答 |
+|---|---|
+| 更新会丢数据吗？ | **不会**。数据库在 docker `pg_data` 卷里，更新只覆盖 `/opt/pm-platform` 代码目录和 `/var/www/pm-platform` 前端目录 |
+| .env 配置会丢吗？ | 不会。`.env` 不在 zip 里（.gitignore 排除），unzip 不碰它 |
+| venv 依赖会丢吗？ | 不会。`venv/` 不在 zip 里；仅当 `requirements.txt` 变更时才需手动 `pip install -r requirements.txt` |
+| 建议的定期备份 | 每周一次：`docker compose -f deploy/docker/docker-compose.yml --env-file deploy/.env exec -T db pg_dump -U pm_user -d pm_platform -F c > /opt/backup/db-$(date +%F).dump` |
 
 ---
 
@@ -242,9 +278,11 @@ curl -s http://127.0.0.1:8000/health
 
 | 场景 | 操作 |
 |------|------|
-| 后端有问题 | 重新解压旧代码 zip → `systemctl restart pm-backend`（或 git 回滚后重传） |
-| 前端有问题 | 恢复旧 dist（更新前 `cp -r /var/www/pm-platform /var/www/pm-platform.bak`） |
+| 后端有问题 | `unzip -o /opt/backup/code-prev-*.zip -d /opt/pm-platform && sudo systemctl restart pm-backend` |
+| 前端有问题 | `sudo cp -r /var/www/pm-platform.bak/* /var/www/pm-platform/` |
 | 整体退回 Docker 方案 | `systemctl stop pm-backend nginx` → `docker compose start backend nginx`（旧容器/旧镜像还在） |
+
+> `update.sh` 每次更新前自动生成备份（`/opt/backup/code-prev-<时间>.zip` + `/var/www/pm-platform.bak`），回滚无需任何准备。
 
 数据始终在 pg_data 卷，任何回滚不涉及数据。
 
