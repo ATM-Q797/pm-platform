@@ -193,9 +193,8 @@ body {
    可能不触发 → Dropdown popup 永久卡在 -1000vw 离屏位（2026-08-26 实测）。
    只禁用本项目自有动画类。 */
 @media (prefers-reduced-motion: reduce) {
-  .pm-fade-slide-up,
-  .gantt_task_line.gantt-task-critical,
-  .gantt_task_line.gantt-task-conflict {
+  /* 仅禁用页面入场等装饰动画；甘特呼吸（关键路径/冲突）是业务提示，保留 */
+  .pm-fade-slide-up {
     animation: none !important;
   }
   .ant-card-hoverable:hover,

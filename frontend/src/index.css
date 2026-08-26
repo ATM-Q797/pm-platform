@@ -59,8 +59,8 @@
   --gantt-rework: #d97706;
   --gantt-critical: #e11d48;
   --gantt-critical-glow: rgba(225, 29, 72, 0.45);
-  --gantt-conflict: #d97706;
-  --gantt-conflict-glow: rgba(217, 119, 6, 0.45);
+  --gantt-conflict: #b45309;
+  --gantt-conflict-glow: rgba(180, 83, 9, 0.55);
 }
 
 [data-theme='dark'] {
