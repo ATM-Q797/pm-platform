@@ -182,14 +182,14 @@ export default function App() {
   return (
     <ErrorBoundary>
       <Layout style={{ minHeight: '100vh' }}>
-        <Header style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
+        <Header className="pm-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <Space>
-            <div style={{ color: '#fff', fontSize: 17, fontWeight: 600, marginRight: 32, letterSpacing: 0.5, display: 'flex', alignItems: 'center', gap: 8 }}>
-              <ProjectOutlined style={{ fontSize: 20, color: '#1677ff' }} />
-              <span>研发项目管理平台</span>
+            <div style={{ color: 'var(--text-primary)', fontSize: 17, fontWeight: 600, marginRight: 32, letterSpacing: 0.5, display: 'flex', alignItems: 'center', gap: 8 }}>
+              <span className="pm-logo-badge"><ProjectOutlined /></span>
+              <span className="pm-logo-text">研发项目管理平台</span>
             </div>
             <Menu
-              theme="dark"
+              theme={mode === 'dark' ? 'dark' : 'light'}
               mode="horizontal"
               selectedKeys={[selectedKey]}
               onClick={({ key }) => {
@@ -211,12 +211,12 @@ export default function App() {
               type="text"
               icon={mode === 'dark' ? <SunOutlined /> : <MoonOutlined />}
               onClick={toggle}
-              style={{ color: '#fff', fontSize: 16 }}
+              style={{ color: 'var(--text-primary)', fontSize: 16 }}
               title={mode === 'dark' ? '切换到浅色模式' : '切换到深色模式'}
             />
             <Dropdown menu={userMenu}>
-              <div style={{ color: '#fff', display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', padding: '4px 8px', borderRadius: 6, transition: 'background .2s' }} className="header-user">
-                <Avatar size={28} style={{ background: '#1677ff', flexShrink: 0 }}>{user.name.charAt(0)}</Avatar>
+              <div style={{ color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', padding: '4px 8px', borderRadius: 6, transition: 'background .2s' }} className="header-user">
+                <Avatar size={28} className="pm-avatar" style={{ flexShrink: 0 }}>{user.name.charAt(0)}</Avatar>
                 <span>{user.name}</span>
                 <Tag color={ROLE_COLOR[user.role] || 'default'} style={{ margin: 0 }}>{ROLE_LABEL[user.role]}</Tag>
                 <DownOutlined style={{ fontSize: 10 }} />

@@ -20,9 +20,9 @@
   background-color: var(--gantt-done-progress);
 }
 
-/* 进行中 - 蓝色 */
+/* 进行中 - 青蓝渐变（--gantt-active 为 linear-gradient，用 background 简写） */
 .gantt_task_line.gantt-task-active {
-  background-color: var(--gantt-active);
+  background: var(--gantt-active);
   border-color: var(--gantt-active-border);
 }
 .gantt_task_line.gantt-task-active .gantt_task_progress {
@@ -61,7 +61,7 @@
 .gantt_task_line.gantt-task-active .gantt_task_content,
 .gantt_task_line.gantt-task-delayed .gantt_task_content,
 .gantt_task_line.gantt-task-blocked .gantt_task_content {
-  color: var(--gantt-project-text);
+  color: var(--gantt-bar-text);
 }
 
 /* 网格表头底色 */
@@ -87,17 +87,19 @@
   border-left: 4px solid var(--gantt-rework) !important;
 }
 
-/* 关键路径高亮 - 红色粗边框 + 阴影（定义在返工之后，同优先级后声明胜出；
-   且用 !important 确保覆盖返工橙色左边框与状态色边框）*/
+/* 关键路径高亮 - 红色粗边框 + 发光 + 2s 呼吸（pm-pulse 定义在 tech.css；
+   同优先级后声明胜出，且用 !important 覆盖返工橙/状态色边框）*/
 .gantt_task_line.gantt-task-critical {
   border: 3px solid var(--gantt-critical) !important;
-  box-shadow: 0 0 6px rgba(255, 77, 79, 0.35);
+  --pulse-glow: var(--gantt-critical-glow);
+  animation: pm-pulse 2s ease-in-out infinite;
 }
 
-/* 资源冲突标记 - 黄色边框 + ⚠ 角标（资源负载视图）*/
+/* 资源冲突标记 - 黄色边框 + 1.4s 呼吸 + ⚠ 角标（资源负载视图）*/
 .gantt_task_line.gantt-task-conflict {
   border: 2px solid var(--gantt-conflict) !important;
-  box-shadow: 0 0 6px rgba(250, 173, 20, 0.35);
+  --pulse-glow: var(--gantt-conflict-glow);
+  animation: pm-pulse 1.4s ease-in-out infinite;
 }
 .gantt_task_line.gantt-task-conflict::after {
   content: '⚠';
@@ -143,10 +145,12 @@
 .pm-today-marker {
   pointer-events: none;
   border-left: 2px solid var(--gantt-today) !important;
+  box-shadow: 0 0 8px var(--gantt-today);
 }
 .pm-today-label {
   background: var(--gantt-today) !important;
   color: #fff !important;
+  box-shadow: 0 0 8px var(--gantt-today);
 }
 
 /* 甘特 tooltip（dhtmlx 默认白底，深色模式需覆盖） */
@@ -183,7 +187,7 @@
 /* 深色下：行 hover 与选中底色 */
 [data-theme='dark'] .pm-gantt-container .gantt_row:hover,
 [data-theme='dark'] .pm-gantt-container .gantt_task_row:hover {
-  background-color: #1e2128 !important;
+  background-color: rgba(0, 212, 255, 0.06) !important;
 }
 
 /* 深色下：滚动条轨道 */
@@ -192,9 +196,9 @@
   height: 10px;
 }
 [data-theme='dark'] .pm-gantt-container ::-webkit-scrollbar-thumb {
-  background: #2a2d34;
+  background: rgba(0, 212, 255, 0.2);
   border-radius: 5px;
 }
 [data-theme='dark'] .pm-gantt-container ::-webkit-scrollbar-track {
-  background: #16181d;
+  background: #0f1424;
 }

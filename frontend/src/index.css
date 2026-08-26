@@ -1,61 +1,89 @@
-/* ---------- 全局主题变量（浅色默认 / 深色覆盖） ---------- */
+/* ---------- 全局主题变量（浅色默认 / 深色覆盖） ----------
+   色值以 docs/UI_TECH_STYLE.md §1.2 为唯一权威 */
 :root {
-  --bg-layout: #f5f7fa;
-  --card-shadow: 0 1px 2px rgba(0, 0, 0, 0.03), 0 1px 6px rgba(0, 0, 0, 0.06);
-  --card-shadow-hover: 0 4px 12px rgba(0, 0, 0, 0.08);
-  --card-border: #f0f0f0;
-  --text-primary: #1f1f1f;
-  --text-secondary: #666;
-  --text-tertiary: #999;
-  --border-light: #e8e8e8;
-  --header-hover: rgba(255, 255, 255, 0.12);
+  /* 主色 / 点缀 */
+  --primary: #0369a1;
+  --accent-cyan: rgb(8, 145, 178);
+  --accent-purple: #6d5ae0;
+  --gradient-primary: linear-gradient(135deg, #0369a1, #6d5ae0);
+  /* 玻璃拟态 */
+  --glass-bg: rgba(255, 255, 255, 0.8);
+  --glass-border: rgba(8, 145, 178, 0.15);
+  --glass-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.6);
+  --glow: 0 0 12px rgba(3, 105, 161, 0.25);
+  --glow-strong: 0 0 16px rgba(3, 105, 161, 0.4);
+
+  --bg-layout: #eef2f8;
+  --card-shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 1px 6px rgba(15, 23, 42, 0.06);
+  --card-shadow-hover: 0 6px 16px rgba(15, 23, 42, 0.1), var(--glow);
+  --card-border: var(--glass-border);
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --text-tertiary: #94a3b8;
+  --border-light: #e2e8f0;
+  --header-hover: rgba(15, 23, 42, 0.06);
   /* 提示块背景（导入确认 Modal 等） */
   --alert-warn-bg: #fff7e6;
   --alert-info-bg: #fffbe6;
   --alert-ok-bg: #f6ffed;
 
-  /* 甘特图 */
+  /* 甘特图（浅色） */
   --gantt-bg: #ffffff;
-  --gantt-grid-line: #ebedf0;
-  --gantt-head-bg: #fafbfc;
-  --gantt-text: #333333;
-  --gantt-text-secondary: #595959;
-  --gantt-project-row: #001529;
+  --gantt-grid-line: #e2e8f0;
+  --gantt-head-bg: #f1f5f9;
+  --gantt-text: #0f172a;
+  --gantt-text-secondary: #475569;
+  --gantt-project-row: #0f2a4a;
   --gantt-project-text: #ffffff;
-  --gantt-link: #ffa940;
-  --gantt-today: #ff4d4f;
+  --gantt-bar-text: #111827;
+  --gantt-link: #0369a1;
+  --gantt-today: #e11d48;
   --gantt-tooltip-bg: #ffffff;
-  --gantt-tooltip-text: #333333;
-  /* 状态条（浅色：AntD 色板浅阶） */
-  --gantt-done: #73d13d;
-  --gantt-done-border: #52c41a;
-  --gantt-done-progress: #52c41a;
-  --gantt-active: #69b1ff;
-  --gantt-active-border: #1677ff;
-  --gantt-active-progress: #1677ff;
-  --gantt-pending: #d9d9d9;
-  --gantt-pending-border: #bfbfbf;
-  --gantt-pending-progress: #bfbfbf;
-  --gantt-delayed: #ff7875;
-  --gantt-delayed-border: #ff4d4f;
-  --gantt-delayed-progress: #ff4d4f;
-  --gantt-blocked: #8c8c8c;
-  --gantt-blocked-border: #595959;
-  --gantt-blocked-progress: #595959;
-  --gantt-rework: #fa8c16;
-  --gantt-critical: #ff4d4f;
-  --gantt-conflict: #faad14;
+  --gantt-tooltip-text: #0f172a;
+  /* 状态条（浅色：降饱和保证对比度） */
+  --gantt-done: #4ade80;
+  --gantt-done-border: #16a34a;
+  --gantt-done-progress: #16a34a;
+  --gantt-active: linear-gradient(180deg, #38bdf8, #0284c7);
+  --gantt-active-border: #0369a1;
+  --gantt-active-progress: #0369a1;
+  --gantt-pending: #cbd5e1;
+  --gantt-pending-border: #94a3b8;
+  --gantt-pending-progress: #94a3b8;
+  --gantt-delayed: #fda4af;
+  --gantt-delayed-border: #e11d48;
+  --gantt-delayed-progress: #e11d48;
+  --gantt-blocked: #94a3b8;
+  --gantt-blocked-border: #64748b;
+  --gantt-blocked-progress: #64748b;
+  --gantt-rework: #d97706;
+  --gantt-critical: #e11d48;
+  --gantt-critical-glow: rgba(225, 29, 72, 0.45);
+  --gantt-conflict: #d97706;
+  --gantt-conflict-glow: rgba(217, 119, 6, 0.45);
 }
 
 [data-theme='dark'] {
-  --bg-layout: #0f1115;
+  /* 主色 / 点缀 */
+  --primary: #00d4ff;
+  --accent-cyan: #00d4ff;
+  --accent-purple: #7b61ff;
+  --gradient-primary: linear-gradient(135deg, #00d4ff, #7b61ff);
+  /* 玻璃拟态 */
+  --glass-bg: rgba(20, 27, 45, 0.72);
+  --glass-border: rgba(120, 180, 255, 0.18);
+  --glass-highlight: inset 0 1px 0 rgba(255, 255, 255, 0.08);
+  --glow: 0 0 12px rgba(0, 212, 255, 0.35);
+  --glow-strong: 0 0 16px rgba(0, 212, 255, 0.5);
+
+  --bg-layout: #0a0e1a;
   --card-shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 1px 6px rgba(0, 0, 0, 0.3);
-  --card-shadow-hover: 0 4px 12px rgba(0, 0, 0, 0.5);
-  --card-border: #2a2d34;
-  --text-primary: #e6e6e6;
-  --text-secondary: #9ca3af;
-  --text-tertiary: #6b7280;
-  --border-light: #2a2d34;
+  --card-shadow-hover: 0 6px 16px rgba(0, 0, 0, 0.5), var(--glow);
+  --card-border: var(--glass-border);
+  --text-primary: #e8ecf8;
+  --text-secondary: #9aa3b8;
+  --text-tertiary: #5f6b85;
+  --border-light: rgba(120, 180, 255, 0.15);
   --header-hover: rgba(255, 255, 255, 0.12);
   /* 提示块背景（深色） */
   --alert-warn-bg: #2b2315;
@@ -63,36 +91,39 @@
   --alert-ok-bg: #16260f;
 
   /* 甘特图（深色） */
-  --gantt-bg: #16181d;
-  --gantt-grid-line: #2a2d34;
-  --gantt-head-bg: #1e2128;
-  --gantt-text: #d1d5db;
-  --gantt-text-secondary: #9ca3af;
+  --gantt-bg: #0f1424;
+  --gantt-grid-line: rgba(120, 180, 255, 0.12);
+  --gantt-head-bg: #111830;
+  --gantt-text: #e8ecf8;
+  --gantt-text-secondary: #9aa3b8;
   --gantt-project-row: #0b1e3a;
   --gantt-project-text: #ffffff;
-  --gantt-link: #d48806;
-  --gantt-today: #ff7875;
-  --gantt-tooltip-bg: #1e2128;
-  --gantt-tooltip-text: #e6e6e6;
-  /* 状态条（深色：提亮一档更醒目） */
-  --gantt-done: #52c41a;
-  --gantt-done-border: #73d13d;
-  --gantt-done-progress: #73d13d;
-  --gantt-active: #1677ff;
-  --gantt-active-border: #69b1ff;
-  --gantt-active-progress: #69b1ff;
-  --gantt-pending: #4b5563;
-  --gantt-pending-border: #6b7280;
-  --gantt-pending-progress: #6b7280;
-  --gantt-delayed: #cf1322;
-  --gantt-delayed-border: #ff7875;
-  --gantt-delayed-progress: #ff7875;
-  --gantt-blocked: #374151;
+  --gantt-bar-text: #ffffff;
+  --gantt-link: #00d4ff;
+  --gantt-today: #ff4d6d;
+  --gantt-tooltip-bg: #141b2d;
+  --gantt-tooltip-text: #e8ecf8;
+  /* 状态条（深色：青蓝渐变 / 提亮醒目） */
+  --gantt-done: #15803d;
+  --gantt-done-border: #22e58a;
+  --gantt-done-progress: #22e58a;
+  --gantt-active: linear-gradient(180deg, #00d4ff, #0090c8);
+  --gantt-active-border: #00d4ff;
+  --gantt-active-progress: #0090c8;
+  --gantt-pending: #334155;
+  --gantt-pending-border: #64748b;
+  --gantt-pending-progress: #64748b;
+  --gantt-delayed: #be123c;
+  --gantt-delayed-border: #ff4d6d;
+  --gantt-delayed-progress: #ff4d6d;
+  --gantt-blocked: #1f2937;
   --gantt-blocked-border: #6b7280;
   --gantt-blocked-progress: #6b7280;
-  --gantt-rework: #fa8c16;
-  --gantt-critical: #ff4d4f;
-  --gantt-conflict: #faad14;
+  --gantt-rework: #fbbf24;
+  --gantt-critical: #ff4d6d;
+  --gantt-critical-glow: rgba(255, 77, 109, 0.55);
+  --gantt-conflict: #fbbf24;
+  --gantt-conflict-glow: rgba(251, 191, 36, 0.55);
 }
 
 html,
@@ -174,7 +205,7 @@ body {
 .report-markdown blockquote {
   margin: 8px 0;
   padding: 4px 12px;
-  border-left: 3px solid #1677ff;
-  background: rgba(22, 119, 255, 0.08);
+  border-left: 3px solid var(--primary);
+  background: var(--alert-info-bg);
   color: var(--text-secondary);
 }

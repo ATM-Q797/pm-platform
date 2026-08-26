@@ -1,0 +1,203 @@
+/* ============================================================
+   科技感视觉层 —「深空驾驶舱」(docs/UI_TECH_STYLE.md)
+   在 index.css 之后加载；变量全部来自 :root / [data-theme='dark']
+   性能红线：backdrop-filter 仅用于 Header/卡片/登录卡/Modal
+   ============================================================ */
+
+/* ---------- 1. body 网格纹理（32px 极淡网格 + 顶部径向紫晕） ---------- */
+body {
+  background-image:
+    linear-gradient(rgba(8, 145, 178, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(8, 145, 178, 0.05) 1px, transparent 1px),
+    radial-gradient(ellipse at 20% 0%, rgba(109, 90, 224, 0.08), transparent 50%);
+  background-size: 32px 32px, 32px 32px, 100% 100%;
+  background-attachment: fixed;
+}
+[data-theme='dark'] body {
+  background-image:
+    linear-gradient(rgba(0, 212, 255, 0.04) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 212, 255, 0.04) 1px, transparent 1px),
+    radial-gradient(ellipse at 20% 0%, rgba(123, 97, 255, 0.12), transparent 50%);
+}
+
+/* ---------- 2. 全局过渡（仅背景/边框/阴影，0.25s，性能红线） ---------- */
+.ant-card,
+.ant-btn,
+.ant-menu .ant-menu-item,
+.ant-menu .ant-menu-submenu-title {
+  transition:
+    background-color 0.25s,
+    border-color 0.25s,
+    box-shadow 0.25s,
+    transform 0.25s;
+}
+
+/* ---------- 3. 卡片玻璃拟态 + hover 抬升发光 ---------- */
+.ant-card {
+  background: var(--glass-bg);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border: 1px solid var(--glass-border);
+  box-shadow: var(--glass-highlight), var(--card-shadow);
+}
+.ant-card .ant-card-head {
+  border-bottom-color: var(--glass-border);
+}
+.ant-card-hoverable:hover,
+.ant-card:hover {
+  transform: translateY(-3px);
+  box-shadow: var(--glass-highlight), var(--card-shadow-hover);
+}
+
+/* ---------- 4. 主按钮渐变 + 发光 ---------- */
+.ant-btn-primary {
+  background: var(--gradient-primary);
+  border: none;
+  box-shadow: var(--glow);
+}
+.ant-btn-primary:not(:disabled):not(.ant-btn-disabled):hover {
+  background: var(--gradient-primary);
+  box-shadow: var(--glow-strong);
+  filter: brightness(1.08);
+}
+
+/* ---------- 5. Header 玻璃条（配合 Layout headerBg: transparent） ---------- */
+.pm-header {
+  position: sticky;
+  top: 0;
+  z-index: 100;
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  background: var(--glass-bg);
+  border-bottom: 1px solid var(--glass-border);
+  box-shadow: 0 1px 0 rgba(0, 212, 255, 0.15), var(--glass-highlight);
+}
+/* Logo 渐变方块 + 发光 */
+.pm-logo-badge {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: var(--gradient-primary);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  color: #fff;
+  font-size: 15px;
+  box-shadow: var(--glow);
+}
+/* Logo 标题渐变字 */
+.pm-logo-text {
+  background: var(--gradient-primary);
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+  font-weight: 700;
+}
+/* 头像渐变底 */
+.pm-avatar {
+  background: var(--gradient-primary) !important;
+  box-shadow: var(--glow);
+}
+
+/* ---------- 6. 看板统计卡：顶部 3px 渐变条 + 渐变数字 ---------- */
+.pm-stat-card {
+  position: relative;
+  overflow: hidden;
+}
+.pm-stat-card::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 3px;
+  background: var(--stat-bar, var(--gradient-primary));
+}
+.pm-stat-value {
+  font-size: 32px;
+  font-weight: 700;
+  line-height: 1.2;
+  font-variant-numeric: tabular-nums;
+  background: var(--stat-bar, var(--gradient-primary));
+  -webkit-background-clip: text;
+  background-clip: text;
+  -webkit-text-fill-color: transparent;
+}
+/* 浅色模式渐变数字对比度保护：改用实色主色文字 */
+:root:not([data-theme='dark']) .pm-stat-value {
+  background: none;
+  -webkit-text-fill-color: currentColor;
+  color: var(--text-primary);
+}
+:root:not([data-theme='dark']) .pm-stat-value.pm-stat-danger {
+  color: var(--stat-color, #e11d48);
+}
+
+/* ---------- 7. 「今日聚焦」左侧电青竖线 ---------- */
+.pm-focus-card {
+  border-left: 3px solid var(--accent-cyan) !important;
+  box-shadow: var(--glass-highlight), var(--card-shadow), -4px 0 12px rgba(0, 212, 255, 0.12);
+}
+
+/* ---------- 8. 动画 ---------- */
+/* 关键路径呼吸（2s）/ 资源冲突呼吸（1.4s） */
+@keyframes pm-pulse {
+  0%,
+  100% {
+    box-shadow: 0 0 4px var(--pulse-glow, rgba(0, 212, 255, 0.3));
+  }
+  50% {
+    box-shadow: 0 0 14px var(--pulse-glow, rgba(0, 212, 255, 0.7));
+  }
+}
+/* 入场：淡入上移 */
+@keyframes fadeSlideUp {
+  from {
+    opacity: 0;
+    transform: translateY(8px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+.pm-fade-slide-up {
+  animation: fadeSlideUp 0.3s ease-out both;
+}
+
+/* ---------- 9. 滚动条细样式 ---------- */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+::-webkit-scrollbar-thumb {
+  background: rgba(8, 145, 178, 0.25);
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(8, 145, 178, 0.45);
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+[data-theme='dark'] ::-webkit-scrollbar-thumb {
+  background: rgba(0, 212, 255, 0.2);
+}
+[data-theme='dark'] ::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 212, 255, 0.4);
+}
+
+/* ---------- 10. 降级：减少动效偏好 ---------- */
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+  .ant-card-hoverable:hover,
+  .ant-card:hover {
+    transform: none;
+  }
+}
