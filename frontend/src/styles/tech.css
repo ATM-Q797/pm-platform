@@ -227,32 +227,6 @@ body {
   box-shadow: 0 0 0 2px rgba(0, 212, 255, 0.3) !important;
 }
 
-/* ---------- P3.4 周报：Markdown 容器玻璃化 + h2 渐变竖线 + 电青引用块 ---------- */
-.report-markdown {
-  background: var(--glass-bg);
-  border: 1px solid var(--glass-border);
-  border-radius: 12px;
-  padding: 24px 32px;
-  box-shadow: var(--glass-highlight);
-}
-.report-markdown h2 {
-  position: relative;
-  padding-left: 12px;
-}
-.report-markdown h2::before {
-  content: '';
-  position: absolute;
-  left: 0;
-  top: 0.2em;
-  bottom: 0.2em;
-  width: 3px;
-  border-radius: 2px;
-  background: var(--gradient-primary);
-}
-.report-markdown blockquote {
-  border-left-color: var(--accent-cyan);
-}
-
 /* ---------- P3.6 空状态：padding + 文案色 var(--text-tertiary) ---------- */
 .ant-empty {
   padding: 32px 0;

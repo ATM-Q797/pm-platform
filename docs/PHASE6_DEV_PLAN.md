@@ -148,7 +148,10 @@
 
 ---
 
-### T7 周报生成后端
+> ⚠️ **2026-08-26：T7/T8 周报功能已整体移除**（用户决定：当前无实际用途，构思好后再开发）。
+> 前端页面/导航/路由、后端 reports 路由与 weekly_report 服务已删除；
+> `phase.updated_at` 列**保留**（onupdate 自动维护，未来周报复用无需迁移）。
+> 本节内容仅作历史记录。
 
 **文件**：`backend/app/services/weekly_report.py`（新）+ `backend/app/routers/reports.py`（新）+ `backend/requirements.txt`（+jinja2）+ `backend/tests/test_weekly_report.py`（新）
 
