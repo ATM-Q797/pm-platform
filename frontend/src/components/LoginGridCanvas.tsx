@@ -50,7 +50,6 @@ export default function LoginGridCanvas() {
       // canvas.width 赋值会清空位图；reduced-motion 无 rAF，需手动重绘静态帧
       if (reduced) draw(0, BASE_AMP)
     }
-    resize()
 
     // 指针状态
     let px = 0
@@ -127,6 +126,8 @@ export default function LoginGridCanvas() {
       }
       ctx.stroke()
     }
+
+    resize() // 初始尺寸 + reduced 静态帧（须在 draw 定义之后调用）
 
     if (reduced) {
       draw(0, BASE_AMP) // 静态一帧，不启动 rAF
