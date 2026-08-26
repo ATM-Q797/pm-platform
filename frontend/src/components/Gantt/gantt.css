@@ -147,6 +147,7 @@
   pointer-events: none;
 }
 .pm-today-label {
+  position: relative;
   display: inline-block;
   font-size: 10px;
   font-weight: 600;
@@ -159,6 +160,17 @@
   margin-left: -7px;
   box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
   backdrop-filter: none; /* 与弹层定位问题同源，一律不用 backdrop-filter */
+}
+/* 向下小倒三角：指向时间标尺的今日刻度 */
+.pm-today-label::after {
+  content: '';
+  position: absolute;
+  top: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 5px solid transparent;
+  border-top: 5px solid var(--gantt-today);
+  filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.2));
 }
 
 /* 甘特 tooltip（dhtmlx 默认白底，深色模式需覆盖） */
