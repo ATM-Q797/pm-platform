@@ -228,6 +228,7 @@ scp -r frontend\dist root@10.53.9.38:/tmp/pm-dist
 # 服务器
 cd /opt && unzip -o /opt/pm-platform.zip -d /opt/pm-platform
 sudo cp -r /tmp/pm-dist/* /var/www/pm-platform/
+sudo chmod -R a+rX /var/www/pm-platform   # 关键！修复 dist 权限为 700 导致 assets 404
 sudo systemctl restart pm-backend
 # 有迁移需求时：执行 3.6 的迁移命令
 curl -s http://127.0.0.1:8000/health
