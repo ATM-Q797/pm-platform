@@ -17,14 +17,14 @@ import type { DashboardStats, ResourceConflict } from '../types'
 // 明细抽屉类型
 type DrawerKey = 'delayed' | 'due' | 'conflict' | 'rework' | null
 
-// 卡片左侧图标块配色（语义色）
-const CARD_STYLE: Record<string, { bg: string; color: string }> = {
-  total: { bg: 'rgba(22,119,255,.1)', color: '#1677ff' },
-  active: { bg: 'rgba(22,119,255,.1)', color: '#1677ff' },
-  delayed: { bg: 'rgba(255,77,79,.1)', color: '#ff4d4f' },
-  due: { bg: 'rgba(250,173,20,.12)', color: '#d48806' },
-  conflict: { bg: 'rgba(250,140,22,.12)', color: '#fa8c16' },
-  rework: { bg: 'rgba(250,140,22,.12)', color: '#fa8c16' },
+// 卡片左侧图标块配色（语义色）+ 顶部 3px 渐变条（每卡不同色相，见 tech.css .pm-stat-card）
+const CARD_STYLE: Record<string, { bg: string; color: string; bar: string }> = {
+  total: { bg: 'rgba(22,119,255,.1)', color: '#1677ff', bar: 'linear-gradient(90deg,#00d4ff,#7b61ff)' },
+  active: { bg: 'rgba(34,229,138,.12)', color: '#16a34a', bar: 'linear-gradient(90deg,#22e58a,#00d4ff)' },
+  delayed: { bg: 'rgba(255,77,109,.12)', color: '#e11d48', bar: 'linear-gradient(90deg,#ff4d6d,#fa8c16)' },
+  due: { bg: 'rgba(251,191,36,.14)', color: '#b45309', bar: 'linear-gradient(90deg,#fbbf24,#fa8c16)' },
+  conflict: { bg: 'rgba(250,140,22,.12)', color: '#c2410c', bar: 'linear-gradient(90deg,#fa8c16,#ff4d6d)' },
+  rework: { bg: 'rgba(123,97,255,.12)', color: '#6d5ae0', bar: 'linear-gradient(90deg,#7b61ff,#00d4ff)' },
 }
 
 export default function DashboardPage() {
@@ -89,9 +89,15 @@ export default function DashboardPage() {
     dangerHighlight = false,
   ) => {
     const c = CARD_STYLE[key] || CARD_STYLE.total
+    const isDanger = dangerHighlight && value > 0
     return (
       <Col span={8}>
-        <Card hoverable onClick={onClick} style={{ cursor: 'pointer' }}>
+        <Card
+          hoverable
+          onClick={onClick}
+          className="pm-stat-card"
+          style={{ cursor: 'pointer', '--stat-bar': c.bar, '--stat-color': c.color } as React.CSSProperties}
+        >
           <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
             <div
               style={{
@@ -111,14 +117,7 @@ export default function DashboardPage() {
             </div>
             <div>
               <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 2 }}>{title}</div>
-              <div
-                style={{
-                  fontSize: 28,
-                  fontWeight: 600,
-                  lineHeight: 1.2,
-                  color: dangerHighlight && value > 0 ? c.color : '#1f1f1f',
-                }}
-              >
+              <div className={isDanger ? 'pm-stat-value pm-stat-danger' : 'pm-stat-value'}>
                 {value}
               </div>
             </div>
@@ -150,6 +149,7 @@ export default function DashboardPage() {
             今日聚焦
           </span>
         }
+        className="pm-focus-card"
         style={{ marginTop: 32 }}
       >
         <Row gutter={24}>
@@ -277,7 +277,7 @@ export default function DashboardPage() {
               conflicts.map((rc) => (
                 <div key={rc.resource_id} style={{ marginBottom: 16 }}>
                   <b style={{ fontSize: 14 }}>{rc.resource_name}</b>
-                  <Tag color="orange" style={{ marginLeft: 8 }}>
+                  <Tag color="orange" style={{ marginLeft: 8, color: '#b45309' }}>
                     {rc.conflicts.length} 个冲突
                   </Tag>
                   <List
@@ -321,7 +321,7 @@ export default function DashboardPage() {
                     </span>
                   }
                 />
-                <Tag color="orange">{r.rework_count} 次返工</Tag>
+                <Tag color="orange" style={{ color: '#b45309' }}>{r.rework_count} 次返工</Tag>
               </List.Item>
             )}
           />

@@ -24,3 +24,9 @@
 .resource-view .gantt_task_line .gantt_task_drag {
   display: none !important;
 }
+
+/* 冲突 ⚠ 角标呼吸（1.4s，与 gantt-task-conflict 黄框呼吸同步） */
+.resource-view .gantt_task_line.gantt-task-conflict::after {
+  animation: pm-pulse 1.4s ease-in-out infinite;
+  --pulse-glow: var(--gantt-conflict-glow);
+}

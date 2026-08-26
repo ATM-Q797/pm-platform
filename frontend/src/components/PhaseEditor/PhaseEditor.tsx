@@ -286,12 +286,12 @@ export default function PhaseEditor({ phaseId, projectId, defaultSequence, reado
         isCreate ? '添加阶段' : readonly ? (
           <Space>
             <span>查看阶段</span>
-            {phase && phase.rework_count > 0 && <Tag color="orange">返工 {phase.rework_count} 次</Tag>}
+            {phase && phase.rework_count > 0 && <Tag color="orange" style={{ color: '#b45309' }}>返工 {phase.rework_count} 次</Tag>}
           </Space>
         ) : (
           <Space>
             <span>编辑阶段</span>
-            {phase && phase.rework_count > 0 && <Tag color="orange">返工 {phase.rework_count} 次</Tag>}
+            {phase && phase.rework_count > 0 && <Tag color="orange" style={{ color: '#b45309' }}>返工 {phase.rework_count} 次</Tag>}
           </Space>
         )
       }
