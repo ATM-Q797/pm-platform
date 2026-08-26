@@ -1,6 +1,6 @@
 import { useState } from 'react'
 import { Form, Input, Button, message, Typography } from 'antd'
-import { UserOutlined, LockOutlined, ProjectOutlined } from '@ant-design/icons'
+import { UserOutlined, LockOutlined } from '@ant-design/icons'
 import { login } from '../api/auth'
 import { useTheme } from '../theme'
 import LoginGridCanvas from '../components/LoginGridCanvas'
@@ -40,16 +40,8 @@ export default function LoginPage({ onLogin }: Props) {
           : 'radial-gradient(1200px 600px at 50% -10%, #eaf2ff 0%, #f5f7fa 55%)',
       }}
     >
-      {/* 动态网格背景层：波浪涌动 + 指针扰动（reduced-motion 下静态一帧） */}
+      {/* 动态网格背景层：波浪涌动（2026-08-26 用户要求删除指针扰动） */}
       <LoginGridCanvas />
-
-      {/* 顶部极简 logo 行（DeepSeek 式） */}
-      <div style={{ padding: '24px 32px', display: 'flex', alignItems: 'center', gap: 8 }}>
-        <ProjectOutlined style={{ fontSize: 22, color: 'var(--accent-cyan)' }} />
-        <span style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-primary)' }}>
-          研发项目管理平台
-        </span>
-      </div>
 
       {/* 中央区：大标题 + 副标题 + 登录卡片 */}
       <div
