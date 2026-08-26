@@ -61,6 +61,16 @@ body {
   filter: brightness(1.08);
 }
 
+/* ---------- 4.5 登录页 autofill 覆盖（浏览器自动填充白底 → 主题玻璃色） ---------- */
+.pm-login input:-webkit-autofill,
+.pm-login input:-webkit-autofill:hover,
+.pm-login input:-webkit-autofill:focus {
+  -webkit-text-fill-color: var(--text-primary);
+  -webkit-box-shadow: 0 0 0 1000px var(--input-bg) inset !important;
+  caret-color: var(--text-primary);
+  transition: background-color 9999s ease-out;
+}
+
 /* ---------- 5. Header 玻璃条（配合 Layout headerBg: transparent） ---------- */
 .pm-header {
   position: sticky;
