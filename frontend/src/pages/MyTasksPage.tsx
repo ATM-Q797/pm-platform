@@ -3,6 +3,7 @@ import { useNavigate } from 'react-router-dom'
 import { Card, Table, Tag, Progress, message, Empty } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import client from '../api/client'
+import { useTheme } from '../theme'
 import type { Phase } from '../types'
 
 const STATUS_COLOR: Record<string, string> = {
@@ -23,6 +24,11 @@ export default function MyTasksPage() {
   const [tasks, setTasks] = useState<TaskWithProject[]>([])
   const [loading, setLoading] = useState(true)
   const [currentUser, setCurrentUser] = useState<{ id: number; name: string; resource_id: number | null } | null>(null)
+  const { mode } = useTheme()
+  // 进度条渐变：深色电青→紫，浅色主蓝→紫（docs/UI_TECH_STYLE.md §1.2）
+  const progressStroke = mode === 'dark'
+    ? { from: '#00d4ff', to: '#7b61ff' }
+    : { from: '#0369a1', to: '#6d5ae0' }
 
   useEffect(() => {
     load()
@@ -73,7 +79,7 @@ export default function MyTasksPage() {
     { title: '阶段', dataIndex: 'name', width: 120 },
     {
       title: '进度', dataIndex: 'progress', width: 160,
-      render: (p: number) => <Progress percent={p} size="small" />,
+      render: (p: number) => <Progress percent={p} size="small" strokeColor={progressStroke} />,
     },
     { title: '计划开始', dataIndex: 'plan_start', width: 110, align: 'center' },
     { title: '计划结束', dataIndex: 'plan_end', width: 110, align: 'center' },
@@ -94,23 +100,24 @@ export default function MyTasksPage() {
       {/* 统计卡：与看板风格统一 */}
       <div style={{ display: 'flex', gap: 16, marginBottom: 16 }}>
         {[
-          { label: '总任务', value: stats.total, color: '#1677ff' },
-          { label: '进行中', value: stats.active, color: '#1890ff' },
-          { label: '未开始', value: stats.pending, color: 'var(--text-tertiary)' },
-          { label: '已完成', value: stats.done, color: '#52c41a' },
+          { label: '总任务', value: stats.total },
+          { label: '进行中', value: stats.active },
+          { label: '未开始', value: stats.pending },
+          { label: '已完成', value: stats.done },
         ].map((s) => (
           <div
             key={s.label}
             style={{
               flex: 1,
-              background: '#fff',
-              borderRadius: 8,
+              background: 'var(--glass-bg)',
+              border: '1px solid var(--glass-border)',
+              borderRadius: 12,
               padding: '16px 20px',
-              boxShadow: '0 1px 2px rgba(0,0,0,.03), 0 1px 6px rgba(0,0,0,.06)',
+              boxShadow: 'var(--card-shadow)',
             }}
           >
             <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 2 }}>{s.label}</div>
-            <div style={{ fontSize: 28, fontWeight: 600, color: s.color }}>{s.value}</div>
+            <div className="pm-stat-value" style={{ fontSize: 28, fontWeight: 600 }}>{s.value}</div>
           </div>
         ))}
       </div>
