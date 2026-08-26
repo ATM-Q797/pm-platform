@@ -142,13 +142,9 @@
 .pm-gantt-container .gantt_task {
   position: relative;
 }
+/* 今日标记 — 仅保留时间栏顶部的「今天」标签（2026-08-26 用户要求删除竖线） */
 .pm-today-marker {
   pointer-events: none;
-  border-left: 1px solid var(--gantt-today);
-  box-shadow: 0 0 8px var(--gantt-today-glow);
-  background: linear-gradient(180deg, var(--gantt-today) 0%, transparent 60%);
-  width: 0;
-  height: 100%;
 }
 .pm-today-label {
   display: inline-block;
