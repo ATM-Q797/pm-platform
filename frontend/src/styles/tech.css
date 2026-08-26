@@ -205,36 +205,13 @@ body {
   box-shadow: 0 0 6px color-mix(in srgb, currentColor 45%, transparent);
 }
 
-/* ---------- P2.2 登录页：极淡动态网格背景（40s 线性无限，reduced-motion 静止） ---------- */
+/* ---------- P2.2 登录页：动态网格背景由 LoginGridCanvas 组件绘制（Canvas，见该组件） ---------- */
 .pm-login {
   position: relative;
   overflow: hidden;
 }
-.pm-login-grid {
-  position: absolute;
-  inset: 0;
-  pointer-events: none;
-  background-image:
-    linear-gradient(rgba(8, 145, 178, 0.06) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(8, 145, 178, 0.06) 1px, transparent 1px);
-  background-size: 32px 32px;
-  animation: pm-grid-drift 40s linear infinite;
-}
-[data-theme='dark'] .pm-login-grid {
-  background-image:
-    linear-gradient(rgba(0, 212, 255, 0.05) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(0, 212, 255, 0.05) 1px, transparent 1px);
-}
-@keyframes pm-grid-drift {
-  from {
-    background-position: 0 0;
-  }
-  to {
-    background-position: 32px 32px;
-  }
-}
-/* 登录页内容层叠于网格之上 */
-.pm-login > *:not(.pm-login-grid) {
+/* 登录页内容层叠于网格 Canvas 之上 */
+.pm-login > *:not(canvas) {
   position: relative;
   z-index: 1;
 }
@@ -291,8 +268,8 @@ body {
    只禁用本项目自有动画类。 */
 @media (prefers-reduced-motion: reduce) {
   /* 仅禁用页面入场等装饰动画；甘特呼吸（关键路径/冲突）是业务提示，保留 */
-  .pm-fade-slide-up,
-  .pm-login-grid {
+  /* 登录页网格 Canvas 在组件内部检测 reduced-motion，只画静态一帧 */
+  .pm-fade-slide-up {
     animation: none !important;
   }
   .ant-card-hoverable:hover,
