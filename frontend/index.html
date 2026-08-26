@@ -5,6 +5,16 @@
     <link rel="icon" type="image/svg+xml" href="/favicon.svg" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>项目管理中心</title>
+    <script>
+      // 防闪白：渲染前根据 localStorage / 系统偏好设置主题
+      ;(function () {
+        var t = localStorage.getItem('pm-theme')
+        if (t !== 'light' && t !== 'dark') {
+          t = window.matchMedia && window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light'
+        }
+        document.documentElement.setAttribute('data-theme', t)
+      })()
+    </script>
   </head>
   <body>
     <div id="root"></div>

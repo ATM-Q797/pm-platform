@@ -1,6 +1,6 @@
 import { useEffect, useState, lazy, Suspense } from 'react'
 import { Routes, Route, useNavigate, useLocation, Navigate } from 'react-router-dom'
-import { Layout, Menu, Spin, Dropdown, Space, Tag, Avatar } from 'antd'
+import { Layout, Menu, Spin, Dropdown, Space, Tag, Avatar, Button } from 'antd'
 import {
   DashboardOutlined,
   ProjectOutlined,
@@ -12,12 +12,15 @@ import {
   AuditOutlined,
   CheckSquareOutlined,
   FileTextOutlined,
+  MoonOutlined,
+  SunOutlined,
 } from '@ant-design/icons'
 import ErrorBoundary from './components/ErrorBoundary'
 import LoginPage from './pages/LoginPage'
 import ChangePasswordModal from './components/ChangePasswordModal'
 import DashboardPage from './pages/DashboardPage'
 import { getMe, logout } from './api/auth'
+import { useTheme } from './theme'
 import type { UserInfo } from './types'
 
 // 懒加载详情页和资源页（含 GanttChart/dhtmlx-gantt），避免影响首页初始加载
@@ -48,6 +51,7 @@ const ROLE_COLOR: Record<string, string> = {
 export default function App() {
   const navigate = useNavigate()
   const location = useLocation()
+  const { mode, toggle } = useTheme() // 深色/浅色模式
   const [user, setUser] = useState<UserInfo | null>(null)
   const [loading, setLoading] = useState(true)
   const [pwdModalOpen, setPwdModalOpen] = useState(false)
@@ -201,14 +205,24 @@ export default function App() {
               style={{ minWidth: 280, background: 'transparent' }}
             />
           </Space>
-          <Dropdown menu={userMenu}>
-            <div style={{ color: '#fff', display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', padding: '4px 8px', borderRadius: 6, transition: 'background .2s' }} className="header-user">
-              <Avatar size={28} style={{ background: '#1677ff', flexShrink: 0 }}>{user.name.charAt(0)}</Avatar>
-              <span>{user.name}</span>
-              <Tag color={ROLE_COLOR[user.role] || 'default'} style={{ margin: 0 }}>{ROLE_LABEL[user.role]}</Tag>
-              <DownOutlined style={{ fontSize: 10 }} />
-            </div>
-          </Dropdown>
+          <Space size={4}>
+            {/* 深色/浅色模式开关 */}
+            <Button
+              type="text"
+              icon={mode === 'dark' ? <SunOutlined /> : <MoonOutlined />}
+              onClick={toggle}
+              style={{ color: '#fff', fontSize: 16 }}
+              title={mode === 'dark' ? '切换到浅色模式' : '切换到深色模式'}
+            />
+            <Dropdown menu={userMenu}>
+              <div style={{ color: '#fff', display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', padding: '4px 8px', borderRadius: 6, transition: 'background .2s' }} className="header-user">
+                <Avatar size={28} style={{ background: '#1677ff', flexShrink: 0 }}>{user.name.charAt(0)}</Avatar>
+                <span>{user.name}</span>
+                <Tag color={ROLE_COLOR[user.role] || 'default'} style={{ margin: 0 }}>{ROLE_LABEL[user.role]}</Tag>
+                <DownOutlined style={{ fontSize: 10 }} />
+              </div>
+            </Dropdown>
+          </Space>
         </Header>
         <Content style={{ padding: 24 }}>
           <Suspense fallback={<Spin size="large" style={{ display: 'block', margin: '100px auto' }} />}>

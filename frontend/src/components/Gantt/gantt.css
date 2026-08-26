@@ -1,6 +1,7 @@
-/* 甘特图状态着色（2026-08-25 调色：AntD 色板浅阶 + 圆角条）*/
+/* 甘特图主题样式（全部走 CSS 变量，深浅模式见 index.css :root / [data-theme]） */
+
 .pm-gantt-container {
-  border: 1px solid #e8e8e8;
+  border: 1px solid var(--border-light);
   border-radius: 8px;
   overflow: hidden;
 }
@@ -12,52 +13,60 @@
 
 /* 已完成 - 绿色 */
 .gantt_task_line.gantt-task-done {
-  background-color: #73d13d;
-  border-color: #52c41a;
+  background-color: var(--gantt-done);
+  border-color: var(--gantt-done-border);
 }
 .gantt_task_line.gantt-task-done .gantt_task_progress {
-  background-color: #52c41a;
+  background-color: var(--gantt-done-progress);
 }
 
 /* 进行中 - 蓝色 */
 .gantt_task_line.gantt-task-active {
-  background-color: #69b1ff;
-  border-color: #1677ff;
+  background-color: var(--gantt-active);
+  border-color: var(--gantt-active-border);
 }
 .gantt_task_line.gantt-task-active .gantt_task_progress {
-  background-color: #1677ff;
+  background-color: var(--gantt-active-progress);
 }
 
 /* 未开始 - 灰色 */
 .gantt_task_line.gantt-task-pending {
-  background-color: #d9d9d9;
-  border-color: #bfbfbf;
+  background-color: var(--gantt-pending);
+  border-color: var(--gantt-pending-border);
 }
 .gantt_task_line.gantt-task-pending .gantt_task_progress {
-  background-color: #bfbfbf;
+  background-color: var(--gantt-pending-progress);
 }
 
 /* 延期 - 红色 */
 .gantt_task_line.gantt-task-delayed {
-  background-color: #ff7875;
-  border-color: #ff4d4f;
+  background-color: var(--gantt-delayed);
+  border-color: var(--gantt-delayed-border);
 }
 .gantt_task_line.gantt-task-delayed .gantt_task_progress {
-  background-color: #ff4d4f;
+  background-color: var(--gantt-delayed-progress);
 }
 
 /* 已搁置 - 深灰 */
 .gantt_task_line.gantt-task-blocked {
-  background-color: #8c8c8c;
-  border-color: #595959;
+  background-color: var(--gantt-blocked);
+  border-color: var(--gantt-blocked-border);
 }
 .gantt_task_line.gantt-task-blocked .gantt_task_progress {
-  background-color: #595959;
+  background-color: var(--gantt-blocked-progress);
+}
+
+/* 阶段文字颜色（深色条上白字）*/
+.gantt_task_line.gantt-task-done .gantt_task_content,
+.gantt_task_line.gantt-task-active .gantt_task_content,
+.gantt_task_line.gantt-task-delayed .gantt_task_content,
+.gantt_task_line.gantt-task-blocked .gantt_task_content {
+  color: var(--gantt-project-text);
 }
 
 /* 网格表头底色 */
 .gantt_grid_head_cell {
-  background: #fafbfc !important;
+  background: var(--gantt-head-bg) !important;
 }
 
 /* 滚动条控制：
@@ -75,19 +84,19 @@
 
 /* 返工标记 - 橙色左边框（叠加在原状态颜色上）*/
 .gantt_task_line.gantt-task-rework {
-  border-left: 4px solid #fa8c16 !important;
+  border-left: 4px solid var(--gantt-rework) !important;
 }
 
 /* 关键路径高亮 - 红色粗边框 + 阴影（定义在返工之后，同优先级后声明胜出；
    且用 !important 确保覆盖返工橙色左边框与状态色边框）*/
 .gantt_task_line.gantt-task-critical {
-  border: 3px solid #ff4d4f !important;
+  border: 3px solid var(--gantt-critical) !important;
   box-shadow: 0 0 6px rgba(255, 77, 79, 0.35);
 }
 
 /* 资源冲突标记 - 黄色边框 + ⚠ 角标（资源负载视图）*/
 .gantt_task_line.gantt-task-conflict {
-  border: 2px solid #faad14 !important;
+  border: 2px solid var(--gantt-conflict) !important;
   box-shadow: 0 0 6px rgba(250, 173, 20, 0.35);
 }
 .gantt_task_line.gantt-task-conflict::after {
@@ -102,43 +111,90 @@
 
 /* 顶层项目行 - 深色 */
 .gantt_task_line.gantt_project {
-  background-color: #001529;
-  border-color: #001529;
+  background-color: var(--gantt-project-row);
+  border-color: var(--gantt-project-row);
 }
 .gantt_task_line.gantt_project .gantt_task_content {
-  color: #fff;
+  color: var(--gantt-project-text);
   font-weight: 600;
 }
 
-/* 阶段文字颜色（深色背景下用白字）*/
-.gantt_task_line.gantt-task-done .gantt_task_content,
-.gantt_task_line.gantt-task-active .gantt_task_content,
-.gantt_task_line.gantt-task-delayed .gantt_task_content,
-.gantt_task_line.gantt-task-blocked .gantt_task_content {
-  color: #fff;
+/* 依赖连线颜色 */
+.gantt_task_link .gantt_line_wrapper > div {
+  background-color: var(--gantt-link);
+}
+.gantt_link_arrow_right {
+  border-left-color: var(--gantt-link);
+}
+.gantt_link_arrow_left {
+  border-right-color: var(--gantt-link);
+}
+.gantt_link_arrow_up {
+  border-bottom-color: var(--gantt-link);
+}
+.gantt_link_arrow_down {
+  border-top-color: var(--gantt-link);
 }
 
-/* 今天标记 — 冻结在时间轴顶部（挂在 .gantt_task 内，该区域不纵向滚动） */
+/* 今日标记 — 冻结在时间轴顶部（挂在 .gantt_task 内，该区域不纵向滚动） */
 .pm-gantt-container .gantt_task {
   position: relative;
 }
 .pm-today-marker {
   pointer-events: none;
+  border-left: 2px solid var(--gantt-today) !important;
+}
+.pm-today-label {
+  background: var(--gantt-today) !important;
+  color: #fff !important;
 }
 
-/* 依赖连线颜色 */
-.gantt_task_link .gantt_line_wrapper > div {
-  background-color: #ffa940;
+/* 甘特 tooltip（dhtmlx 默认白底，深色模式需覆盖） */
+.gantt_tooltip {
+  background: var(--gantt-tooltip-bg) !important;
+  color: var(--gantt-tooltip-text) !important;
+  border-color: var(--border-light) !important;
+  box-shadow: var(--card-shadow) !important;
 }
-.gantt_link_arrow_right {
-  border-left-color: #ffa940;
+
+/* ---------- 深色模式：dhtmlx 内部元素覆盖 ---------- */
+[data-theme='dark'] .pm-gantt-container .gantt_grid,
+[data-theme='dark'] .pm-gantt-container .gantt_task,
+[data-theme='dark'] .pm-gantt-container .gantt_data_area,
+[data-theme='dark'] .pm-gantt-container .gantt_scale_cell,
+[data-theme='dark'] .pm-gantt-container .gantt_grid_head_cell,
+[data-theme='dark'] .pm-gantt-container .gantt_row,
+[data-theme='dark'] .pm-gantt-container .gantt_task_row,
+[data-theme='dark'] .pm-gantt-container .gantt_task_bg,
+[data-theme='dark'] .pm-gantt-container .gantt_row_placeholder,
+[data-theme='dark'] .pm-gantt-container .gantt_layout_cell {
+  background-color: var(--gantt-bg) !important;
+  border-color: var(--gantt-grid-line) !important;
+  color: var(--gantt-text) !important;
 }
-.gantt_link_arrow_left {
-  border-right-color: #ffa940;
+
+[data-theme='dark'] .pm-gantt-container .gantt_tree_content,
+[data-theme='dark'] .pm-gantt-container .gantt_cell,
+[data-theme='dark'] .pm-gantt-container .gantt_task_content,
+[data-theme='dark'] .pm-gantt-container .gantt_scale_content {
+  color: var(--gantt-text) !important;
 }
-.gantt_link_arrow_up {
-  border-bottom-color: #ffa940;
+
+/* 深色下：行 hover 与选中底色 */
+[data-theme='dark'] .pm-gantt-container .gantt_row:hover,
+[data-theme='dark'] .pm-gantt-container .gantt_task_row:hover {
+  background-color: #1e2128 !important;
 }
-.gantt_link_arrow_down {
-  border-top-color: #ffa940;
+
+/* 深色下：滚动条轨道 */
+[data-theme='dark'] .pm-gantt-container ::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+[data-theme='dark'] .pm-gantt-container ::-webkit-scrollbar-thumb {
+  background: #2a2d34;
+  border-radius: 5px;
+}
+[data-theme='dark'] .pm-gantt-container ::-webkit-scrollbar-track {
+  background: #16181d;
 }

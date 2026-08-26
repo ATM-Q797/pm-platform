@@ -2,11 +2,11 @@
 
 /* 人员行（project 类型）加粗显示 */
 .resource-view .gantt_task_line.gantt_project {
-  background-color: #001529;
-  border-color: #001529;
+  background-color: var(--gantt-project-row);
+  border-color: var(--gantt-project-row);
 }
 .resource-view .gantt_task_line.gantt_project .gantt_task_content {
-  color: #fff;
+  color: var(--gantt-project-text);
   font-weight: 600;
 }
 

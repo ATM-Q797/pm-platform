@@ -64,7 +64,7 @@ export default function ReportPage() {
             </Button>
           )}
         </Space>
-        <div style={{ marginTop: 8, color: '#999', fontSize: 12 }}>
+        <div style={{ marginTop: 8, color: 'var(--text-tertiary)', fontSize: 12 }}>
           周报内容：整体进度概览 / 风险预警（延期+即将到期）/ 本周完成 / 进行中 / 下周计划。复制为纯文本格式，可直接粘贴邮件。
         </div>
       </Card>
@@ -79,7 +79,7 @@ export default function ReportPage() {
             <Space>
               <FileTextOutlined />
               周报预览
-              <span style={{ color: '#999', fontSize: 12, fontWeight: 400 }}>
+              <span style={{ color: 'var(--text-tertiary)', fontSize: 12, fontWeight: 400 }}>
                 生成于 {report.generated_at.replace('T', ' ')}
               </span>
             </Space>

@@ -110,7 +110,7 @@ export default function DashboardPage() {
               {icon}
             </div>
             <div>
-              <div style={{ fontSize: 13, color: '#666', marginBottom: 2 }}>{title}</div>
+              <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 2 }}>{title}</div>
               <div
                 style={{
                   fontSize: 28,
@@ -154,7 +154,7 @@ export default function DashboardPage() {
       >
         <Row gutter={24}>
           <Col span={12}>
-            <div style={{ marginBottom: 8, color: '#666', fontSize: 13 }}>
+            <div style={{ marginBottom: 8, color: 'var(--text-secondary)', fontSize: 13 }}>
               🔴 延期项目（{stats.delayed_projects.length}）
             </div>
             {stats.delayed_projects.length > 0 ? (
@@ -184,7 +184,7 @@ export default function DashboardPage() {
             )}
           </Col>
           <Col span={12}>
-            <div style={{ marginBottom: 8, color: '#666', fontSize: 13 }}>
+            <div style={{ marginBottom: 8, color: 'var(--text-secondary)', fontSize: 13 }}>
               🟡 即将到期（{stats.due_soon_count}）
             </div>
             {stats.due_soon_phases.length > 0 ? (

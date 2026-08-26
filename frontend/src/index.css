@@ -1,4 +1,103 @@
-html, body, #root {
+/* ---------- 全局主题变量（浅色默认 / 深色覆盖） ---------- */
+:root {
+  --bg-layout: #f5f7fa;
+  --card-shadow: 0 1px 2px rgba(0, 0, 0, 0.03), 0 1px 6px rgba(0, 0, 0, 0.06);
+  --card-shadow-hover: 0 4px 12px rgba(0, 0, 0, 0.08);
+  --card-border: #f0f0f0;
+  --text-primary: #1f1f1f;
+  --text-secondary: #666;
+  --text-tertiary: #999;
+  --border-light: #e8e8e8;
+  --header-hover: rgba(255, 255, 255, 0.12);
+  /* 提示块背景（导入确认 Modal 等） */
+  --alert-warn-bg: #fff7e6;
+  --alert-info-bg: #fffbe6;
+  --alert-ok-bg: #f6ffed;
+
+  /* 甘特图 */
+  --gantt-bg: #ffffff;
+  --gantt-grid-line: #ebedf0;
+  --gantt-head-bg: #fafbfc;
+  --gantt-text: #333333;
+  --gantt-text-secondary: #595959;
+  --gantt-project-row: #001529;
+  --gantt-project-text: #ffffff;
+  --gantt-link: #ffa940;
+  --gantt-today: #ff4d4f;
+  --gantt-tooltip-bg: #ffffff;
+  --gantt-tooltip-text: #333333;
+  /* 状态条（浅色：AntD 色板浅阶） */
+  --gantt-done: #73d13d;
+  --gantt-done-border: #52c41a;
+  --gantt-done-progress: #52c41a;
+  --gantt-active: #69b1ff;
+  --gantt-active-border: #1677ff;
+  --gantt-active-progress: #1677ff;
+  --gantt-pending: #d9d9d9;
+  --gantt-pending-border: #bfbfbf;
+  --gantt-pending-progress: #bfbfbf;
+  --gantt-delayed: #ff7875;
+  --gantt-delayed-border: #ff4d4f;
+  --gantt-delayed-progress: #ff4d4f;
+  --gantt-blocked: #8c8c8c;
+  --gantt-blocked-border: #595959;
+  --gantt-blocked-progress: #595959;
+  --gantt-rework: #fa8c16;
+  --gantt-critical: #ff4d4f;
+  --gantt-conflict: #faad14;
+}
+
+[data-theme='dark'] {
+  --bg-layout: #0f1115;
+  --card-shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 1px 6px rgba(0, 0, 0, 0.3);
+  --card-shadow-hover: 0 4px 12px rgba(0, 0, 0, 0.5);
+  --card-border: #2a2d34;
+  --text-primary: #e6e6e6;
+  --text-secondary: #9ca3af;
+  --text-tertiary: #6b7280;
+  --border-light: #2a2d34;
+  --header-hover: rgba(255, 255, 255, 0.12);
+  /* 提示块背景（深色） */
+  --alert-warn-bg: #2b2315;
+  --alert-info-bg: #2a2416;
+  --alert-ok-bg: #16260f;
+
+  /* 甘特图（深色） */
+  --gantt-bg: #16181d;
+  --gantt-grid-line: #2a2d34;
+  --gantt-head-bg: #1e2128;
+  --gantt-text: #d1d5db;
+  --gantt-text-secondary: #9ca3af;
+  --gantt-project-row: #0b1e3a;
+  --gantt-project-text: #ffffff;
+  --gantt-link: #d48806;
+  --gantt-today: #ff7875;
+  --gantt-tooltip-bg: #1e2128;
+  --gantt-tooltip-text: #e6e6e6;
+  /* 状态条（深色：提亮一档更醒目） */
+  --gantt-done: #52c41a;
+  --gantt-done-border: #73d13d;
+  --gantt-done-progress: #73d13d;
+  --gantt-active: #1677ff;
+  --gantt-active-border: #69b1ff;
+  --gantt-active-progress: #69b1ff;
+  --gantt-pending: #4b5563;
+  --gantt-pending-border: #6b7280;
+  --gantt-pending-progress: #6b7280;
+  --gantt-delayed: #cf1322;
+  --gantt-delayed-border: #ff7875;
+  --gantt-delayed-progress: #ff7875;
+  --gantt-blocked: #374151;
+  --gantt-blocked-border: #6b7280;
+  --gantt-blocked-progress: #6b7280;
+  --gantt-rework: #fa8c16;
+  --gantt-critical: #ff4d4f;
+  --gantt-conflict: #faad14;
+}
+
+html,
+body,
+#root {
   margin: 0;
   padding: 0;
   height: 100%;
@@ -6,22 +105,26 @@ html, body, #root {
     Arial, 'PingFang SC', 'Microsoft YaHei', sans-serif;
 }
 
+body {
+  background: var(--bg-layout);
+}
+
 /* ---------- 全局 UI 优化（2026-08-25） ---------- */
 
 /* 卡片统一阴影，弱化边框（看板/列表/详情一致） */
 .ant-card {
-  box-shadow: 0 1px 2px rgba(0, 0, 0, 0.03), 0 1px 6px rgba(0, 0, 0, 0.06);
-  border-color: #f0f0f0;
+  box-shadow: var(--card-shadow);
+  border-color: var(--card-border);
 }
 
 /* 看板卡片 hover 轻抬升 */
 .ant-card-hoverable:hover {
-  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.08);
+  box-shadow: var(--card-shadow-hover);
 }
 
 /* 顶栏用户区 hover 背景 */
 .header-user:hover {
-  background: rgba(255, 255, 255, 0.12);
+  background: var(--header-hover);
 }
 
 /* 周报 Markdown 预览排版 */
@@ -30,18 +133,18 @@ html, body, #root {
   margin: 0 auto;
   line-height: 1.75;
   font-size: 14px;
-  color: #333;
+  color: var(--text-primary);
 }
 .report-markdown h1 {
   font-size: 20px;
   margin: 16px 0 8px;
-  border-bottom: 1px solid #eee;
+  border-bottom: 1px solid var(--border-light);
   padding-bottom: 6px;
 }
 .report-markdown h2 {
   font-size: 17px;
   margin: 14px 0 6px;
-  color: #333;
+  color: var(--text-primary);
 }
 .report-markdown h3 {
   font-size: 15px;
@@ -60,18 +163,18 @@ html, body, #root {
 }
 .report-markdown th,
 .report-markdown td {
-  border: 1px solid #e8e8e8;
+  border: 1px solid var(--border-light);
   padding: 6px 10px;
   text-align: left;
 }
 .report-markdown th {
-  background: #fafafa;
+  background: var(--gantt-head-bg);
   font-weight: 600;
 }
 .report-markdown blockquote {
   margin: 8px 0;
   padding: 4px 12px;
   border-left: 3px solid #1677ff;
-  background: #f5f8ff;
-  color: #666;
+  background: rgba(22, 119, 255, 0.08);
+  color: var(--text-secondary);
 }

@@ -344,15 +344,15 @@ export default function PhaseEditor({ phaseId, projectId, defaultSequence, reado
           hideExtra ? (
             <>
               <Form.Item label="所属项目">
-                <span style={{ color: '#666' }}>{projectInfo?.name ?? phase?.project_id ?? '—'}</span>
+                <span style={{ color: 'var(--text-secondary)' }}>{projectInfo?.name ?? phase?.project_id ?? '—'}</span>
               </Form.Item>
               <Form.Item label="项目负责人">
-                <span style={{ color: '#666' }}>{projectInfo?.owner ?? '—'}</span>
+                <span style={{ color: 'var(--text-secondary)' }}>{projectInfo?.owner ?? '—'}</span>
               </Form.Item>
             </>
           ) : (
             <Form.Item label="顺序">
-              <span style={{ color: '#666' }}>第 {phase?.sequence} 位</span>
+              <span style={{ color: 'var(--text-secondary)' }}>第 {phase?.sequence} 位</span>
             </Form.Item>
           )
         ) : phase && userRole !== 'engineer' && !hideExtra && (
@@ -373,7 +373,7 @@ export default function PhaseEditor({ phaseId, projectId, defaultSequence, reado
                 下移一层
               </Button>
             </Space>
-            <div style={{ fontSize: 12, color: '#999', marginTop: 4 }}>
+            <div style={{ fontSize: 12, color: 'var(--text-tertiary)', marginTop: 4 }}>
               当前序号：{phase.sequence}
             </div>
           </Form.Item>
