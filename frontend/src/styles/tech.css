@@ -187,6 +187,103 @@ body {
   background: rgba(0, 212, 255, 0.4);
 }
 
+/* ---------- P2.1 列表筛选栏玻璃容器 ---------- */
+.pm-toolbar {
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: 12px;
+  padding: 12px 16px;
+  margin-bottom: 16px;
+  box-shadow: var(--glass-highlight);
+}
+
+/* ---------- P2.1 状态 Tag 胶囊微光（currentColor 同色微光，浅色降透明度） ---------- */
+.ant-tag {
+  box-shadow: 0 0 6px color-mix(in srgb, currentColor 22%, transparent);
+}
+[data-theme='dark'] .ant-tag {
+  box-shadow: 0 0 6px color-mix(in srgb, currentColor 45%, transparent);
+}
+
+/* ---------- P2.2 登录页：极淡动态网格背景（40s 线性无限，reduced-motion 静止） ---------- */
+.pm-login {
+  position: relative;
+  overflow: hidden;
+}
+.pm-login-grid {
+  position: absolute;
+  inset: 0;
+  pointer-events: none;
+  background-image:
+    linear-gradient(rgba(8, 145, 178, 0.06) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(8, 145, 178, 0.06) 1px, transparent 1px);
+  background-size: 32px 32px;
+  animation: pm-grid-drift 40s linear infinite;
+}
+[data-theme='dark'] .pm-login-grid {
+  background-image:
+    linear-gradient(rgba(0, 212, 255, 0.05) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(0, 212, 255, 0.05) 1px, transparent 1px);
+}
+@keyframes pm-grid-drift {
+  from {
+    background-position: 0 0;
+  }
+  to {
+    background-position: 32px 32px;
+  }
+}
+/* 登录页内容层叠于网格之上 */
+.pm-login > *:not(.pm-login-grid) {
+  position: relative;
+  z-index: 1;
+}
+/* 登录页输入框 focus 发光环（深浅两套） */
+.pm-login .ant-input:focus,
+.pm-login .ant-input-affix-wrapper:focus,
+.pm-login .ant-input-affix-wrapper-focused {
+  box-shadow: 0 0 0 2px rgba(3, 105, 161, 0.3) !important;
+}
+[data-theme='dark'] .pm-login .ant-input:focus,
+[data-theme='dark'] .pm-login .ant-input-affix-wrapper:focus,
+[data-theme='dark'] .pm-login .ant-input-affix-wrapper-focused {
+  box-shadow: 0 0 0 2px rgba(0, 212, 255, 0.3) !important;
+}
+
+/* ---------- P3.4 周报：Markdown 容器玻璃化 + h2 渐变竖线 + 电青引用块 ---------- */
+.report-markdown {
+  background: var(--glass-bg);
+  border: 1px solid var(--glass-border);
+  border-radius: 12px;
+  padding: 24px 32px;
+  box-shadow: var(--glass-highlight);
+}
+.report-markdown h2 {
+  position: relative;
+  padding-left: 12px;
+}
+.report-markdown h2::before {
+  content: '';
+  position: absolute;
+  left: 0;
+  top: 0.2em;
+  bottom: 0.2em;
+  width: 3px;
+  border-radius: 2px;
+  background: var(--gradient-primary);
+}
+.report-markdown blockquote {
+  border-left-color: var(--accent-cyan);
+}
+
+/* ---------- P3.6 空状态：padding + 文案色 var(--text-tertiary) ---------- */
+.ant-empty {
+  padding: 32px 0;
+}
+.ant-empty .ant-empty-description {
+  color: var(--text-tertiary);
+}
+
 /* ---------- 10. 降级：减少动效偏好 ----------
    注意：不要用 `*` 全局覆盖 animation-duration！
    antd rc-motion 检测到非零动画时长会等待 animationend，0.01ms 动画的事件
@@ -194,7 +291,8 @@ body {
    只禁用本项目自有动画类。 */
 @media (prefers-reduced-motion: reduce) {
   /* 仅禁用页面入场等装饰动画；甘特呼吸（关键路径/冲突）是业务提示，保留 */
-  .pm-fade-slide-up {
+  .pm-fade-slide-up,
+  .pm-login-grid {
     animation: none !important;
   }
   .ant-card-hoverable:hover,

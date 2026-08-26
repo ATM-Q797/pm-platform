@@ -376,8 +376,10 @@ export default function ProjectListPage() {
       render: (m: string) => <Tag color="blue">{m}</Tag>,
     },
     { title: '负责人', dataIndex: 'owner', width: 100 },
-    { title: '计划开始', dataIndex: 'plan_start', width: 120, align: 'center' },
-    { title: '计划结束', dataIndex: 'plan_end', width: 120, align: 'center' },
+    { title: '计划开始', dataIndex: 'plan_start', width: 120, align: 'center',
+      render: (v: string) => <span style={{ fontVariantNumeric: 'tabular-nums' }}>{v}</span> },
+    { title: '计划结束', dataIndex: 'plan_end', width: 120, align: 'center',
+      render: (v: string) => <span style={{ fontVariantNumeric: 'tabular-nums' }}>{v}</span> },
     {
       title: '操作',
       width: 140,
@@ -427,7 +429,8 @@ export default function ProjectListPage() {
         </Space>
       }
     >
-      <Space style={{ marginBottom: 16 }} size="middle" wrap>
+      <div className="pm-toolbar">
+      <Space size="middle" wrap>
         <Input.Search
           placeholder="搜索项目名称"
           allowClear
@@ -470,6 +473,7 @@ export default function ProjectListPage() {
           ]}
         />
       </Space>
+      </div>
       <Spin spinning={loading}>
         <Table
           rowKey="id"
@@ -551,9 +555,6 @@ export default function ProjectListPage() {
         okText="保存"
       >
         <Form form={editForm} layout="vertical" style={{ marginTop: 16 }} preserve={false}>
-          <Form.Item name="code" label="项目编号" rules={[{ required: true }]}>
-            <Input placeholder="项目编号（唯一）" />
-          </Form.Item>
           <Form.Item name="name" label="项目名称" rules={[{ required: true }]}>
             <Input placeholder="项目全称" />
           </Form.Item>

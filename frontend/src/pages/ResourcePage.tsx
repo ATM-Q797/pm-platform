@@ -38,12 +38,12 @@ export default function ResourcePage() {
         <Space size="middle" wrap>
           <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>图例：</span>
           {[
-            { color: '#73d13d', label: '已完成' },
-            { color: '#69b1ff', label: '进行中' },
-            { color: '#d9d9d9', label: '未开始' },
-            { color: '#ff7875', label: '延期' },
-            { color: '#8c8c8c', label: '已搁置' },
-            { color: 'transparent', label: '黄色边框+⚠ = 资源冲突', border: '2px solid #faad14' },
+            { color: 'var(--gantt-done)', label: '已完成' },
+            { color: 'var(--gantt-active)', label: '进行中' },
+            { color: 'var(--gantt-pending)', label: '未开始' },
+            { color: 'var(--gantt-delayed)', label: '延期' },
+            { color: 'var(--gantt-blocked)', label: '已搁置' },
+            { color: 'transparent', label: '黄色边框+⚠ = 资源冲突', border: '2px solid var(--gantt-conflict)', glow: 'var(--gantt-conflict)' },
           ].map((item) => (
             <span key={item.label} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, color: 'var(--text-secondary)' }}>
               <span
@@ -53,7 +53,9 @@ export default function ResourcePage() {
                   height: 10,
                   borderRadius: 2,
                   background: item.color,
-                  border: item.border || '1px solid #d9d9d9',
+                  border: item.border || '1px solid var(--gantt-pending-border)',
+                  // 图例发光色块：同色微光（边框项用边框色发光）
+                  boxShadow: `0 0 6px ${item.glow || item.color}`,
                 }}
               />
               {item.label}

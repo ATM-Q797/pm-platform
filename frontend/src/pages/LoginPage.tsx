@@ -29,6 +29,7 @@ export default function LoginPage({ onLogin }: Props) {
 
   return (
     <div
+      className="pm-login"
       style={{
         minHeight: '100vh',
         display: 'flex',
@@ -38,9 +39,12 @@ export default function LoginPage({ onLogin }: Props) {
           : 'radial-gradient(1200px 600px at 50% -10%, #eaf2ff 0%, #f5f7fa 55%)',
       }}
     >
+      {/* 极淡动态网格背景层（reduced-motion 下静止，见 tech.css） */}
+      <div className="pm-login-grid" />
+
       {/* 顶部极简 logo 行（DeepSeek 式） */}
       <div style={{ padding: '24px 32px', display: 'flex', alignItems: 'center', gap: 8 }}>
-        <ProjectOutlined style={{ fontSize: 22, color: '#1677ff' }} />
+        <ProjectOutlined style={{ fontSize: 22, color: 'var(--accent-cyan)' }} />
         <span style={{ fontSize: 15, fontWeight: 600, color: 'var(--text-primary)' }}>
           研发项目管理平台
         </span>
@@ -88,7 +92,7 @@ export default function LoginPage({ onLogin }: Props) {
             padding: '32px 28px',
             boxShadow: isDark
               ? '0 8px 40px rgba(0, 0, 0, 0.5)'
-              : '0 8px 40px rgba(22, 119, 255, 0.08)',
+              : '0 8px 40px rgba(3, 105, 161, 0.08)',
           }}
         >
           <Form onFinish={handleSubmit} size="large">
