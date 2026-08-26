@@ -89,7 +89,9 @@ fi
 
 echo ""
 echo "[4/4] 启动服务..."
-docker compose --env-file "$ENV_FILE" up -d
+# --force-recreate：确保容器用最新镜像重建（compose 默认容器已存在时不重建，
+# 会继续用旧镜像实例运行，导致"更新了还是旧版"）
+docker compose --env-file "$ENV_FILE" up -d --force-recreate
 
 # 等待后端就绪
 echo ""
