@@ -7,10 +7,14 @@
 2. 旧格式（8 列，历史源文件）：
    项目编号 | 项目类目 | 项目名称 | 负责人 | 计划开始 | 计划结束 | 状态 | 交接人
 
-通用规则：
+通用规则（解析层以 docs/EXCEL_PARSE_COMPAT.md 为权威）：
 - 数据从第 3 行开始（前 2 行表头）
-- 项目编号：纯数字 = 项目行；数字-数字 = 阶段行；其他 = 备注行跳过
-- 日期：openpyxl 已解析为 datetime；文本异常（如 '2026/-/--'）记 warning 设 NULL
+- 单元格清洗 clean_cell（§2.3）：NFKC 全角→半角、去不可见字符、压缩连续空白，应用于所有文本列
+- 行判定（§2.1，阶段类型优先）：阶段类型列可解析 → 阶段行；编号纯数字+名称非空 → 项目行；
+  编号 1-1 / 1.1 → 阶段行；其他有内容 → 跳过 + 警告（§2.7 可见化）
+- 日期多格式链（§2.4）：Excel 序列号（1..2958465）→ YYYY[-/.]M[-/.]D → YYYY年M月D日
+  → 8/7 位纯数字 → 短格式 M-D（按当年解析 + 警告）；失败 → warning 设 NULL
+- 进度统一 0-100（§2.5）：50% / 50％ / 0.5 / 50 → 50
 - 多人字段：多空格/逗号分隔，拆分后逐人建/匹配 Resource
 
 导入策略：全量重置（先删所有 Project/Phase/Dependency，清空 Resource，保留 Template）。
@@ -19,8 +23,9 @@ from __future__ import annotations
 
 import io
 import re
+import unicodedata
 from dataclasses import dataclass, field
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from typing import Any
 
 import openpyxl
@@ -69,12 +74,39 @@ _OLD_COL_HANDOVER = 8  # 旧格式读取但不再写入数据库（字段已废�
 # 数据起始行（前 2 行表头）
 _DATA_START_ROW = 3
 
-# 项目编号正则：纯数字=项目，数字-数字=阶段
+# 项目编号正则：纯数字=项目；数字-数字 / 数字.数字=阶段（兼容新旧两种编号格式，§2.1 ③）
 _PROJECT_CODE_RE = re.compile(r"^\d+$")
 _PHASE_CODE_RE = re.compile(r"^\d+-\d+$")
+_PHASE_DOT_CODE_RE = re.compile(r"^\d+\.\d+$")
+
+# 阶段行父编号（'1-1' / '1.1' 的前段数字），用于 §2.2 归属校验
+_PHASE_PARENT_RE = re.compile(r"^(\d+)[-.]\d+$")
+
+# §2.3 清洗：NFKC 后仍残留的不可见字符（零宽/软换行/BOM/方向标记）
+_INVISIBLE_RE = re.compile(r"[\u200b-\u200f\ufeff]")
+# §2.3 清洗：连续空白压缩为单个空格
+_MULTI_SPACE_RE = re.compile(r"\s+")
+
+# §2.4 日期链正则（完整格式的月/日分隔符须一致；短格式 M[-/.]D 单分隔符）
+_DATE_FULL_RE = re.compile(r"^(\d{4})([-/.])(\d{1,2})\2(\d{1,2})$")
+_DATE_CN_RE = re.compile(r"^(\d{4})年(\d{1,2})月(\d{1,2})日?$")
+_DATE_SHORT_RE = re.compile(r"^(\d{1,2})([-/.])(\d{1,2})$")
+
+# Excel 日期序列号有效范围（1900-9999 年，评审处置 #5：越界不按序列号解析）
+_SERIAL_MIN, _SERIAL_MAX = 1, 2_958_465
 
 # 多人字段拆分正则：任意空白/中英文逗号
 _PERSON_SPLIT_RE = re.compile(r"[\s,，]+")
+
+
+def _normalize_name(name: str) -> str:
+    """名称比较键归一化（评审处置 #2 / #4）：NFKC + 去空白。
+
+    用于合并导入的项目名比较键与阶段名映射表键，保证全角/半角、
+    多空格等书写差异不影响命中。
+    """
+    return unicodedata.normalize("NFKC", name).strip()
+
 
 # 阶段类型前缀（新格式 "P4 工业设计" → code=P4, name=工业设计）
 _PHASE_TYPE_PREFIX_RE = re.compile(r"^(P[1-8])\s*(.*)$")
@@ -82,6 +114,7 @@ _PHASE_TYPE_PREFIX_RE = re.compile(r"^(P[1-8])\s*(.*)$")
 # 阶段名 → phase_type 映射表（旧格式/新格式阶段类型列缺省时的兜底）
 # 基础部分来自 PROJECT_SPEC §5.3；扩充部分覆盖实际 Excel 里的阶段名变体。
 # key 为阶段名（trim 后），value 为 phase_type。
+# 查找走 _PHASE_NAME_LOOKUP（NFKC 归一化索引，评审处置 #4：全角括号键可匹配半角输入）。
 PHASE_NAME_TO_TYPE: dict[str, str] = {
     # --- 基础映射（§5.3 原表）---
     "工业设计": "P4",
@@ -111,6 +144,12 @@ PHASE_NAME_TO_TYPE: dict[str, str] = {
     "交付": "P8",               # = 交付（直白词，§5.3 原表遗漏）
 }
 
+# NFKC 归一化索引（评审处置 #4）：clean_cell 后的输入（全角括号已被归一化为半角）
+# 也能命中映射表内含全角括号的键，如「样机打样（1台）」
+_PHASE_NAME_LOOKUP: dict[str, str] = {
+    _normalize_name(k): v for k, v in PHASE_NAME_TO_TYPE.items()
+}
+
 # 新格式表头关键字（识别用）
 _NEW_FORMAT_KEYS = ("项目编号", "阶段类型", "市场")
 _OLD_FORMAT_KEYS = ("项目编号", "交接人")
@@ -130,14 +169,63 @@ def _set_last_report(report: ImportReport | None) -> None:
 
 # ---------- 清洗工具函数 ----------
 
+def clean_cell(value: Any) -> Any:
+    """单元格清洗（§2.3，复制粘贴兼容）——仅处理文本单元格。
+
+    1. NFKC 全角→半角（１→1、Ａ→A、（→(、．→.、％→%）
+    2. 去不可见字符（零宽 \\u200b-\\u200f、BOM \\ufeff）
+    3. 去首尾空白（含全角空格 \\u3000，NFKC 已把 \\u00a0 归为普通空格）
+    4. 压缩连续空白为单个空格
+
+    非字符串（None/datetime/数值）原样返回，交由各自解析器处理。
+    """
+    if not isinstance(value, str):
+        return value
+    text = unicodedata.normalize("NFKC", value)
+    text = _INVISIBLE_RE.sub("", text)
+    text = text.strip()
+    text = _MULTI_SPACE_RE.sub(" ", text)
+    return text
+
+
+def _clean_str(value: Any) -> str:
+    """clean_cell + str 化：任何单元格值 → 清洗后的字符串（None/空 → ''）。
+
+    数值会先 str 化再清洗（进度 0 等有效值不会被丢弃）。
+    """
+    if value is None:
+        return ""
+    cleaned = clean_cell(value)
+    return str(cleaned).strip() if cleaned is not None else ""
+
+
+def _try_date(y: int, m: int, d: int) -> date | None:
+    """构造 date，非法日期（如 2 月 30 日）返回 None 而非抛异常。"""
+    try:
+        return date(y, m, d)
+    except ValueError:
+        return None
+
+
+def _warn_unparsed_date(text: str, row: int, sheet: str, field: str, report: ImportReport) -> None:
+    """日期解析失败：记录 warning（保持既有行为：设空 + 可见）。"""
+    report.warnings.append(ImportWarning(
+        row=row, sheet=sheet, field=field,
+        message=f"无法解析日期 '{text}'，已设为空",
+    ))
+    return None
+
+
 def parse_cell_date(value: Any, row: int, sheet: str, field: str, report: ImportReport) -> date | None:
-    """解析日期单元格。
+    """解析日期单元格（§2.4 多格式链，文本先经 clean_cell 清洗）。
 
     - datetime/date 对象 → 直接取 date
-    - 文本 'YYYY-MM-DD'（模板/手工填写的常见格式）→ fromisoformat 解析
-    - 文本异常（如 '2026/-/--'）→ NULL + warning
-    - None → None
-    - 数字（Excel 序列号）→ 按 1899-12-30 基准转换
+    - Excel 序列号 → 仅 1..2_958_465 有效（评审处置 #5）；数值型 7/8 位
+      与文本链同序优先按 YYYYMMDD/YYYYMDD（20260629 / 2026629），非法才回退序列号或警告
+    - 文本链（clean_cell 后依次尝试）：
+      YYYY[-/.]M[-/.]D → YYYY年M月D日 → 8 位 YYYYMMDD / 7 位 YYYYMDD
+      → 短格式 M[-/.]D（按当年解析 + 警告，决策 A）→ 数字文本序列号
+    - 全部失败 → None + warning
     """
     if value is None or value == "":
         return None
@@ -146,31 +234,107 @@ def parse_cell_date(value: Any, row: int, sheet: str, field: str, report: Import
     if isinstance(value, date):
         return value
     if isinstance(value, (int, float)):
-        # Excel 日期序列号基准
+        # 评审处置 #5 补全：数值型 7/8 位优先按 YYYYMMDD/YYYYMDD 解析（20260629 / 2026629），
+        # 与文本链同序——否则区间内 7 位数字日期（2026629 < 2_958_465）会被当成
+        # 序列号解析成 7447 年的荒谬日期；月/日非法（20261399）才回退序列号或警告
+        digits = str(int(value))
+        if len(digits) in (7, 8):
+            y, rest = int(digits[:4]), digits[4:]
+            d = _try_date(y, int(rest[:-2]), int(rest[-2:]))
+            if d:
+                return d
+        # Excel 日期序列号（评审处置 #5：仅 1..2_958_465 按序列号解析，越界不猜）
+        if _SERIAL_MIN <= value <= _SERIAL_MAX:
+            try:
+                return date(1899, 12, 30) + timedelta(days=int(value))
+            except (ValueError, OverflowError):
+                pass
+        return _warn_unparsed_date(str(value), row, sheet, field, report)
+
+    # 文本链（clean_cell 清洗）
+    text = clean_cell(value)
+    if not text:
+        return None
+    m = _DATE_FULL_RE.match(text)
+    if m:
+        d = _try_date(int(m.group(1)), int(m.group(3)), int(m.group(4)))
+        if d:
+            return d
+    m = _DATE_CN_RE.match(text)
+    if m:
+        d = _try_date(int(m.group(1)), int(m.group(2)), int(m.group(3)))
+        if d:
+            return d
+    if text.isdigit() and len(text) in (7, 8):
+        # 8 位 YYYYMMDD / 7 位 YYYYMDD（20260629 / 2026629）
+        y, rest = int(text[:4]), text[4:]
+        d = _try_date(y, int(rest[:-2]), int(rest[-2:]))
+        if d:
+            return d
+    m = _DATE_SHORT_RE.match(text)
+    if m:
+        # 短格式缺年份：按当年解析（决策 A）+ 警告
+        year = date.today().year
+        d = _try_date(year, int(m.group(1)), int(m.group(3)))
+        if d:
+            report.warnings.append(ImportWarning(
+                row=row, sheet=sheet, field=field,
+                message=f"日期'{text}'缺少年份，按{year}年解析",
+            ))
+            return d
+    # 纯数字文本：Excel 序列号语义（范围内才解析）
+    if text.isdigit() and _SERIAL_MIN <= int(text) <= _SERIAL_MAX:
         try:
-            return (date(1899, 12, 30) + __import__("datetime").timedelta(days=int(value)))
-        except Exception:
+            return date(1899, 12, 30) + timedelta(days=int(text))
+        except (ValueError, OverflowError):
             pass
-    # 文本：先试 ISO 格式（YYYY-MM-DD），失败则记 warning
-    text = str(value).strip()
-    if text:
-        try:
-            return date.fromisoformat(text)
-        except ValueError:
-            pass
-    report.warnings.append(ImportWarning(
-        row=row, sheet=sheet, field=field,
-        message=f"无法解析日期 '{text}'，已设为空",
-    ))
-    return None
+
+    return _warn_unparsed_date(text, row, sheet, field, report)
+
+
+def parse_progress(value: Any) -> int | None:
+    """进度解析统一 0-100（§2.5）：'50%' / '50％' / '50 %' / 0.5 / 50 → 50。
+
+    - 百分号形式（NFKC 后半角 %）：取数值，夹取 0-100
+    - 0-1 数值（含小数）：按比例 ×100（0.5 → 50；1 视为 100%）
+    - 大于 1 的数值：按 0-100 原样，>100 夹取 100
+    - 无法解析 → None（由调用方记警告并按状态推断）
+
+    gantt API 层的 0-1 转换由现有 API 层负责，本函数只产 0-100。
+    """
+    if value is None or value == "":
+        return None
+    if isinstance(value, (int, float)):
+        num = float(value)
+        if num <= 1:
+            return int(round(num * 100))
+        return max(0, min(100, int(round(num))))
+    text = clean_cell(value)
+    if not isinstance(text, str) or not text:
+        return None
+    if text == "/":
+        return None
+    pct = text.endswith("%")
+    if pct:
+        text = text[:-1].strip()
+    try:
+        num = float(text)
+    except ValueError:
+        return None
+    if pct:
+        return max(0, min(100, int(round(num))))
+    if num <= 1:
+        return int(round(num * 100))
+    return max(0, min(100, int(round(num))))
 
 
 def split_persons(value: Any) -> list[str]:
-    """拆分多人字段，返回去重后的人员姓名列表。"""
-    if value is None or value == "":
+    """拆分多人字段，返回去重后的人员姓名列表（输入先经 clean_cell）。"""
+    text_value = clean_cell(value) if isinstance(value, str) else value
+    if text_value is None or text_value == "":
         return []
     # 清除换行，取有效内容
-    text = str(value).replace("\n", " ").strip()
+    text = str(text_value).replace("\n", " ").strip()
     parts = [p.strip() for p in _PERSON_SPLIT_RE.split(text) if p.strip()]
     # 去重保序
     seen: set[str] = set()
@@ -182,21 +346,46 @@ def split_persons(value: Any) -> list[str]:
     return result
 
 
-def classify_row(code: Any, name: Any) -> str:
-    """行分类：'project' | 'phase' | 'skip'（空行/备注行）。"""
-    if code is None and name is None:
+def classify_row(code: Any, name: Any, phase_type_cell: Any = None) -> str:
+    """行分类（§2.1，阶段类型优先）：'project' | 'phase' | 'skip'。
+
+    ① 阶段类型列可解析（P1-P8 前缀或映射表命中）→ 'phase'（评审处置 #1，不依赖编号）
+    ② 编号纯数字 且 名称非空 → 'project'
+    ③ 编号 ^\\d+-\\d+$ 或 ^\\d+\\.\\d+$ → 'phase'（兼容新旧两种编号格式）
+    ④ 编号/名称/阶段类型全空 → 'skip'（静默空行）
+    其余有内容但无法识别 → 'skip'（由调用方记警告，§2.7）
+
+    所有输入先经 clean_cell 清洗。
+    """
+    code_s = clean_cell(code)
+    code_s = str(code_s).strip() if code_s is not None else ""
+    name_s = clean_cell(name)
+    name_s = str(name_s).strip() if name_s is not None else ""
+    pt_cell = clean_cell(phase_type_cell) if phase_type_cell is not None else None
+
+    # ④ 空行：三类关键单元格全空
+    if not code_s and not name_s and not pt_cell:
         return "skip"
-    code_s = str(code).strip() if code is not None else ""
-    if _PROJECT_CODE_RE.match(code_s):
-        return "project"
-    if _PHASE_CODE_RE.match(code_s):
+
+    # ① 阶段类型优先（评审处置 #1）
+    if pt_cell and parse_phase_type_cell(pt_cell) is not None:
         return "phase"
-    return "skip"  # 备注/图例/长文本行
+
+    # ② 编号纯数字 + 名称非空 → 项目行
+    if _PROJECT_CODE_RE.match(code_s) and name_s:
+        return "project"
+
+    # ③ 阶段编号两种格式
+    if _PHASE_CODE_RE.match(code_s) or _PHASE_DOT_CODE_RE.match(code_s):
+        return "phase"
+
+    # 其余有内容但无法识别 → skip（调用方记警告）
+    return "skip"
 
 
 def map_phase_type(name: str, row: int, sheet: str, report: ImportReport) -> str | None:
-    """阶段名 → phase_type。无法映射的记 error 并返回 None。"""
-    phase_type = PHASE_NAME_TO_TYPE.get(name.strip())
+    """阶段名 → phase_type（NFKC 归一化索引，评审处置 #4）。无法映射的记 error 并返回 None。"""
+    phase_type = _PHASE_NAME_LOOKUP.get(_normalize_name(name.strip()))
     if phase_type is None:
         report.errors.append(ImportError(
             row=row, sheet=sheet, field="name",
@@ -208,19 +397,24 @@ def map_phase_type(name: str, row: int, sheet: str, report: ImportReport) -> str
 def parse_phase_type_cell(value: Any) -> tuple[str, str] | None:
     """解析新格式"阶段类型"列（如 'P4 工业设计'）→ (phase_type, name)。
 
-    - 带前缀（P1-P8 + 名称）→ 拆分
+    - 带前缀（P1-P8 + 名称）→ 拆分；全角 'P１ 需求评估' 经 NFKC 清洗后同样命中
     - 仅前缀（'P4'）→ name 用前缀本身
-    - 无前缀或空 → None（走映射表兜底）
+    - 无前缀纯文本（'工业设计'）→ 查映射表归一化索引，命中 → (type, 原文本)；
+      未命中 → None（上层警告 + 跳过该行，决策 2：不猜、不吞）
     """
     if value is None:
         return None
-    text = str(value).strip()
+    text = clean_cell(value) if isinstance(value, str) else str(value).strip()
     if not text:
         return None
     m = _PHASE_TYPE_PREFIX_RE.match(text)
     if m and m.group(1):
         name = m.group(2).strip() or m.group(1)
         return m.group(1), name
+    # 无前缀：映射表归一化索引兜底
+    phase_type = _PHASE_NAME_LOOKUP.get(_normalize_name(text))
+    if phase_type is not None:
+        return phase_type, text
     return None
 
 
@@ -349,6 +543,9 @@ def parse_workbook(file_bytes: bytes, default_category: str = "新需求") -> Pa
         ws = wb[sheet_name]
         # 当前项目（阶段挂载用）：遇到项目行时更新
         current_project: ParsedProject | None = None
+        # 当前项目在文件内的编号（§2.2 归属校验用；与系统顺序编号不同——
+        # 用户表内项目编号常按区块从 1 重排，比对必须用文件内编号）
+        current_file_code = ""
 
         for r in range(_DATA_START_ROW, ws.max_row + 1):
             if fmt == "new":
@@ -359,28 +556,40 @@ def parse_workbook(file_bytes: bytes, default_category: str = "新需求") -> Pa
             actual_start_raw, actual_end_raw, phase_type_cell, assignees, progress, remark, market = row_vals[7:]
 
             report.total_rows += 1
-            row_kind = classify_row(code, name)
+            row_kind = classify_row(code, name, phase_type_cell)
 
             if row_kind == "skip":
+                # §2.7 跳过可见化：空行静默，其余（有内容但无法识别）记警告
+                if any(v is not None and str(v).strip() != "" for v in row_vals):
+                    report.warnings.append(ImportWarning(
+                        row=r, sheet=sheet_name, field="row",
+                        message=(
+                            f"第{r}行无法识别（编号='{code}' 阶段类型='{phase_type_cell}'），已跳过"
+                        ),
+                    ))
                 continue
 
-            name_str = str(name).strip() if name is not None else ""
-            status_str = str(status).strip() if status is not None else "未开始"
-            status_explicit = status is not None and str(status).strip() != ""
+            # 文本列统一走 clean_cell（§2.3）。注意数值 0 是有效值，不能 or-丢弃。
+            code_str = _clean_str(code)
+            name_str = _clean_str(name)
+            status_str = _clean_str(status) or "未开始"
+            status_explicit = _clean_str(status) != ""
 
             if row_kind == "project":
                 # 项目行
-                owner_str = str(owner).strip() if owner is not None else ""
+                owner_str = _clean_str(owner)
                 plan_start = parse_cell_date(plan_start_raw, r, sheet_name, "plan_start", report)
                 plan_end = parse_cell_date(plan_end_raw, r, sheet_name, "plan_end", report)
-                market_str = str(market).strip() if market else (_market_from_sheet(sheet_name) if fmt == "old" else "")
+                market_str = _clean_str(market) or (
+                    _market_from_sheet(sheet_name) if fmt == "old" else ""
+                )
 
                 # 项目编号：按导入顺序连续编号（1,2,3...），跨 sheet 统一序列，不分市场。
                 project_seq += 1
                 unique_code = str(project_seq)
 
                 # 新格式优先用列内类目；旧格式沿用 default_category（历史行为）
-                cat = str(category).strip() if fmt == "new" and category else default_category
+                cat = _clean_str(category) if fmt == "new" and category is not None else default_category
 
                 current_project = ParsedProject(
                     code=unique_code,
@@ -391,14 +600,16 @@ def parse_workbook(file_bytes: bytes, default_category: str = "新需求") -> Pa
                     status=status_str or "未开始",
                     plan_start=plan_start,
                     plan_end=plan_end,
-                    remark=str(remark).strip() if remark else None,
+                    remark=_clean_str(remark) or None,
                     status_explicit=status_explicit,
                 )
                 projects.append(current_project)
                 report.projects_imported += 1
+                # 记录文件内编号，供阶段行归属校验（§2.2）
+                current_file_code = code_str
 
             elif row_kind == "phase":
-                # 阶段行
+                # 阶段行：归属 current_project（§2.2）
                 if current_project is None:
                     report.errors.append(ImportError(
                         row=r, sheet=sheet_name, field="project_id",
@@ -406,42 +617,67 @@ def parse_workbook(file_bytes: bytes, default_category: str = "新需求") -> Pa
                     ))
                     continue
 
+                # §2.2 归属校验：父号 ≠ 当前项目行（文件内）编号 → 警告 + 仍归属 current
+                parent_m = _PHASE_PARENT_RE.match(code_str)
+                if parent_m and current_file_code and parent_m.group(1) != current_file_code:
+                    report.warnings.append(ImportWarning(
+                        row=r, sheet=sheet_name, field="code",
+                        message=(
+                            f"阶段编号'{code_str}'与当前项目（{current_file_code}）"
+                            f"不一致，已归属项目'{current_project.name}'"
+                        ),
+                    ))
+
                 # 阶段类型与名称：新格式优先解析"阶段类型"列。
                 # - 带前缀（'P4 工业设计'）→ 拆 code + name
-                # - 纯中文（'工业设计'）→ 整格文本作为阶段名，走映射表兜底
+                # - 纯中文（'工业设计'）→ 映射表归一化索引兜底
                 # - 名称列有值时优先用名称列
+                # - 旧格式无阶段类型列 → 名称列走 map_phase_type（error 兜底，历史行为）
                 pt = parse_phase_type_cell(phase_type_cell)
                 if pt:
                     phase_type, type_name = pt
                     phase_name = name_str or type_name
+                elif fmt == "new" and phase_type_cell is not None and _clean_str(phase_type_cell):
+                    # 新格式：阶段类型列有值但不可解析 → 警告 + 跳过该行（§2.6 决策 2）
+                    report.warnings.append(ImportWarning(
+                        row=r, sheet=sheet_name, field="phase_type",
+                        message=f"阶段类型'{_clean_str(phase_type_cell)}'无法识别，已跳过该行",
+                    ))
+                    continue
                 else:
-                    cell_text = str(phase_type_cell).strip() if phase_type_cell is not None else ""
                     phase_type = None
-                    phase_name = name_str or cell_text
+                    phase_name = name_str or _clean_str(phase_type_cell)
                 if not phase_type:
                     phase_type = map_phase_type(phase_name, r, sheet_name, report)
                     if phase_type is None:
-                        phase_type = ""
+                        # 旧格式名称兜底失败（新格式无阶段类型列值的路径不会到这）：
+                        # 名称列也无法映射 → 不猜、不吞，跳过该行（§2.6 决策 2）
+                        report.warnings.append(ImportWarning(
+                            row=r, sheet=sheet_name, field="phase_type",
+                            message=f"阶段类型'{phase_name}'无法识别，已跳过该行",
+                        ))
+                        continue
 
                 plan_start = parse_cell_date(plan_start_raw, r, sheet_name, "plan_start", report)
                 plan_end = parse_cell_date(plan_end_raw, r, sheet_name, "plan_end", report)
                 actual_start = parse_cell_date(actual_start_raw, r, sheet_name, "actual_start", report)
                 actual_end = parse_cell_date(actual_end_raw, r, sheet_name, "actual_end", report)
 
-                # sequence 从项目编号的子序号提取（如 1-3 → 3）
-                seq_match = re.search(r"-(\d+)$", str(code).strip())
+                # sequence：子序号提取（'1-3'/'1.3' → 3）；无编号按追加序号
+                seq_match = re.search(r"[-.](\d+)$", code_str)
                 sequence = int(seq_match.group(1)) if seq_match else len(current_project.phases) + 1
 
-                # 进度：显式列优先（新格式），否则按状态推断
-                progress_explicit = progress is not None and str(progress).strip() not in ("", "/")
-                if progress_explicit:
-                    try:
-                        p = int(float(str(progress).strip()))
-                        progress_val = max(0, min(100, p))
-                    except ValueError:
-                        progress_explicit = False
-                        progress_val = 100 if status_str == "已完成" else (50 if status_str == "进行中" else 0)
-                else:
+                # 进度：统一 0-100（§2.5）；显式列优先，无法解析 → 警告 + 按状态推断
+                progress_text = _clean_str(progress)
+                progress_explicit = progress_text not in ("", "/")
+                progress_val: int | None = parse_progress(progress) if progress_explicit else None
+                if progress_explicit and progress_val is None:
+                    report.warnings.append(ImportWarning(
+                        row=r, sheet=sheet_name, field="progress",
+                        message=f"无法解析进度 '{progress}'，已按状态推断",
+                    ))
+                if progress_val is None:
+                    progress_explicit = False
                     progress_val = 100 if status_str == "已完成" else (50 if status_str == "进行中" else 0)
 
                 current_project.phases.append(ParsedPhase(
@@ -454,7 +690,7 @@ def parse_workbook(file_bytes: bytes, default_category: str = "新需求") -> Pa
                     actual_end=actual_end,
                     status=status_str or "未开始",
                     progress=progress_val,
-                    remark=str(remark).strip() if remark else None,
+                    remark=_clean_str(remark) or None,
                     assignees=split_persons(assignees),
                     status_explicit=status_explicit,
                     progress_explicit=progress_explicit,
@@ -723,7 +959,17 @@ def import_merged(db: Session, parsed: ParsedWorkbook) -> ImportReport:
     created_projects: list[Project] = []  # 新建项目（收尾建 FS 链）
 
     for parsed_p in parsed.projects:
-        existing = db.scalars(select(Project).where(Project.name == parsed_p.name)).first()
+        # 比较键归一化（评审处置 #2）：全角/半角书写差异不影响同名命中
+        existing = db.scalars(
+            select(Project).where(Project.name == parsed_p.name)
+        ).first()
+        if existing is None:
+            # 归一化后重查（项目名 NFKC 不同但语义相同 → 合并而非新增）
+            existing = next(
+                (p for p in db.scalars(select(Project)).all()
+                 if _normalize_name(p.name or "") == _normalize_name(parsed_p.name)),
+                None,
+            )
         if existing:
             _merge_project(db, existing, parsed_p, resource_cache, counters, pending_links)
             report.projects_updated += 1
@@ -813,9 +1059,10 @@ def build_preview(db: Session, parsed: ParsedWorkbook) -> ImportPreview:
     incoming_projects = len(parsed.projects)
     incoming_phases = sum(len(p.phases) for p in parsed.projects)
 
-    # 同名项目对比（防传错文件）
-    existing_names = set(db.scalars(select(Project.name)).all())
-    incoming_names = {p.name for p in parsed.projects if p.name}
+    # 同名项目对比（防传错文件；比较键 NFKC 归一化，评审处置 #2）
+    existing_names_raw = set(db.scalars(select(Project.name)).all())
+    existing_names = {_normalize_name(n or "") for n in existing_names_raw}
+    incoming_names = {_normalize_name(p.name) for p in parsed.projects if p.name}
     matched = len(incoming_names & existing_names)
     new = len(incoming_names - existing_names)
     missing = len(existing_names - incoming_names)
@@ -831,19 +1078,25 @@ def build_preview(db: Session, parsed: ParsedWorkbook) -> ImportPreview:
     # 项目概览（前 20 个）
     projects_preview = [_preview(p) for p in parsed.projects[:20]]
 
-    # 增量合并明细
+    # 增量合并明细（key 为归一化项目名，与 import_merged 命中口径一致）
     existing_proj_map = {
-        p.name: p for p in db.scalars(select(Project)).all()
+        _normalize_name(p.name): p for p in db.scalars(select(Project)).all()
     }
-    created_projects = [_preview(p) for p in parsed.projects if p.name not in existing_proj_map]
-    updated_projects = [_preview(p) for p in parsed.projects if p.name in existing_proj_map]
+    created_projects = [
+        _preview(p) for p in parsed.projects
+        if _normalize_name(p.name) not in existing_proj_map
+    ]
+    updated_projects = [
+        _preview(p) for p in parsed.projects
+        if _normalize_name(p.name) in existing_proj_map
+    ]
 
     # 阶段统计与待关联提示（基于现有同名项目的阶段类型）
     phases_created = 0
     phases_updated = 0
     pending: list[PendingLinkPhase] = []
     for p in parsed.projects:
-        ep = existing_proj_map.get(p.name)
+        ep = existing_proj_map.get(_normalize_name(p.name))
         if ep is None:
             phases_created += len(p.phases)  # 新项目全部阶段为新增
             continue
