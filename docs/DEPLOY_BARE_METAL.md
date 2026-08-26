@@ -30,7 +30,11 @@
 
 ## 二、本机准备（Windows，一次性 + 每次更新重复）
 
-### 2.1 下载后端依赖 wheel（Linux 平台，约 100-150MB）
+### 2.1 后端依赖（二选一）
+
+**① 服务器 pip 可联网（推荐，最简单）**：跳过下载 wheel，直接在服务器上执行 3.3 的在线安装。
+
+**② 服务器无外网时**：在本机下载 Linux 版 wheel（约 100-150MB）：
 
 ```powershell
 cd C:\Users\1\Desktop\pm-platform\backend
@@ -98,10 +102,15 @@ sudo apt install -y nginx python3.12-venv
 # 解压最新代码（覆盖源码；venv 不在 zip 里，不受影响）
 cd /opt && unzip -o /opt/pm-platform.zip -d /opt/pm-platform
 
-# 建 venv 并离线安装
+# 建 venv 并安装依赖（二选一）
 cd /opt/pm-platform/backend
 python3.12 -m venv venv
-./venv/bin/pip install --no-index --find-links=/tmp/pm-wheels -r requirements.txt
+
+# ① 服务器 pip 可联网（推荐）：
+./venv/bin/pip install -r requirements.txt
+
+# ② 离线安装（服务器无外网时）：
+# ./venv/bin/pip install --no-index --find-links=/tmp/pm-wheels -r requirements.txt
 
 # 验证
 ./venv/bin/python -c "import fastapi, sqlalchemy, psycopg2; print('依赖 OK')"
