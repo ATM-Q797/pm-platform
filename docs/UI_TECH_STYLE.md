@@ -106,7 +106,7 @@ components: {
 | **详情+甘特** | `ProjectDetailPage.tsx` + `gantt.css` | 甘特只改变量值：`--gantt-active` 系改青蓝渐变（`linear-gradient(180deg,#00d4ff,#0090c8)`）；关键路径红框发光加强 + 2s 呼吸动画；今日线加 glow；依赖连线青色 |
 | **资源负载** | `ResourcePage.tsx` + `resourceView.css` | 复用变量；冲突 ⚠ 黄框发光动画 |
 | **周报** | `ReportPage.tsx` + index.css | 预览容器玻璃卡；h2 左侧 3px 渐变竖线；blockquote 左边框电青 |
-| **登录页** | `LoginPage.tsx` | 保持 DeepSeek 风 + 动态网格背景（缓慢 background-position 动画）+ 输入框 focus 发光环 `0 0 0 2px rgba(0,212,255,.3)` |
+| **登录页** | `LoginPage.tsx` | 保持 DeepSeek 风 + **Canvas 动态网格**（`components/LoginGridCanvas.tsx`）：多层正弦叠加波场涌动（随机水波感）+ 指针扰动（高斯衰减半径 160px，方向=推开）+ 速度感知（振幅随移动速度 0.6-3× 缩放）；32px 网格、DPR 适配、`prefers-reduced-motion` 静态降级、触屏纯涌动 + 输入框 focus 发光环 `0 0 0 2px rgba(0,212,255,.3)` |
 | **我的任务** | `MyTasksPage.tsx` | 统计卡渐变数字；Progress 渐变 `{from:'#00d4ff', to:'#7b61ff'}` |
 | **用户管理/审核** | 继承 token | 零改动自动生效 |
 
