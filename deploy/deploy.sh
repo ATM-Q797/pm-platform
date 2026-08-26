@@ -77,6 +77,11 @@ echo "[3/4] 准备镜像..."
 cd "$SCRIPT_DIR/docker"
 if [ "${PM_SKIP_BUILD:-0}" = "1" ]; then
     echo "    PM_SKIP_BUILD=1，跳过镜像构建（使用已导入的镜像）"
+elif [ "${PM_FORCE_BUILD:-0}" = "1" ]; then
+    echo "    PM_FORCE_BUILD=1，强制重新构建镜像..."
+    docker compose --env-file "$ENV_FILE" build --pull
+elif docker image inspect pm-backend:latest > /dev/null 2>&1; then
+    echo "    检测到本地已存在 pm-backend:latest，跳过构建（如需强制重建: PM_FORCE_BUILD=1）"
 else
     echo "    构建 Docker 镜像（首次可能需要几分钟）..."
     docker compose --env-file "$ENV_FILE" build --pull
