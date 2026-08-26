@@ -328,7 +328,88 @@ sudo ufw status
 
 ---
 
-## 十、常见问题排查
+## 十、版本更新流程（不破坏服务器数据）
+
+> 适用：开发出新版本后，把新镜像更新到已运行的服务器。
+> **核心原则：数据都在 `pg_data` 卷里，更新只换镜像和代码，绝不删卷。**
+
+### 10.1 更新前准备（本机）
+
+```powershell
+# 1. 打包最新代码（zip 不含 .env / node_modules / venv，安全）
+cd C:\Users\1\Desktop\pm-platform
+git archive --format=zip -o C:\pm-platform.zip HEAD
+
+# 2. 构建新镜像（UI/后端代码变更都会打进镜像）
+docker build -f deploy/docker/Dockerfile.backend  -t pm-backend:latest .
+docker build -f deploy/docker/Dockerfile.frontend -t pm-frontend:latest .
+
+# 3. 导出镜像（含 postgres 基础镜像，防服务器本地缺失）
+docker save pm-backend:latest pm-frontend:latest postgres:16-alpine -o C:\pm-images.tar
+
+# 4. 上传
+scp C:\pm-platform.zip C:\pm-images.tar root@服务器IP:/opt/
+```
+
+### 10.2 服务器更新（约 10 分钟）
+
+```bash
+cd /opt/pm-platform
+
+# ① 备份当前运行的镜像（回滚保障，仅首次/重大更新时做）
+mkdir -p /opt/backup
+docker save pm-backend:latest pm-frontend:latest -o /opt/backup/images-$(date +%F).tar
+
+# ② 更新代码（zip 覆盖；.env 不在 zip 里，配置保留）
+apt install -y unzip
+unzip -o /opt/pm-platform.zip -d /opt/pm-platform
+
+# ③ 导入新镜像
+docker load -i /opt/pm-images.tar
+
+# ④ 重新部署（跳过构建；检测到已有数据表会自动跳过 init_db，数据不动）
+PM_SKIP_BUILD=1 ./deploy/deploy.sh
+
+# ⑤ 【数据库迁移】若发布说明要求（如新增表/字段），执行迁移脚本（幂等）
+docker compose -f deploy/docker/docker-compose.yml --env-file deploy/.env \
+  exec -T backend python migrate_v2.py
+```
+
+### 10.3 更新后验证
+
+```bash
+# 数据完整性：项目数量应与更新前一致
+docker compose -f deploy/docker/docker-compose.yml --env-file deploy/.env \
+  exec -T backend python -c "from app.database import SessionLocal; from app.models import Project, User; db=SessionLocal(); print('项目数:', db.query(Project).count(), '| 用户数:', db.query(User).count())"
+
+# 健康检查 + 登录 + 新功能抽查
+curl -s http://127.0.0.1:8000/health
+```
+
+### 10.4 回滚方案
+
+新版本有问题时（数据未动，仅换回旧镜像）：
+
+```bash
+# 用 10.2 ① 备份的旧镜像换回
+docker load -i /opt/backup/images-<日期>.tar
+cd /opt/pm-platform
+PM_SKIP_BUILD=1 ./deploy/deploy.sh
+```
+
+> 迁移产生的**加列/建表**对旧代码无害（旧代码不引用新字段），回滚无需还原数据库。
+
+### 10.5 安全红线
+
+| ❌ 禁止 | 原因 |
+|---|---|
+| `docker compose down -v` | `-v` 删除 pg_data 数据卷 = 数据全丢 |
+| 手动 `docker volume rm pg_data` | 同上 |
+| 删除容器时不用 `-v`（`down` 不带 `-v` 是安全的） | 卷独立于容器存活 |
+
+---
+
+## 十一、常见问题排查
 
 | 现象 | 原因与解决 |
 |------|-----------|
