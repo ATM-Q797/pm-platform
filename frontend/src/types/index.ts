@@ -281,13 +281,6 @@ export interface DashboardStats {
   conflict_count: number
 }
 
-// ---------- 周报（T8） ----------
-export interface WeeklyReport {
-  markdown: string
-  plain_text: string
-  generated_at: string
-}
-
 // ---------- 用户与认证 ----------
 export interface UserInfo {
   id: number
