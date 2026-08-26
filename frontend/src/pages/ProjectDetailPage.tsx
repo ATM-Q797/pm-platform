@@ -169,7 +169,7 @@ export default function ProjectDetailPage() {
             {criticalDuration !== null ? (
               <span style={{ color: '#ff4d4f', fontWeight: 600 }}>{criticalDuration} 天</span>
             ) : (
-              <span style={{ color: '#999' }}>—</span>
+              <span style={{ color: 'var(--text-tertiary)' }}>—</span>
             )}
           </Descriptions.Item>
           <Descriptions.Item label="关键路径" span={4}>
@@ -178,12 +178,12 @@ export default function ProjectDetailPage() {
                 {criticalPathNames.map((n, i) => (
                   <span key={i} style={{ display: 'inline-flex', alignItems: 'center', gap: 4 }}>
                     <Tag color="red" style={{ margin: 0 }}>{n}</Tag>
-                    {i < criticalPathNames.length - 1 && <span style={{ color: '#999' }}>→</span>}
+                    {i < criticalPathNames.length - 1 && <span style={{ color: 'var(--text-tertiary)' }}>→</span>}
                   </span>
                 ))}
               </span>
             ) : (
-              <span style={{ color: '#999' }}>（无有效日期阶段，无法计算）</span>
+              <span style={{ color: 'var(--text-tertiary)' }}>（无有效日期阶段，无法计算）</span>
             )}
           </Descriptions.Item>
           <Descriptions.Item label="阶段数">{project.phases?.length || 0}</Descriptions.Item>
@@ -217,7 +217,7 @@ export default function ProjectDetailPage() {
               value={ganttScale}
               onChange={(val) => setGanttScale(val as 'day' | 'week' | 'month')}
             />
-            <span style={{ fontSize: 13, color: '#666' }}>
+            <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
               关键路径
               <Switch
                 size="small"
@@ -240,7 +240,7 @@ export default function ProjectDetailPage() {
             onPhaseClick={handlePhaseClick}
           />
         )}
-        <div style={{ marginTop: 8, fontSize: 12, color: '#999' }}>
+        <div style={{ marginTop: 8, fontSize: 12, color: 'var(--text-tertiary)' }}>
           提示：悬停任务条两端圆形手柄拖到另一条 = 创建依赖连线 ｜ 右键连线删除 ｜ 点击甘特条编辑阶段详情（通过编辑面板修改日期）
         </div>
       </Card>

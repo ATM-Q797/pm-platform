@@ -155,11 +155,11 @@ export default function ProjectListPage() {
                 错误 {(report.errors || []).length} 条，警告 {(report.warnings || []).length} 条
               </p>
               {report.pending_link_phases.length > 0 && (
-                <div style={{ background: '#fffbe6', padding: '8px 12px', borderRadius: 6, marginBottom: 8 }}>
+                <div style={{ background: 'var(--alert-info-bg)', padding: '8px 12px', borderRadius: 6, marginBottom: 8 }}>
                   <b style={{ color: '#d48806', fontSize: 13 }}>
                     ⚠️ 新增阶段待关联依赖（{report.pending_link_phases.length} 个）：
                   </b>
-                  <p style={{ margin: '4px 0', fontSize: 12, color: '#666' }}>
+                  <p style={{ margin: '4px 0', fontSize: 12, color: 'var(--text-secondary)' }}>
                     以下阶段未自动关联依赖，请到对应项目甘特图中拖拽连线：
                   </p>
                   <ul style={{ maxHeight: 120, overflow: 'auto', fontSize: 12, margin: 0, paddingLeft: 20 }}>
@@ -612,7 +612,7 @@ export default function ProjectListPage() {
         okType="danger"
       >
         <p>项目：{deleteReasonOpen?.name}</p>
-        <p style={{ color: '#999', fontSize: 12 }}>申请将提交给管理员审核，通过后项目才会被删除。</p>
+        <p style={{ color: 'var(--text-tertiary)', fontSize: 12 }}>申请将提交给管理员审核，通过后项目才会被删除。</p>
         <Input.TextArea
           placeholder="删除原因（可选）"
           rows={3}
@@ -648,13 +648,13 @@ export default function ProjectListPage() {
             {importMode === 'merge' ? (
               <>
                 {/* 合并差异：新增 / 更新 / 保留 */}
-                <div style={{ background: '#f6ffed', padding: '12px 16px', borderRadius: 6, marginBottom: 12 }}>
+                <div style={{ background: 'var(--alert-ok-bg)', padding: '12px 16px', borderRadius: 6, marginBottom: 12 }}>
                   <p style={{ margin: 0, color: '#389e0d', fontWeight: 600 }}>
                     📥 新增 {importPreview.created_projects.length} 个项目 / 📝 更新{' '}
                     {importPreview.updated_projects.length} 个项目 / 🔒 保留{' '}
                     {importPreview.kept_count} 个项目（不在文件中，不做改动）
                   </p>
-                  <p style={{ margin: '4px 0 0', color: '#666', fontSize: 13 }}>
+                  <p style={{ margin: '4px 0 0', color: 'var(--text-secondary)', fontSize: 13 }}>
                     阶段：新增 {importPreview.phases_created} 个 / 更新 {importPreview.phases_updated} 个
                     （任何现有数据都不会被删除）
                   </p>
@@ -668,7 +668,7 @@ export default function ProjectListPage() {
                       {importPreview.created_projects.map((p, i) => (
                         <li key={i}>
                           {p.name} <Tag style={{ fontSize: 11 }}>{p.market}</Tag>
-                          <span style={{ color: '#999' }}>（{p.phases} 阶段）</span>
+                          <span style={{ color: 'var(--text-tertiary)' }}>（{p.phases} 阶段）</span>
                         </li>
                       ))}
                     </ul>
@@ -683,7 +683,7 @@ export default function ProjectListPage() {
                       {importPreview.updated_projects.map((p, i) => (
                         <li key={i}>
                           {p.name} <Tag style={{ fontSize: 11 }}>{p.market}</Tag>
-                          <span style={{ color: '#999' }}>（{p.phases} 阶段）</span>
+                          <span style={{ color: 'var(--text-tertiary)' }}>（{p.phases} 阶段）</span>
                         </li>
                       ))}
                     </ul>
@@ -692,11 +692,11 @@ export default function ProjectListPage() {
 
                 {/* 新增阶段待关联依赖提示 */}
                 {importPreview.pending_link_phases.length > 0 && (
-                  <div style={{ background: '#fffbe6', padding: '8px 12px', borderRadius: 6, marginBottom: 12 }}>
+                  <div style={{ background: 'var(--alert-info-bg)', padding: '8px 12px', borderRadius: 6, marginBottom: 12 }}>
                     <b style={{ color: '#d48806', fontSize: 13 }}>
                       ⚠️ 新增阶段将提示待关联依赖（{importPreview.pending_link_phases.length} 个）：
                     </b>
-                    <p style={{ margin: '4px 0', fontSize: 12, color: '#666' }}>
+                    <p style={{ margin: '4px 0', fontSize: 12, color: 'var(--text-secondary)' }}>
                       导入后需到对应项目甘特图中手动拖拽连线
                     </p>
                   </div>
@@ -705,7 +705,7 @@ export default function ProjectListPage() {
             ) : (
               <>
                 {/* 替换模式：红色警示 */}
-                <div style={{ background: '#fff7e6', padding: '12px 16px', borderRadius: 6, marginBottom: 12 }}>
+                <div style={{ background: 'var(--alert-warn-bg)', padding: '12px 16px', borderRadius: 6, marginBottom: 12 }}>
                   <p style={{ margin: 0, color: '#fa8c16', fontWeight: 600 }}>
                     ⚠️ 本次导入将【清空现有 {importPreview.existing.projects} 个项目
                     （{importPreview.existing.phases} 个阶段 / {importPreview.existing.resources} 个人员）】
@@ -734,7 +734,7 @@ export default function ProjectListPage() {
                       {importPreview.projects_preview.map((p, i) => (
                         <li key={i}>
                           {p.name} <Tag style={{ fontSize: 11 }}>{p.market}</Tag>
-                          <span style={{ color: '#999' }}>（{p.phases} 阶段）</span>
+                          <span style={{ color: 'var(--text-tertiary)' }}>（{p.phases} 阶段）</span>
                         </li>
                       ))}
                     </ul>

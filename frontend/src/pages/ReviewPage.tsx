@@ -122,7 +122,7 @@ export default function ReviewPage({ userRole = 'admin' }: { userRole?: string }
           <Button size="small" onClick={() => { setRejectModal(r); setRejectComment('') }}>拒绝</Button>
         </Space>
       ) : (
-        <span style={{ color: '#999', fontSize: 12 }}>{r.review_comment || '-'}</span>
+        <span style={{ color: 'var(--text-tertiary)', fontSize: 12 }}>{r.review_comment || '-'}</span>
       ),
     },
   ]
@@ -197,7 +197,7 @@ export default function ReviewPage({ userRole = 'admin' }: { userRole?: string }
       title: '变更内容', dataIndex: 'proposed_changes', width: 200, ellipsis: true,
       render: (json: string | null) => {
         const { summary, items } = formatChanges(json)
-        if (items.length === 0) return <span style={{ color: '#999' }}>{summary}</span>
+        if (items.length === 0) return <span style={{ color: 'var(--text-tertiary)' }}>{summary}</span>
         const content = (
           <div style={{ maxWidth: 320 }}>
             {items.map((item, i) => (
@@ -224,7 +224,7 @@ export default function ReviewPage({ userRole = 'admin' }: { userRole?: string }
           </Popconfirm>
           <Button size="small" onClick={() => handlePhaseReject(r)}>拒绝</Button>
         </Space>
-      ) : <span style={{ color: '#999', fontSize: 12 }}>{r.review_comment || '-'}</span>,
+      ) : <span style={{ color: 'var(--text-tertiary)', fontSize: 12 }}>{r.review_comment || '-'}</span>,
     },
   ]
 

@@ -96,7 +96,7 @@ export default function MyTasksPage() {
         {[
           { label: '总任务', value: stats.total, color: '#1677ff' },
           { label: '进行中', value: stats.active, color: '#1890ff' },
-          { label: '未开始', value: stats.pending, color: '#999' },
+          { label: '未开始', value: stats.pending, color: 'var(--text-tertiary)' },
           { label: '已完成', value: stats.done, color: '#52c41a' },
         ].map((s) => (
           <div
@@ -109,7 +109,7 @@ export default function MyTasksPage() {
               boxShadow: '0 1px 2px rgba(0,0,0,.03), 0 1px 6px rgba(0,0,0,.06)',
             }}
           >
-            <div style={{ fontSize: 13, color: '#666', marginBottom: 2 }}>{s.label}</div>
+            <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 2 }}>{s.label}</div>
             <div style={{ fontSize: 28, fontWeight: 600, color: s.color }}>{s.value}</div>
           </div>
         ))}
