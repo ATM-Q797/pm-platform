@@ -1,8 +1,18 @@
 # 科技感 UI 设计文档 —「深空驾驶舱」(Deep Space Console)
 
-> **版本**: v1.0 | **日期**: 2026-08-26 | **状态**: 待评审
+> **版本**: v1.1 | **日期**: 2026-08-26 | **状态**: 待评审（评审后修订）
 > **方案基础**: 五模型会诊（GLM/MiniMax/DeepSeek/Mimo/Kimi），**以 Kimi K3 方案为主**，融合共识要素
 > **实施模型**: eng-coder 使用 `kimi:kimi-k3`
+
+---
+
+## 文档状态与权威性（2026-08-26 设计评审处置）
+
+1. 本文档为平台**主题与视觉设计的唯一权威文档**：
+   - **取代** `docs/UI_THEME_PLAN.md` 中的深色色板定义（§2.4）与 Header 方案（§2.3）——以本文档色值为准
+   - `docs/UI_THEME_PLAN.md` 保留为主题基础设施（ThemeProvider / FOUC / 开关机制）的历史记录，仅作参考
+2. **基础设施已实施完成**（commit `f1b4f96`）：ThemeProvider（`theme.tsx`）、`<html data-theme>`、index.html FOUC 脚本、`index.css` `:root`/`[data-theme]` 双变量板、gantt.css / resourceView.css 全文件变量化均已落地。本文档**仅在其上叠加视觉层**，不重复建设、不改变切换机制。
+3. 甘特/资源负载：仅升级 `--gantt-*` 变量值与动画，结构零改动。
 
 ---
 
@@ -21,8 +31,8 @@
 
 | 角色 | 深色（主战场） | 浅色（降饱和保证对比度） |
 |------|----------------|--------------------------|
-| 主色 Primary | `#00d4ff`（电青） | `#0891b2` |
-| 辅色 Accent | `#7b61ff`（星云紫） | `#6d5ae0` |
+| 主色 Primary | `#00d4ff`（电青） | `#0369a1`（深青，正文级对比 ≥4.5:1） |
+| 辅色 Accent | `#7b61ff`（星云紫） | `#6d5ae0`（仅作渐变点缀，不作文字色） |
 | 成功 Success | `#22e58a` | `#16a34a` |
 | 警告 Warning | `#fbbf24` | `#d97706` |
 | 危险 Error | `#ff4d6d` | `#e11d48` |
@@ -31,6 +41,8 @@
 | 边框 Border | `rgba(120,180,255,.15)` | `rgba(8,145,178,.15)` |
 | 文字 Primary | `#e8ecf8` | `#0f172a` |
 | 文字 Secondary | `#9aa3b8` | `#475569` |
+
+> 对比度纪律：浅色模式任何**文字色**（含 Menu 选中、链接、Tag 文字）对比度 ≥ 4.5:1；半透明背景仅限卡片视觉层，**浮层（Modal/Drawer/Popover）用实色 token**（见 §二）。
 
 ### 1.3 网格纹理（body 背景）
 
@@ -49,8 +61,8 @@ background-size: 32px 32px, 32px 32px, 100% 100%;
 
 ```tsx
 token: {
-  colorPrimary: isDark ? '#00d4ff' : '#0891b2',
-  colorInfo:    isDark ? '#00d4ff' : '#0891b2',
+  colorPrimary: isDark ? '#00d4ff' : '#0369a1',
+  colorInfo:    isDark ? '#00d4ff' : '#0369a1',
   colorSuccess: isDark ? '#22e58a' : '#16a34a',
   colorError:   isDark ? '#ff4d6d' : '#e11d48',
   colorWarning: isDark ? '#fbbf24' : '#d97706',
@@ -65,7 +77,7 @@ components: {
   Menu: {
     darkItemBg: 'transparent',
     itemSelectedBg: 'rgba(0,212,255,.12)',
-    itemSelectedColor: isDark ? '#00d4ff' : '#0891b2',
+    itemSelectedColor: isDark ? '#00d4ff' : '#0369a1',
     activeBarHeight: 3,
   },
   Card: { paddingLG: 20, colorBgContainer: isDark ? 'rgba(20,27,45,.55)' : 'rgba(255,255,255,.75)' },
@@ -73,6 +85,10 @@ components: {
   Button: { primaryShadow: '0 0 12px rgba(0,212,255,.35)' },
   Tag: { borderRadiusSM: 4 },
   Segmented: { itemSelectedBg: 'rgba(0,212,255,.15)' },
+  // 浮层实色 token（半透明仅限卡片视觉层，避免 alpha 叠加导致对比度不可控）
+  Modal:   { contentBg: isDark ? '#141b2d' : '#ffffff' },
+  Drawer:  { colorBgElevated: isDark ? '#141b2d' : '#ffffff' },
+  Popover: { colorBgElevated: isDark ? '#141b2d' : '#ffffff' },
 }
 ```
 
@@ -128,8 +144,18 @@ components: {
 - [ ] 甘特图：状态条青蓝渐变、关键路径红框呼吸、冲突黄框呼吸、今日线发光、连线青色（深浅均清晰）
 - [ ] 看板 6 卡渐变条 + 渐变数字；列表行 hover 青色光晕；登录页网格动画
 - [ ] `npm run build`（tsc -b）通过；`prefers-reduced-motion` 降级生效
-- [ ] 浅色模式文字对比度 ≥ 4.5:1（电青不用作浅色文字）
+- [ ] 浅色模式文字对比度 ≥ 4.5:1（电青/紫不用作浅色文字；Menu 选中/链接/Tag 文字用 `#0369a1` 系）
 - [ ] 主题切换/刷新记忆/无闪白（FOUC 脚本保留）无回归
+
+### 测试用例（对应方法论的正常/边界/错误）
+
+| 场景 | 输入 | 预期输出 |
+|------|------|----------|
+| 正常：深浅切换持久化 | 切深色 → 刷新页面 | 保持深色，无闪白 |
+| 边界：首次访问跟随系统 | 清除 `pm-theme`，系统为深色 | 默认深色；切浅色后刷新 → 保持浅色 |
+| 错误：localStorage 异常 | 禁用/清空 localStorage 后加载 | 默认浅色，无 JS 报错，FOUC 脚本容错 |
+| 正常：甘特换肤 | 深色下打开详情页甘特 | 状态条渐变/关键路径呼吸/连线青色清晰可见 |
+| 构建 | `npm run build` | tsc -b 零错误 |
 
 ---
 
