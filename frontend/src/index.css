@@ -22,6 +22,8 @@
   --text-tertiary: #94a3b8;
   --border-light: #e2e8f0;
   --header-hover: rgba(15, 23, 42, 0.06);
+  /* 登录输入框 autofill 背景（浅色模式，覆盖浏览器自动填充白底） */
+  --input-bg: rgba(255, 255, 255, 0.92);
   /* 提示块背景（导入确认 Modal 等） */
   --alert-warn-bg: #fff7e6;
   --alert-info-bg: #fffbe6;
@@ -89,6 +91,8 @@
   --text-tertiary: #5f6b85;
   --border-light: rgba(120, 180, 255, 0.15);
   --header-hover: rgba(255, 255, 255, 0.12);
+  /* 登录输入框 autofill 背景（深色模式，覆盖浏览器自动填充白底） */
+  --input-bg: rgba(20, 27, 45, 0.92);
   /* 提示块背景（深色） */
   --alert-warn-bg: #2b2315;
   --alert-info-bg: #2a2416;
