@@ -144,13 +144,25 @@
 }
 .pm-today-marker {
   pointer-events: none;
-  border-left: 2px solid var(--gantt-today) !important;
-  box-shadow: 0 0 8px var(--gantt-today);
+  border-left: 1px solid var(--gantt-today);
+  box-shadow: 0 0 8px var(--gantt-today-glow);
+  background: linear-gradient(180deg, var(--gantt-today) 0%, transparent 60%);
+  width: 0;
+  height: 100%;
 }
 .pm-today-label {
-  background: var(--gantt-today) !important;
-  color: #fff !important;
-  box-shadow: 0 0 8px var(--gantt-today);
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 600;
+  letter-spacing: 0.5px;
+  color: var(--gantt-today-label-text);
+  background: var(--gantt-today-label-bg);
+  border: 1px solid var(--gantt-today-label-border);
+  border-radius: 6px;
+  padding: 1px 7px;
+  margin-left: -7px;
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  backdrop-filter: none; /* 与弹层定位问题同源，一律不用 backdrop-filter */
 }
 
 /* 甘特 tooltip（dhtmlx 默认白底，深色模式需覆盖） */

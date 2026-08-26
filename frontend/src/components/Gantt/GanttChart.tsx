@@ -192,13 +192,8 @@ function drawTodayMarker(gantt: any, container: HTMLElement) {
 
   const label = document.createElement('span')
   label.textContent = '今天'
-  label.style.cssText = 'font-size:10px;font-weight:600;color:#fff;background:#ff4d4f;padding:1px 4px;border-radius:2px;margin-right:2px;'
-
-  const arrow = document.createElement('span')
-  arrow.innerHTML = '▼'
-  arrow.style.cssText = 'color:#ff4d4f;font-size:8px;'
+  label.className = 'pm-today-label'
 
   marker.appendChild(label)
-  marker.appendChild(arrow)
   taskArea.appendChild(marker)
 }
