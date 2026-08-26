@@ -34,7 +34,8 @@ export default function LoginGridCanvas() {
 
     const color =
       mode === 'dark' ? 'rgba(0,212,255,.06)' : 'rgba(8,145,178,.06)'
-    const reduced = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+    // 注意：不做 prefers-reduced-motion 静态降级——动态网格是产品核心需求
+    // （2026-08-26 用户明确要求动效，与甘特呼吸同决策；且不涉及 antd rc-motion，无副作用）
 
     let w = 0
     let h = 0
@@ -47,8 +48,7 @@ export default function LoginGridCanvas() {
       canvas.style.width = `${w}px`
       canvas.style.height = `${h}px`
       ctx.setTransform(dpr, 0, 0, dpr, 0, 0)
-      // canvas.width 赋值会清空位图；reduced-motion 无 rAF，需手动重绘静态帧
-      if (reduced) draw(0, BASE_AMP)
+      // canvas.width 赋值会清空位图，下一帧 rAF 自动重绘
     }
 
     // 指针状态
@@ -127,24 +127,20 @@ export default function LoginGridCanvas() {
       ctx.stroke()
     }
 
-    resize() // 初始尺寸 + reduced 静态帧（须在 draw 定义之后调用）
+    resize() // 初始尺寸（首帧由 rAF 绘制）
 
-    if (reduced) {
-      draw(0, BASE_AMP) // 静态一帧，不启动 rAF
-    } else {
-      const loop = (now: number) => {
-        raf = requestAnimationFrame(loop)
-        const dt = now - lastFrame
-        lastFrame = now
-        if (dt > 50) return // 降频保护：后台/卡顿帧跳过绘制
-        // 指针离开后 0.5s 平滑衰减归零（约 30 帧）
-        if (!hasPointer) pointerActive = Math.max(0, pointerActive - 0.033)
-        speed *= 0.98 // 静止时速度自然回落
-        const scale = Math.min(3, Math.max(0.6, speed / V0))
-        draw(now / 1000, BASE_AMP * scale)
-      }
+    const loop = (now: number) => {
       raf = requestAnimationFrame(loop)
+      const dt = now - lastFrame
+      lastFrame = now
+      if (dt > 50) return // 降频保护：后台/卡顿帧跳过绘制
+      // 指针离开后 0.5s 平滑衰减归零（约 30 帧）
+      if (!hasPointer) pointerActive = Math.max(0, pointerActive - 0.033)
+      speed *= 0.98 // 静止时速度自然回落
+      const scale = Math.min(3, Math.max(0.6, speed / V0))
+      draw(now / 1000, BASE_AMP * scale)
     }
+    raf = requestAnimationFrame(loop)
 
     return () => {
       cancelAnimationFrame(raf)
