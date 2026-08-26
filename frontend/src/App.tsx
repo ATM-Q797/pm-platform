@@ -214,7 +214,7 @@ export default function App() {
               style={{ color: 'var(--text-primary)', fontSize: 16 }}
               title={mode === 'dark' ? '切换到浅色模式' : '切换到深色模式'}
             />
-            <Dropdown menu={userMenu}>
+            <Dropdown menu={userMenu} trigger={['click', 'hover']}>
               <div style={{ color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', padding: '4px 8px', borderRadius: 6, transition: 'background .2s' }} className="header-user">
                 <Avatar size={28} className="pm-avatar" style={{ flexShrink: 0 }}>{user.name.charAt(0)}</Avatar>
                 <span>{user.name}</span>
