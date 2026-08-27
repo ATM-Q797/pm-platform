@@ -406,6 +406,7 @@ export default function ProjectListPage() {
   return (
     <>
     <Card
+      className="pm-no-blur"
       title={
         <Space>
           <span>项目列表</span>

@@ -61,7 +61,15 @@ body {
   filter: brightness(1.08);
 }
 
-/* ---------- 4.5 登录页 autofill 覆盖（浏览器自动填充白底 → 主题玻璃色） ---------- */
+/* ---------- 4.5 滚动容器卡片豁免 blur（性能红线）
+   backdrop-filter 覆盖大滚动区域（甘特/表格）时，每帧滚动都做模糊采样，
+   严重卡顿（资源负载页实测）。含滚动容器的 Card 一律豁免，玻璃感由半透明底+高光线模拟。 */
+.pm-no-blur {
+  backdrop-filter: none !important;
+  -webkit-backdrop-filter: none !important;
+}
+
+/* ---------- 4.6 登录页 autofill 覆盖（浏览器自动填充白底 → 主题玻璃色） ---------- */
 .pm-login input:-webkit-autofill,
 .pm-login input:-webkit-autofill:hover,
 .pm-login input:-webkit-autofill:focus {
