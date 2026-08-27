@@ -95,8 +95,8 @@ _DATE_SHORT_RE = re.compile(r"^(\d{1,2})([-/.])(\d{1,2})$")
 # Excel 日期序列号有效范围（1900-9999 年，评审处置 #5：越界不按序列号解析）
 _SERIAL_MIN, _SERIAL_MAX = 1, 2_958_465
 
-# 多人字段拆分正则：任意空白/中英文逗号
-_PERSON_SPLIT_RE = re.compile(r"[\s,，]+")
+# 多人字段拆分正则：任意空白/中英文逗号/顿号
+_PERSON_SPLIT_RE = re.compile(r"[\s,，、]+")
 
 
 def _normalize_name(name: str) -> str:

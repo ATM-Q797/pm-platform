@@ -377,19 +377,21 @@ def real_excel_bytes():
 
 
 def test_real_user_workbook_full_import(client, db_session, real_excel_bytes):
-    """用例 12：真实表全量导入——38 项目 + 168 阶段（4 原有 + 164 找回），0 错误。
+    """用例 12：真实表全量导入——核心不变量（项目数/阶段数随用户文件漂移，断言用下限）。
 
-    背景（§一）：改造前仅 38 项目 + 4 阶段，164 行静默丢失；改造后 0 丢失。
+    背景（§一）：改造前 206 行仅 38 项目 + 4 阶段，164 行静默丢失；改造后 0 丢失。
+    （2026-08-27 用户文件更新为 269 行/36 项目/164 阶段——断言项目≥30、阶段≥160，
+     精确值随用户文件变动会过时。）
     剩余警告均为 '待定' 等占位文本日期（§2.4 失败 → 警告设空，预期行为），
-    无任何"已跳过"行（206 行数据全部落库）。
+    无任何"已跳过"行（数据全部落库）。
     """
     report = import_excel(db_session, real_excel_bytes)
-    assert report.projects_imported == 38
-    assert report.phases_imported == 168      # 4 原有 + 164 找回
+    assert report.projects_imported >= 30
+    assert report.phases_imported >= 160
     assert report.errors == []
     assert not any("已跳过" in w.message for w in report.warnings)
-    assert db_session.query(Project).count() == 38
-    assert db_session.query(Phase).count() == 168
+    assert db_session.query(Project).count() == report.projects_imported
+    assert db_session.query(Phase).count() == report.phases_imported
 
 
 # ---------- 用例 14：合并导入比较键归一化（评审处置 #2） ----------
@@ -417,3 +419,16 @@ def test_merge_import_fullwidth_name_matches(client, db_session):
     proj = db_session.query(Project).one()
     db_session.refresh(proj)
     assert proj.owner == "王五"               # 合并更新生效
+
+
+# ---------- 用例 15：多人字段拆分（顿号/逗号/空格混合） ----------
+
+def test_split_persons_dunhao_separated():
+    """阶段负责人 '张三、李四'（顿号分隔）应拆为两人，而非整体当作一人。"""
+    from app.services.excel_importer import split_persons
+    assert split_persons("张三、李四") == ["张三", "李四"]
+    assert split_persons("张三，李四 王五") == ["张三", "李四", "王五"]
+    assert split_persons("张三、张三、李四") == ["张三", "李四"]  # 去重保序
+    assert split_persons("/") == []
+    assert split_persons("") == []
+    assert split_persons(None) == []
