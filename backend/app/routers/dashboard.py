@@ -27,6 +27,9 @@ router = APIRouter(prefix="/api/dashboard", tags=["看板"])
 
 # 未完成状态（参与延期/到期判定）
 _ACTIVE_STATUSES = ("未开始", "进行中")
+# 项目级搁置状态（双 key：新值「搁置」+ 旧值「已搁置」，PROJECT_SHELVE §2.2/决策 4）：
+# 搁置项目 = 假完成，其阶段不参与任何阶段级报警
+_SHELVED_PROJECT_STATUSES = ("搁置", "已搁置")
 # 即将到期窗口（天）
 _DUE_SOON_DAYS = 7
 
@@ -96,11 +99,12 @@ def get_dashboard_stats(db: Session = Depends(get_db)):
     total_phases = sum(c for _, c in phase_status_rows)
 
     # ---------- T5：阶段级延期 / 即将到期 / 冲突计数 ----------
-    # 阶段级实际延期：plan_end < 今天 && 状态未完成（计算式，不写库）
+    # 阶段级实际延期：plan_end < 今天 && 状态未完成 && 所属项目未搁置（计算式，不写库）
     delayed_phase_rows = db.scalars(
-        select(Phase).where(
+        select(Phase).join(Project, Phase.project_id == Project.id).where(
             Phase.plan_end < today,
             Phase.status.in_(_ACTIVE_STATUSES),
+            Project.status.not_in(_SHELVED_PROJECT_STATUSES),
         )
     ).all()
     delayed_phases = sorted(
@@ -118,12 +122,13 @@ def get_dashboard_stats(db: Session = Depends(get_db)):
         reverse=True,
     )
 
-    # 即将到期：plan_end 在未来 7 天内（含今天）&& 状态未完成
+    # 即将到期：plan_end 在未来 7 天内（含今天）&& 状态未完成 && 所属项目未搁置
     due_soon_rows = db.scalars(
-        select(Phase).where(
+        select(Phase).join(Project, Phase.project_id == Project.id).where(
             Phase.plan_end >= today,
             Phase.plan_end <= today + timedelta(days=_DUE_SOON_DAYS),
             Phase.status.in_(_ACTIVE_STATUSES),
+            Project.status.not_in(_SHELVED_PROJECT_STATUSES),
         )
     ).all()
     due_soon_phases = sorted(

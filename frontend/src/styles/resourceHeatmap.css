@@ -1,0 +1,361 @@
+/* ---------- 资源负载热力矩阵（RESOURCE_HEATMAP §三） ----------
+   纯 CSS Grid：DOM ≤ ~1600 格，无 Canvas/无 blur（沿用 pm-no-blur）
+   颜色分级双主题变量见底部 :root / [data-theme='dark'] */
+
+.hm-wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+/* 工具条：窗口/粒度 Segmented */
+.hm-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.hm-toolbar-label {
+  font-size: 12px;
+  color: var(--text-secondary);
+}
+
+.hm-hint {
+  font-size: 12px;
+  color: var(--text-tertiary);
+}
+
+/* 滚动容器：列多时横向滚动；行多时纵向滚动（表头 sticky） */
+.hm-scroll {
+  overflow: auto;
+  max-height: 70vh;
+  border: 1px solid var(--border-light);
+  border-radius: 6px;
+  background: var(--gantt-bg);
+}
+
+/* 矩阵主体：首列人员 200px + N 个周期列 + 行尾负载列 */
+.hm-grid {
+  display: grid;
+  min-width: 100%;
+  font-size: 12px;
+  user-select: none;
+}
+
+.hm-grid > div {
+  min-width: 0;
+}
+
+/* 表头 */
+.hm-corner {
+  position: sticky;
+  left: 0;
+  top: 0;
+  z-index: 3;
+  padding: 6px 8px;
+  font-weight: 600;
+  color: var(--gantt-text-secondary);
+  background: var(--gantt-head-bg);
+  border-bottom: 1px solid var(--border-light);
+}
+
+.hm-col-head {
+  position: sticky;
+  top: 0;
+  z-index: 2;
+  padding: 6px 2px;
+  text-align: center;
+  color: var(--gantt-text-secondary);
+  background: var(--gantt-head-bg);
+  border-bottom: 1px solid var(--border-light);
+  border-left: 1px solid var(--gantt-grid-line);
+}
+
+/* 今日列：竖线标记（复用 todayMarker 视觉语言，--gantt-today-color 锚点）。
+   sticky 表头内 position:absolute 但不脱离表头盒（表头自身为 containing block） */
+.hm-col-head.today::before {
+  content: '';
+  position: absolute;
+  left: 50%;
+  top: 0;
+  bottom: 0;
+  width: 2px;
+  transform: translateX(-50%);
+  background: var(--gantt-today-color, var(--gantt-today));
+  box-shadow: 0 0 6px var(--gantt-today-glow);
+  border-radius: 1px;
+}
+
+.hm-col-head .hm-today-tag {
+  display: inline-block;
+  margin-left: 2px;
+  font-size: 10px;
+  line-height: 1.2;
+  padding: 0 3px;
+  border-radius: 3px;
+  color: var(--gantt-today-label-text);
+  background: var(--gantt-today-label-bg);
+  border: 1px solid var(--gantt-today-label-border);
+}
+
+.hm-load-head {
+  font-weight: 600;
+}
+
+/* 人员行头 */
+.hm-row-head {
+  position: sticky;
+  left: 0;
+  z-index: 1;
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  padding: 0 8px;
+  height: 30px;
+  background: var(--gantt-bg);
+  border-bottom: 1px solid var(--gantt-grid-line);
+  cursor: default;
+}
+
+.hm-row-head .hm-name {
+  font-weight: 600;
+  color: var(--gantt-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.hm-row-head .hm-role {
+  font-size: 11px;
+  color: var(--text-tertiary);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* 格子：颜色分级（设计 §一 色板） */
+.hm-cell {
+  height: 30px;
+  margin: 2px;
+  border-radius: 4px;
+  border: 1px solid transparent;
+  position: relative;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.hm-cell.empty {
+  background: transparent;
+  border-color: var(--gantt-grid-line);
+  opacity: 0.45;
+}
+
+.hm-cell.lv1 { background: var(--hm-lv1); }
+.hm-cell.lv2 { background: var(--hm-lv2); }
+.hm-cell.lv3 { background: var(--hm-lv3); }
+
+.hm-cell.lv1,
+.hm-cell.lv2,
+.hm-cell.lv3 {
+  cursor: pointer;
+  transition: transform 0.08s ease;
+}
+
+.hm-cell.lv1:hover,
+.hm-cell.lv2:hover,
+.hm-cell.lv3:hover {
+  transform: scale(1.08);
+}
+
+/* ⚠ 角标 = 该格含 detect_conflicts 真实冲突（与红色=≥3 高负载独立） */
+.hm-cell .hm-conflict-badge {
+  position: absolute;
+  top: -1px;
+  right: 0;
+  font-size: 10px;
+  line-height: 1;
+  color: var(--gantt-conflict);
+  text-shadow: 0 0 4px var(--gantt-conflict-glow);
+}
+
+.hm-cell.has-conflict {
+  border-color: var(--gantt-conflict);
+  box-shadow: inset 0 0 4px var(--gantt-conflict-glow);
+}
+
+/* 行 hover 高亮（整行对列）：row-hover class 由组件 JS 状态驱动。
+   格子用 outline 提亮（不用 background，避免盖掉热力分级色） */
+.hm-row-head.row-hover,
+.hm-load-cell.row-hover {
+  background-color: var(--header-hover);
+}
+
+.hm-cell.row-hover:not(.empty) {
+  outline: 1px solid var(--primary);
+  outline-offset: -1px;
+}
+
+/* 行尾负载列 */
+.hm-load-cell {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1px;
+  border-left: 1px solid var(--gantt-grid-line);
+  border-bottom: 1px solid var(--gantt-grid-line);
+  background: var(--gantt-bg);
+}
+
+.hm-load-cell .hm-peak {
+  font-weight: 600;
+  color: var(--gantt-text-secondary);
+}
+
+.hm-load-cell .hm-peak.high {
+  color: var(--hm-lv3);
+}
+
+.hm-load-cell .hm-active-total {
+  font-size: 11px;
+  color: var(--text-tertiary);
+}
+
+/* 空闲区折叠 */
+.hm-idle {
+  margin-top: 4px;
+}
+
+.hm-idle-toggle {
+  background: none;
+  border: none;
+  cursor: pointer;
+  font-size: 12px;
+  color: var(--text-tertiary);
+  padding: 2px 4px;
+}
+
+.hm-idle-toggle:hover {
+  color: var(--text-secondary);
+}
+
+.hm-idle-list {
+  padding: 6px 4px 2px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 4px;
+}
+
+/* hover tooltip（antd Tooltip 内层） */
+.hm-tooltip {
+  max-width: 340px;
+  font-size: 12px;
+}
+
+.hm-tooltip-head {
+  font-weight: 600;
+  margin-bottom: 4px;
+}
+
+.hm-tooltip-item {
+  display: flex;
+  gap: 4px;
+  line-height: 1.7;
+}
+
+.hm-tooltip-item.conflict,
+.hm-tooltip-item.conflict .hm-conflict-mark {
+  color: #ff4d6d;
+  font-weight: 600;
+}
+
+.hm-tooltip-item .hm-conflict-mark {
+  color: var(--gantt-conflict);
+}
+
+.hm-tooltip-more {
+  color: var(--text-tertiary);
+  margin-top: 2px;
+}
+
+/* Drawer 阶段列表 */
+.hm-drawer-empty {
+  color: var(--text-tertiary);
+  padding: 16px 0;
+  text-align: center;
+}
+
+.hm-drawer-list {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.hm-drawer-item {
+  padding: 8px 10px;
+  border: 1px solid var(--border-light);
+  border-radius: 6px;
+  cursor: pointer;
+  transition: border-color 0.15s ease, box-shadow 0.15s ease;
+}
+
+.hm-drawer-item:hover {
+  border-color: var(--primary);
+  box-shadow: var(--glow);
+}
+
+.hm-drawer-item.conflict {
+  border-color: var(--gantt-conflict);
+}
+
+.hm-drawer-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.hm-drawer-project {
+  font-weight: 600;
+  color: var(--text-primary);
+}
+
+.hm-drawer-phase {
+  color: var(--text-secondary);
+}
+
+.hm-conflict-mark {
+  color: #ff4d6d;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.hm-drawer-item.conflict .hm-conflict-mark {
+  color: #ff4d6d;
+}
+
+.hm-drawer-meta {
+  margin-top: 4px;
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  color: var(--text-tertiary);
+  font-size: 12px;
+}
+
+/* ---------- 颜色分级变量（设计 §一 双主题色板） ---------- */
+:root {
+  /* 1 / 2 / 3+ 活跃数（浅色：#0369a1 系） */
+  --hm-lv1: rgba(3, 105, 161, 0.18);
+  --hm-lv2: rgba(3, 105, 161, 0.40);
+  --hm-lv3: #e11d48;
+}
+
+[data-theme='dark'] {
+  /* 1 / 2 / 3+ 活跃数（深色：#00d4ff 系） */
+  --hm-lv1: rgba(0, 212, 255, 0.25);
+  --hm-lv2: rgba(0, 212, 255, 0.55);
+  --hm-lv3: #ff4d6d;
+}

@@ -21,6 +21,10 @@ from app.schemas import (
     ResourceWorkload,
 )
 from app.services.resource_conflicts import detect_conflicts
+from app.services.resource_heatmap import (
+    _SHELVED_PROJECT_STATUSES,
+    build_heatmap,
+)
 
 router = APIRouter(prefix="/api/resources", tags=["资源/人员"])
 
@@ -53,6 +57,18 @@ def _phase_to_workload(ph: Phase) -> dict:
     }
 
 
+def _workload_visible(ph: Phase) -> bool:
+    """负载视图可见性（PROJECT_SHELVE §2.5）：搁置项目的阶段不占资源负载。
+
+    阶段级已完成/已搁置跳过逻辑沿用 resource_conflicts._SKIP_STATUSES 口径。
+    """
+    if ph.status in ("已完成", "已搁置"):
+        return False
+    if ph.project is not None and ph.project.status in _SHELVED_PROJECT_STATUSES:
+        return False
+    return True
+
+
 @router.get("", response_model=list[ResourceRead])
 @router.get("/", response_model=list[ResourceRead], include_in_schema=False)
 def list_resources(db: Session = Depends(get_db)):
@@ -65,14 +81,15 @@ def get_all_workloads(db: Session = Depends(get_db)):
 
     用于资源负载视图（每人一行甘特图），避免前端发 N 个请求。
     按人员 id 升序，每人的阶段按 plan_start 升序。
+    搁置项目（搁置/已搁置，PROJECT_SHELVE §2.5）与已完成/已搁置阶段不占负载。
     注意：此静态路径必须注册在 /{resource_id}/workload 之前。
     """
     resources = list(db.scalars(select(Resource).order_by(Resource.id)))
     result: list[ResourceWorkload] = []
     for res in resources:
-        # 按 plan_start 排序该人员的阶段（None 排最后）
+        # 可见阶段按 plan_start 排序（None 排最后）
         phases = sorted(
-            res.phases,
+            (ph for ph in res.phases if _workload_visible(ph)),
             key=lambda ph: (ph.plan_start is None, ph.plan_start or date.min),
         )
         result.append(ResourceWorkload(
@@ -80,6 +97,21 @@ def get_all_workloads(db: Session = Depends(get_db)):
             workloads=[_phase_to_workload(ph) for ph in phases],
         ))
     return result
+
+
+@router.get("/heatmap")
+def get_heatmap(weeks: int = 12, granularity: str = "week", db: Session = Depends(get_db)):
+    """资源负载热力矩阵（RESOURCE_HEATMAP §2.1）。
+
+    - weeks：时间窗口长度（周数），0=全部（最早数据日期 → 今天）；负数 400
+    - granularity：桶粒度 'week' | 'month'（非法值 400）
+    - 注意：此静态路径必须注册在 /{resource_id}/workload 之前
+    """
+    if granularity not in ("week", "month"):
+        raise HTTPException(400, f"granularity 非法：{granularity!r}（仅支持 week/month）")
+    if weeks < 0:
+        raise HTTPException(400, f"weeks 非法：{weeks}（须 ≥0，0=全部）")
+    return build_heatmap(db, weeks=weeks, granularity=granularity)
 
 
 @router.post("", response_model=ResourceRead, status_code=status.HTTP_201_CREATED)
@@ -134,11 +166,11 @@ def delete_resource(
 
 @router.get("/{resource_id}/workload", response_model=ResourceWorkload)
 def get_workload(resource_id: int, db: Session = Depends(get_db)):
-    """某人负载：参与的所有项目/阶段。"""
+    """某人负载：参与的所有项目/阶段（搁置项目/已完成/已搁置阶段除外，PROJECT_SHELVE §2.5）。"""
     resource = db.get(Resource, resource_id)
     if resource is None:
         raise HTTPException(404, "人员不存在")
-    phases: list[Phase] = list(resource.phases)  # 通过多对多关系
+    phases: list[Phase] = [ph for ph in resource.phases if _workload_visible(ph)]
     return ResourceWorkload(
         resource={"id": resource.id, "name": resource.name, "role": resource.role},
         workloads=[_phase_to_workload(ph) for ph in phases],

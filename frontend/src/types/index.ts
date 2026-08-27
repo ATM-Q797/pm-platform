@@ -15,7 +15,7 @@ export interface Project {
   name: string
   owner: string
   market: string // 销售区域（拉美区/西欧区/...）
-  status: string // 未开始/进行中/已完成/已搁置
+  status: string // 未开始/进行中/已完成/搁置（旧值「已搁置」兼容显示，PROJECT_SHELVE §2.1）
   priority?: string | null // 高/中/低
   plan_start?: string | null // YYYY-MM-DD
   plan_end?: string | null
@@ -126,6 +126,43 @@ export interface WorkloadItem {
 export interface ResourceWorkload {
   resource: { id: number; name: string; role: string | null }
   workloads: WorkloadItem[]
+}
+
+// ---------- 资源负载热力矩阵（RESOURCE_HEATMAP §2.1） ----------
+export interface HeatmapCellPhase {
+  phase_id: number
+  project_id: number
+  project_name: string
+  phase_name: string
+  start: string // YYYY-MM-DD（plan 优先，仅实际日期阶段为 actual）
+  end: string
+  status: string | null
+  conflict: boolean // detect_conflicts 真实冲突（⚠ 标红）
+}
+
+export interface HeatmapPerson {
+  resource_id: number
+  name: string
+  role: string | null
+  peak_parallel: number // 窗口内最大同时活跃数（扫描线）
+  active_phases: number // 窗口内活跃阶段总数
+  cells: number[] // 每周期相交活跃阶段数
+  cell_phases: (HeatmapCellPhase[] | null)[]
+}
+
+export interface HeatmapIdlePerson {
+  resource_id: number
+  name: string
+  role: string | null
+}
+
+export interface ResourceHeatmap {
+  start_date: string
+  end_date: string
+  granularity: 'week' | 'month'
+  columns: string[] // 每周期起始日
+  people: HeatmapPerson[]
+  idle_people: HeatmapIdlePerson[]
 }
 
 // ---------- 模板 ----------

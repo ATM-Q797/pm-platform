@@ -1,8 +1,13 @@
 import client from './client'
-import type { Resource, ResourceConflict, ResourceWorkload } from '../types'
+import type { Resource, ResourceConflict, ResourceHeatmap, ResourceWorkload } from '../types'
 
 export async function listResources(): Promise<Resource[]> {
   const { data } = await client.get<Resource[]>('/resources')
+  return data
+}
+
+export async function getHeatmap(params: { weeks: number; granularity: 'week' | 'month' }): Promise<ResourceHeatmap> {
+  const { data } = await client.get<ResourceHeatmap>('/resources/heatmap', { params })
   return data
 }
 

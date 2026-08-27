@@ -4,11 +4,14 @@ from __future__ import annotations
 from datetime import date, datetime
 from typing import Any
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, field_validator
 
 from app.schemas.dependency import DependencyRead
 from app.schemas.phase import PhaseRead
 from app.schemas.template import TemplateBrief
+
+# 项目状态合法值（PROJECT_SHELVE §2.1：「搁置」为新名，旧值「已搁置」仅在更新时归一化接受）
+PROJECT_STATUSES = ("未开始", "进行中", "已完成", "搁置")
 
 
 class ProjectBase(BaseModel):
@@ -17,7 +20,7 @@ class ProjectBase(BaseModel):
     name: str
     owner: str
     market: str  # 国内/海外
-    status: str = "未开始"  # 未开始/进行中/已完成/已搁置
+    status: str = "未开始"  # 未开始/进行中/已完成/搁置
     priority: str | None = None  # 高/中/低
     plan_start: date | None = None
     plan_end: date | None = None
@@ -44,6 +47,23 @@ class ProjectUpdate(BaseModel):
     template_id: int | None = None
     remark: str | None = None
     managed_by: int | None = None  # 项目负责人 user_id
+
+    @field_validator("status")
+    @classmethod
+    def _normalize_status(cls, v: str | None) -> str | None:
+        """状态校验 + 旧值归一化（PROJECT_SHELVE 决策 1）。
+
+        - 旧值「已搁置」→ 归一化为「搁置」保存（存量数据/旧客户端兼容）
+        - 其他非法值 → 422
+        - None / 未传 → 不校验（部分更新语义）
+        """
+        if v is None:
+            return v
+        if v == "已搁置":
+            return "搁置"
+        if v not in PROJECT_STATUSES:
+            raise ValueError(f"非法项目状态：{v}（合法值：{'/'.join(PROJECT_STATUSES)}，旧值「已搁置」将归一化为「搁置」）")
+        return v
 
 
 class ProjectRead(ProjectBase):
