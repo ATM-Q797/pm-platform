@@ -12,8 +12,10 @@ from sqlalchemy.orm import Session
 
 from app.core.deps import get_current_user
 from app.database import get_db
-from app.models import Phase, Resource, User
+from app.models import ConflictOverride, Phase, Project, Resource, User
 from app.schemas import (
+    ConflictOverrideCreate,
+    ConflictOverrideRead,
     ResourceConflict,
     ResourceCreate,
     ResourceRead,
@@ -33,10 +35,133 @@ router = APIRouter(prefix="/api/resources", tags=["资源/人员"])
 def get_conflicts(db: Session = Depends(get_db)):
     """资源冲突检测：同一资源在重叠时间段被分配到不同项目的阶段。
 
-    规则：严格重叠（背靠背不算）、同项目不算、缺日期/已完成/已搁置跳过。
-    返回按资源分组，冲突对按重叠天数降序。
+    规则：严格重叠（背靠背不算）、同项目不算、缺日期/已完成/已搁置跳过、
+    P8 交付不参与、并行 ≤3 不报、已 override 的资源×阶段对排除
+    （CONFLICT_MODEL_V2 v2）。返回按资源分组，冲突对按重叠天数降序。
     """
     return detect_conflicts(db)
+
+
+# ---------- 冲突手动消除（CONFLICT_MODEL_V2 §2.3） ----------
+
+
+def _check_override_permission(user: User, phases: list[Phase], db: Session) -> None:
+    """override 写权限（决策 1）：admin 全部；manager 仅自己负责项目
+    涉及的资源×阶段对（两个阶段所属项目之一由其负责即可，与项目编辑权限一致：
+    managed_by == user.id 或 managed_by 为空时 owner 文本匹配）；其他角色 403。
+    """
+    if user.role == "admin":
+        return
+    if user.role != "manager":
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "仅管理员或项目经理可消除冲突")
+
+    def _managed(project: Project | None) -> bool:
+        if project is None:
+            return False
+        return project.managed_by == user.id or (
+            project.managed_by is None and project.owner == user.name
+        )
+
+    if not any(_managed(db.get(Project, ph.project_id)) for ph in phases):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "只能消除自己负责项目涉及的冲突")
+
+
+@router.post(
+    "/conflicts/{resource_id}/override",
+    response_model=ConflictOverrideRead,
+    status_code=status.HTTP_201_CREATED,
+)
+def create_conflict_override(
+    resource_id: int,
+    payload: ConflictOverrideCreate,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """手动消除某资源的某对冲突阶段（粒度：资源 × 冲突对）。
+
+    错误语义（评审处置 #3）：重复 override → 409；对当前不构成冲突 → 400；
+    resource/phase id 不存在 → 404；权限不足 → 403；缺 reason → 422（Pydantic）。
+    """
+    resource = db.get(Resource, resource_id)
+    if resource is None:
+        raise HTTPException(404, f"人员不存在: {resource_id}")
+
+    ph_a = db.get(Phase, payload.phase_a_id)
+    ph_b = db.get(Phase, payload.phase_b_id)
+    missing = [
+        str(pid) for pid, ph in ((payload.phase_a_id, ph_a), (payload.phase_b_id, ph_b))
+        if ph is None
+    ]
+    if missing:
+        raise HTTPException(404, f"阶段不存在: {', '.join(missing)}")
+
+    _check_override_permission(user, [ph_a, ph_b], db)
+
+    # a/b 归一化（小 id 在前）：(a,b) 与 (b,a) 视为同一对
+    a_id, b_id = ConflictOverride.normalize_pair(payload.phase_a_id, payload.phase_b_id)
+
+    # 重复消除 → 409（先于"是否构成冲突"判断：已消除的对自然不在检测剩余对中）
+    dup = db.scalars(
+        select(ConflictOverride).where(
+            ConflictOverride.resource_id == resource_id,
+            ConflictOverride.phase_a_id == a_id,
+            ConflictOverride.phase_b_id == b_id,
+        )
+    ).first()
+    if dup is not None:
+        raise HTTPException(409, "该冲突对已消除，请勿重复操作")
+
+    # 当前不构成冲突的对 → 400（必须在检测剩余对中，防止消除任意阶段对）
+    current_pairs = {
+        (min(p.phase_a_id, p.phase_b_id), max(p.phase_a_id, p.phase_b_id))
+        for rc in detect_conflicts(db) if rc.resource_id == resource_id
+        for p in rc.conflicts
+    }
+    if (a_id, b_id) not in current_pairs:
+        raise HTTPException(400, "该对阶段当前对该人员不构成冲突，无需消除")
+
+    override = ConflictOverride(
+        resource_id=resource_id,
+        phase_a_id=a_id,
+        phase_b_id=b_id,
+        reason=payload.reason,
+        created_by=user.id,
+    )
+    db.add(override)
+    db.commit()
+    db.refresh(override)
+    return override
+
+
+@router.get("/conflicts/overrides", response_model=list[ConflictOverrideRead])
+def list_conflict_overrides(
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """全部消除记录（仅 admin/manager 可见，决策 3；防滥用）。"""
+    if user.role not in ("admin", "manager"):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "仅管理员或项目经理可查看消除记录")
+    return list(
+        db.scalars(select(ConflictOverride).order_by(ConflictOverride.id.desc()))
+    )
+
+
+@router.delete("/conflicts/overrides/{override_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_conflict_override(
+    override_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """撤销消除（恢复冲突报告）。权限与 POST 相同；不存在 → 404。"""
+    override = db.get(ConflictOverride, override_id)
+    if override is None:
+        raise HTTPException(404, f"消除记录不存在: {override_id}")
+
+    phases = [ph for ph in (db.get(Phase, override.phase_a_id), db.get(Phase, override.phase_b_id)) if ph]
+    _check_override_permission(user, phases, db)
+
+    db.delete(override)
+    db.commit()
 
 
 def _phase_to_workload(ph: Phase) -> dict:

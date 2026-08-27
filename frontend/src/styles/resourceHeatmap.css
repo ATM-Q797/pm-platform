@@ -345,6 +345,42 @@
   font-size: 12px;
 }
 
+/* 冲突详情行（CONFLICT_MODEL_V2 §2.4 Drawer）：与谁撞 + 消除按钮 */
+.hm-drawer-conflict-line {
+  margin-top: 6px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.hm-conflict-detail {
+  color: #ff4d6d;
+  font-size: 12px;
+  line-height: 1.6;
+}
+
+/* tooltip 内的冲突详情（与主行同色系，稍弱化） */
+.hm-tooltip-conflict {
+  color: var(--gantt-conflict);
+}
+
+/* 消除弹窗（ConflictOverrideModal） */
+.co-summary {
+  font-size: 13px;
+  font-weight: 600;
+  margin-bottom: 8px;
+  line-height: 1.6;
+}
+
+.co-hint {
+  font-size: 12px;
+  color: var(--text-tertiary);
+  margin-bottom: 12px;
+  line-height: 1.6;
+}
+
 /* ---------- 颜色分级变量（设计 §一 双主题色板） ---------- */
 :root {
   /* 1 / 2 / 3+ 活跃数（浅色：#0369a1 系） */

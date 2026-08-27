@@ -129,6 +129,16 @@ export interface ResourceWorkload {
 }
 
 // ---------- 资源负载热力矩阵（RESOURCE_HEATMAP §2.1） ----------
+
+/** 冲突对详情（CONFLICT_MODEL_V2 评审处置 #2）：对方阶段/项目/重叠天数一次到位 */
+export interface ConflictDetail {
+  phase_a_id: number // 归一化：小 id 在前
+  phase_b_id: number
+  partner_name: string // 对方项目名
+  partner_phase_name: string // 对方阶段名
+  overlap_days: number
+}
+
 export interface HeatmapCellPhase {
   phase_id: number
   project_id: number
@@ -137,7 +147,8 @@ export interface HeatmapCellPhase {
   start: string // YYYY-MM-DD（plan 优先，仅实际日期阶段为 actual）
   end: string
   status: string | null
-  conflict: boolean // detect_conflicts 真实冲突（⚠ 标红）
+  conflict: boolean // 该人员视角真实冲突（检测剩余对，CONFLICT_MODEL_V2 §2.2）
+  conflict_detail: ConflictDetail | null // 无冲突为 null
 }
 
 export interface HeatmapPerson {
@@ -299,6 +310,17 @@ export interface ResourceConflict {
   resource_id: number
   resource_name: string
   conflicts: ConflictPair[]
+}
+
+// 冲突手动消除记录（CONFLICT_MODEL_V2 §2.3）
+export interface ConflictOverride {
+  id: number
+  resource_id: number
+  phase_a_id: number
+  phase_b_id: number
+  reason: string
+  created_by: number | null
+  created_at: string | null
 }
 
 export interface DashboardStats {

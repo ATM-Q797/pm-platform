@@ -1,8 +1,10 @@
-import { useEffect, useRef } from 'react'
+import { useEffect, useRef, useState } from 'react'
 import { applyGanttConfig, setScale } from '../Gantt/ganttConfig'
 import { setupPan, cleanupPan } from '../Gantt/panUtils'
 import { drawTodayMarker } from '../Gantt/todayMarker'
 import { getAllWorkloads, getResourceConflicts } from '../../api/resources'
+import { getMe } from '../../api/auth'
+import ConflictOverrideModal, { type OverrideTarget } from './ConflictOverrideModal'
 import 'dhtmlx-gantt/codebase/dhtmlxgantt.css'
 import '../Gantt/gantt.css'
 import './resourceView.css'
@@ -25,6 +27,21 @@ export default function ResourceView({ scale = 'week', onPhaseClick }: Props) {
   const ganttRef = useRef<any>(null)
   const scaleRef = useRef(scale)
   scaleRef.current = scale
+
+  // 冲突消除（CONFLICT_MODEL_V2 §2.4 决策 ③）：黄框冲突条点击 → 消除弹窗
+  // 仅 admin/manager；非冲突条/无权限维持原行为（打开阶段详情）
+  const [overrideTarget, setOverrideTarget] = useState<OverrideTarget | null>(null)
+  const [reloadFlag, setReloadFlag] = useState(0)
+  const canOverrideRef = useRef(false)
+  // "resourceId:phaseId" → 消除目标（该资源该阶段所属冲突对）
+  const pairMapRef = useRef(new Map<string, OverrideTarget>())
+  const viewPhaseRef = useRef<number | null>(null)
+
+  useEffect(() => {
+    getMe()
+      .then((u) => { canOverrideRef.current = u.role === 'admin' || u.role === 'manager' })
+      .catch(() => {})
+  }, [])
 
   useEffect(() => {
     let gantt: any = null
@@ -64,12 +81,25 @@ export default function ResourceView({ scale = 'week', onPhaseClick }: Props) {
 
         // phase_id → 冲突描述（"与 XX项目·XX阶段 重叠 N 天"，多条用分号连接）
         const conflictMap = new Map<number, string>()
+        // "resourceId:phaseId" → 消除目标（冲突条点击弹消除 Modal，决策 ③）
+        const pairMap = pairMapRef.current
+        pairMap.clear()
         for (const rc of conflicts) {
           for (const c of rc.conflicts) {
             const desc = `与 ${c.project_b_name}·${c.phase_b_name} 重叠 ${c.overlap_days} 天`
             conflictMap.set(c.phase_a_id, [conflictMap.get(c.phase_a_id), desc].filter(Boolean).join('；'))
             const descB = `与 ${c.project_a_name}·${c.phase_a_name} 重叠 ${c.overlap_days} 天`
             conflictMap.set(c.phase_b_id, [conflictMap.get(c.phase_b_id), descB].filter(Boolean).join('；'))
+            const target: OverrideTarget = {
+              resourceId: rc.resource_id,
+              resourceName: rc.resource_name,
+              phaseAId: c.phase_a_id,
+              phaseBId: c.phase_b_id,
+              summary: `${rc.resource_name}：${c.project_a_name}·${c.phase_a_name} × ` +
+                `${c.project_b_name}·${c.phase_b_name}（重叠 ${c.overlap_days} 天）`,
+            }
+            pairMap.set(`${rc.resource_id}:${c.phase_a_id}`, target)
+            pairMap.set(`${rc.resource_id}:${c.phase_b_id}`, target)
           }
         }
 
@@ -124,6 +154,7 @@ export default function ResourceView({ scale = 'week', onPhaseClick }: Props) {
               open: true,
               status: w.status, // 供 task_class 着色
               project_name: w.project_name,
+              resource_id: wl.resource.id, // 冲突条消除定位用（resource × 阶段对）
               phase_id: w.phase_id, // 真实阶段 id，点击时取这个
               conflict_info: conflictInfo, // 冲突描述（有值 → 黄色标记 + tooltip）
             })
@@ -156,6 +187,15 @@ export default function ResourceView({ scale = 'week', onPhaseClick }: Props) {
           if (g) {
             const task = g.getTask(tid)
             if (task && task.phase_id) {
+              // 冲突条 + admin/manager → 弹消除 Modal（决策 ③）；其余维持原行为
+              const target = canOverrideRef.current && task.conflict_info
+                ? pairMapRef.current.get(`${task.resource_id}:${task.phase_id}`)
+                : undefined
+              if (target) {
+                viewPhaseRef.current = task.phase_id
+                setOverrideTarget(target)
+                return
+              }
               onPhaseClick(task.phase_id)
               return
             }
@@ -176,7 +216,8 @@ export default function ResourceView({ scale = 'week', onPhaseClick }: Props) {
         gantt.clearAll()
       }
     }
-  }, [])
+    // reloadFlag：消除成功后重建甘特（冲突条黄框消失）
+  }, [reloadFlag])
 
   // 尺度切换
   useEffect(() => {
@@ -188,7 +229,22 @@ export default function ResourceView({ scale = 'week', onPhaseClick }: Props) {
     }
   }, [scale])
 
-  return <div ref={containerRef} className="pm-gantt-container resource-view" style={{ width: '100%', height: '70vh' }} />
+  return (
+    <>
+      <div ref={containerRef} className="pm-gantt-container resource-view" style={{ width: '100%', height: '70vh' }} />
+      <ConflictOverrideModal
+        target={overrideTarget}
+        open={overrideTarget !== null}
+        onClose={() => setOverrideTarget(null)}
+        onOverridden={() => setReloadFlag((v) => v + 1)}
+        onViewPhase={() => {
+          const pid = viewPhaseRef.current
+          setOverrideTarget(null)
+          if (pid) onPhaseClick(pid)
+        }}
+      />
+    </>
+  )
 }
 
 function fmt(d: Date): string {

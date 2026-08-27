@@ -11,6 +11,10 @@
   周桶周一对齐（#10），start_date 所在周含在首桶（#2）
 - peak_parallel = 扫描线求窗口内任意时刻最大同时活跃数（跨桶连续，非桶内取整）
 - 冲突标记复用 resource_conflicts.detect_conflicts 的冲突阶段 id 集
+  （**按资源视角**，CONFLICT_MODEL_V2 §2.2：只收该人自己检测剩余对的成员阶段 id，
+  共担者不连带标 ⚠；P8 阶段占格但不标 ⚠）
+- cell_phases[].conflict_detail：{phase_a_id, phase_b_id, partner_name,
+  partner_phase_name, overlap_days}——tooltip「与谁撞」与 Drawer 消除提交一次到位
 - 排序：peak_parallel 降序 → active_phases 降序；零负载入 idle_people（按名称，#11）
 """
 from __future__ import annotations
@@ -119,7 +123,8 @@ def _peak_parallel(intervals: list[tuple[date, date]]) -> int:
     return peak
 
 
-def _phase_entry(ph: Phase, project: Project, in_conflict: bool) -> dict:
+def _phase_entry(ph: Phase, project: Project, in_conflict: bool,
+                 conflict_detail: dict | None = None) -> dict:
     s, e = phase_dates(ph)
     return {
         "phase_id": ph.id,
@@ -130,17 +135,38 @@ def _phase_entry(ph: Phase, project: Project, in_conflict: bool) -> dict:
         "end": e.isoformat(),
         "status": ph.status,
         "conflict": in_conflict,
+        # CONFLICT_MODEL_V2 评审处置 #2：冲突对详情（对方阶段/项目/重叠天数），
+        # tooltip「与谁撞」与 Drawer 消除提交所需数据一次到位；无冲突为 None
+        "conflict_detail": conflict_detail,
     }
 
 
-def _conflict_phase_ids(db: Session) -> set[int]:
-    """detect_conflicts 全部冲突阶段 id 集（cell_phases[].conflict 标红用）。"""
-    ids: set[int] = set()
+def _conflict_details_by_resource(db: Session) -> dict[int, dict[int, dict]]:
+    """按资源视角的冲突详情：{resource_id: {phase_id: conflict_detail}}。
+
+    仅收**该人自己** detect_conflicts 剩余对的成员阶段 id（CONFLICT_MODEL_V2 §2.2：
+    共担者不连带标 ⚠）。一个阶段可能涉及多个冲突对，取重叠天数最深的一对展示。
+    """
+    result: dict[int, dict[int, dict]] = {}
     for rc in detect_conflicts(db):
+        by_phase = result.setdefault(rc.resource_id, {})
         for pair in rc.conflicts:
-            ids.add(pair.phase_a_id)
-            ids.add(pair.phase_b_id)
-    return ids
+            for me_id, partner_phase, partner_project in (
+                (pair.phase_a_id, pair.phase_b_name, pair.project_b_name),
+                (pair.phase_b_id, pair.phase_a_name, pair.project_a_name),
+            ):
+                detail = {
+                    "phase_a_id": min(pair.phase_a_id, pair.phase_b_id),
+                    "phase_b_id": max(pair.phase_a_id, pair.phase_b_id),
+                    "partner_name": partner_project,
+                    "partner_phase_name": partner_phase,
+                    "overlap_days": pair.overlap_days,
+                }
+                existing = by_phase.get(me_id)
+                # 同阶段多冲突对：保留重叠最深（最严重）的详情
+                if existing is None or detail["overlap_days"] > existing["overlap_days"]:
+                    by_phase[me_id] = detail
+    return result
 
 
 def build_heatmap(db: Session, weeks: int = 12, granularity: str = "week") -> dict:
@@ -172,8 +198,8 @@ def build_heatmap(db: Session, weeks: int = 12, granularity: str = "week") -> di
     buckets = _build_buckets(window_start, window_end, granularity)
     columns = [b.label for b in buckets]
 
-    # ---------- 冲突标记 ----------
-    conflict_ids = _conflict_phase_ids(db)
+    # ---------- 冲突标记（按资源视角，CONFLICT_MODEL_V2 §2.2） ----------
+    conflict_details = _conflict_details_by_resource(db)
 
     # ---------- 每人一行 ----------
     people: list[dict] = []
@@ -186,6 +212,9 @@ def build_heatmap(db: Session, weeks: int = 12, granularity: str = "week") -> di
         ]
         intervals = [phase_dates(ph) for ph in phases]
 
+        # 该人的冲突详情（仅为本人检测剩余对的成员标 ⚠；P8 阶段不在冲突集 → 不标）
+        res_conflicts = conflict_details.get(res.id, {})
+
         cells = [0] * len(buckets)
         cell_entries: list[list[dict]] = [[] for _ in buckets]
         for ph, (ps, pe) in zip(phases, intervals):
@@ -194,7 +223,8 @@ def build_heatmap(db: Session, weeks: int = 12, granularity: str = "week") -> di
                 if ps <= b.end and pe >= b.start:  # 与桶相交 → 计入
                     cells[idx] += 1
                     if ph_entry is None:
-                        ph_entry = _phase_entry(ph, ph.project, ph.id in conflict_ids)
+                        detail = res_conflicts.get(ph.id)
+                        ph_entry = _phase_entry(ph, ph.project, detail is not None, detail)
                     cell_entries[idx].append(dict(ph_entry))
 
         if not any(cells):
