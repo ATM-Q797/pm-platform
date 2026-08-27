@@ -16,6 +16,7 @@ export default function ResourcePage() {
 
   return (
     <Card
+      className="pm-no-blur"
       title={
         <Space>
           <span>资源负载视图</span>

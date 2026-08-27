@@ -199,6 +199,7 @@ export default function ProjectDetailPage() {
       </Card>
 
       <Card
+        className="pm-no-blur"
         size="small"
         title={`甘特图 · ${project.phases?.length || 0} 个阶段`}
         extra={
