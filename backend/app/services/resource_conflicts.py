@@ -1,25 +1,31 @@
-"""资源冲突检测。
+"""资源冲突检测（CONFLICT_MODEL_V2 v2 — 人员并行视角）。
 
-同一资源被分配到多个阶段时，若阶段计划时间窗口**深度重叠**，即为资源冲突。
+同一资源被分配到多个阶段时，若阶段计划时间窗口**深度重叠**且该人员并行超限，
+即为资源冲突。按资源（人员）聚合，每人独立判定并行数。
 
-规则（见 docs/PHASE6_DEV_PLAN.md T4，2026-08-25 优化）：
+规则（CONFLICT_MODEL_V2 §2.1/§2.2，取代 PHASE6_DEV_PLAN.md T4 对应描述）：
 1. 按 assignee 分组，取所有 assigned 阶段
-2. 重叠判定严格 `<`：max(start_a, start_b) < min(end_a, end_b)（背靠背不算）
-3. 同项目的两个阶段不算冲突（正常分工，不算资源冲突）
-4. plan_start/plan_end 任一为 null → 跳过
-5. 状态为 已完成/已搁置 → 跳过（阶段级）
+2. P8 交付阶段不参与冲突对生成（决策 ①：交付仅退出冲突计算，热力图计数保留）
+3. 重叠判定严格 `<`：max(start_a, start_b) < min(end_a, end_b)（背靠背不算）
+4. 同项目的两个阶段不算冲突（正常分工，不算资源冲突）
+5. plan_start/plan_end 任一为 null → 跳过
+6. 状态为 已完成/已搁置 → 跳过（阶段级）
    所属项目状态为 搁置/已搁置 → 跳过（项目级，PROJECT_SHELVE §2.3）
-6. 同一对阶段只报一次（i < j 遍历天然去重）
-7. **重叠深度阈值**（项目并行是常态，仅"深度重叠"才报警）：
+7. 同一对阶段只报一次（i < j 遍历天然去重）
+8. **重叠深度阈值**（项目并行是常态，仅"深度重叠"才报警）：
    - 重叠天数 ≥ _MIN_OVERLAP_DAYS（绝对下限，避免交接尾巴误报）
    - 且 重叠天数 ≥ 较短阶段工期的 _MIN_OVERLAP_RATIO（相对深度）
+9. **人员并行视角**（决策 ②，与热力图 ⚠ 同口径）：该资源在重叠窗口内
+   同时活跃阶段数 > _MAX_PARALLEL 才报警（活跃 = 计划窗口与重叠区间相交）
+10. **手动消除**（§2.3）：conflict_override 表已记录的 (resource, a, b) 排除
+    （a/b 归一化小 id 在前；粒度 = 资源 × 冲突对，不影响其他资源对同对的判定）
 """
 from __future__ import annotations
 
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models import Resource
+from app.models import ConflictOverride, Resource
 from app.schemas import ConflictPair, ResourceConflict
 
 # 不参与冲突检测的状态（已结束/不活跃）
@@ -27,6 +33,8 @@ _SKIP_STATUSES = ("已完成", "已搁置")
 # 项目级搁置状态（双 key：新值「搁置」+ 旧值「已搁置」，PROJECT_SHELVE §2.3/决策 4）：
 # 搁置项目不占资源，其阶段退出冲突检测
 _SHELVED_PROJECT_STATUSES = ("搁置", "已搁置")
+# 不参与冲突检测的阶段类型（决策 ①：P8 交付不占冲突计算，热力图忙碌度保留）
+_SKIP_PHASE_TYPES = ("P8",)
 # 冲突判定阈值：重叠需足够"深"（方案 A，2026-08-25 用户确认）
 _MIN_OVERLAP_DAYS = 10  # 绝对下限（天）：两周以上的整段重叠
 _MIN_OVERLAP_RATIO = 0.6  # 重叠天数 ≥ 较短阶段工期的比例
@@ -35,10 +43,11 @@ _MAX_PARALLEL = 3
 
 
 def _active_phases(resource: Resource) -> list:
-    """该资源名下可参与冲突检测的阶段（有完整日期、状态活跃、项目未搁置）。"""
+    """该资源名下可参与冲突检测的阶段（类型非 P8、有完整日期、状态活跃、项目未搁置）。"""
     return [
         ph for ph in resource.phases
-        if ph.plan_start is not None and ph.plan_end is not None
+        if ph.phase_type not in _SKIP_PHASE_TYPES
+        and ph.plan_start is not None and ph.plan_end is not None
         and ph.status not in _SKIP_STATUSES
         and not (ph.project is not None and ph.project.status in _SHELVED_PROJECT_STATUSES)
     ]
@@ -82,15 +91,28 @@ def _is_deep_conflict(days: int, a_duration: int, b_duration: int) -> bool:
     return days * 10 >= shortest * 6  # days >= shortest * 0.6
 
 
+def _override_keys(db: Session) -> dict[int, set[tuple[int, int]]]:
+    """已手动消除的 (resource_id, 归一化 a, b) 集，检测时按资源排除。"""
+    result: dict[int, set[tuple[int, int]]] = {}
+    for ov in db.scalars(select(ConflictOverride)):
+        a, b = ConflictOverride.normalize_pair(ov.phase_a_id, ov.phase_b_id)
+        result.setdefault(ov.resource_id, set()).add((a, b))
+    return result
+
+
 def detect_conflicts(db: Session) -> list[ResourceConflict]:
     """检测全部资源冲突。
 
     返回按资源分组：每人一份 conflicts 列表（按重叠天数降序，最严重的在前）。
+    每人的并行判定独立（人员并行视角，CONFLICT_MODEL_V2 §2.2）。
     """
     resources = db.scalars(select(Resource).order_by(Resource.id)).all()
+    overrides = _override_keys(db)
     result: list[ResourceConflict] = []
 
     for res in resources:
+        # 已消除的资源级集合（无记录的资源跳过查询开销）
+        overridden = overrides.get(res.id, frozenset())
         phases = _active_phases(res)
         pairs: list[ConflictPair] = []
         for i in range(len(phases)):
@@ -98,6 +120,9 @@ def detect_conflicts(db: Session) -> list[ResourceConflict]:
                 a, b = phases[i], phases[j]
                 # 同项目两个阶段：正常分工，不算冲突
                 if a.project_id == b.project_id:
+                    continue
+                # 手动消除（a/b 归一化小 id 在前）：该资源该对不再报
+                if (min(a.id, b.id), max(a.id, b.id)) in overridden:
                     continue
                 days = _overlap_days(a.plan_start, a.plan_end, b.plan_start, b.plan_end)
                 if days is None:
@@ -107,7 +132,7 @@ def detect_conflicts(db: Session) -> list[ResourceConflict]:
                 b_duration = max((b.plan_end - b.plan_start).days, 1)
                 if not _is_deep_conflict(days, a_duration, b_duration):
                     continue
-                # 并行判定：重叠窗口内活跃阶段 ≤ 3 视为正常并行，不报冲突
+                # 并行判定（人员视角）：重叠窗口内该资源活跃阶段 ≤ 3 视为正常并行，不报冲突
                 interval = _overlap_interval(a.plan_start, a.plan_end, b.plan_start, b.plan_end)
                 if _parallel_count(phases, interval[0], interval[1]) <= _MAX_PARALLEL:
                     continue

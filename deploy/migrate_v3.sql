@@ -17,3 +17,22 @@
 -- ============================================================
 
 UPDATE project SET status = '搁置' WHERE status = '已搁置';
+
+-- ============================================================
+-- CONFLICT_MODEL_V2 §2.3：冲突手动消除记录表（幂等建表）
+-- 粒度 = 资源 × 冲突对（a/b 归一化小 id 在前）；FK 级联删除
+-- 应用层 create_all 也会幂等建表，此 DDL 供手工迁移部署使用
+-- ============================================================
+CREATE TABLE IF NOT EXISTS conflict_override (
+    id          INTEGER PRIMARY KEY,                       -- PG: SERIAL（由 ORM create_all 生成序列，此处手工建表用 INTEGER 兼容 SQLite）
+    resource_id INTEGER NOT NULL REFERENCES resource(id) ON DELETE CASCADE,
+    phase_a_id  INTEGER NOT NULL REFERENCES phase(id) ON DELETE CASCADE,
+    phase_b_id  INTEGER NOT NULL REFERENCES phase(id) ON DELETE CASCADE,
+    reason      TEXT    NOT NULL,
+    created_by  INTEGER REFERENCES user_account(id) ON DELETE SET NULL,
+    created_at  TIMESTAMP DEFAULT CURRENT_TIMESTAMP
+);
+CREATE UNIQUE INDEX IF NOT EXISTS uq_conflict_override_pair
+    ON conflict_override (resource_id, phase_a_id, phase_b_id);
+CREATE INDEX IF NOT EXISTS ix_conflict_override_resource_id
+    ON conflict_override (resource_id);

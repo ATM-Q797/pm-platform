@@ -1,8 +1,10 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Alert, Drawer, Segmented, Spin, Tag, Tooltip } from 'antd'
+import { Alert, Button, Drawer, Segmented, Spin, Tag, Tooltip } from 'antd'
 import { getHeatmap } from '../../api/resources'
-import type { HeatmapCellPhase, HeatmapPerson, ResourceHeatmap } from '../../types'
+import { getMe } from '../../api/auth'
+import type { HeatmapCellPhase, HeatmapPerson, ResourceHeatmap, UserInfo } from '../../types'
+import ConflictOverrideModal, { type OverrideTarget } from './ConflictOverrideModal'
 import '../../styles/resourceHeatmap.css'
 
 type Granularity = 'week' | 'month'
@@ -64,6 +66,15 @@ export default function HeatmapView() {
   const [drawer, setDrawer] = useState<CellDrawerState | null>(null)
   const [idleExpanded, setIdleExpanded] = useState(false)
   const [hoverRow, setHoverRow] = useState<number | null>(null)
+  const [me, setMe] = useState<UserInfo | null>(null)
+  const [overrideTarget, setOverrideTarget] = useState<OverrideTarget | null>(null)
+  const [reloadFlag, setReloadFlag] = useState(0)
+
+  // 当前用户（消除按钮仅 admin/manager 显示，评审处置 #6）
+  useEffect(() => {
+    getMe().then(setMe).catch(() => {})
+  }, [])
+  const canOverride = me?.role === 'admin' || me?.role === 'manager'
 
   const weeks = WINDOW_OPTIONS.find((w) => w.value === windowKey)!.weeks
   /** ≥24 周（或全部）时周粒度禁用并强制月（用户决策 3） */
@@ -92,7 +103,7 @@ export default function HeatmapView() {
     return () => {
       cancelled = true
     }
-  }, [weeks, effectiveGranularity])
+  }, [weeks, effectiveGranularity, reloadFlag])
 
   /** ≥24 周（或全部）时周粒度禁用并强制月；切回短窗口保留当前粒度（用户可手动切换） */
 
@@ -231,11 +242,49 @@ export default function HeatmapView() {
                   <span>{e.start} ~ {e.end}</span>
                   {e.status && <Tag className="hm-drawer-status">{e.status}</Tag>}
                 </div>
+                {e.conflict && e.conflict_detail && (
+                  <div className="hm-drawer-conflict-line">
+                    <span className="hm-conflict-detail">
+                      ⚠ 与 {e.conflict_detail.partner_name}·{e.conflict_detail.partner_phase_name}{' '}
+                      重叠 {e.conflict_detail.overlap_days} 天
+                    </span>
+                    {canOverride && (
+                      <Button
+                        size="small"
+                        danger
+                        onClick={(ev) => {
+                          ev.stopPropagation() // 不触发整行跳转
+                          setOverrideTarget({
+                            resourceId: drawer!.person.resource_id,
+                            resourceName: drawer!.person.name,
+                            phaseAId: e.conflict_detail!.phase_a_id,
+                            phaseBId: e.conflict_detail!.phase_b_id,
+                            summary: `${drawer!.person.name}：${e.project_name}·${e.phase_name} × ` +
+                              `${e.conflict_detail!.partner_name}·${e.conflict_detail!.partner_phase_name}` +
+                              `（重叠 ${e.conflict_detail!.overlap_days} 天）`,
+                          })
+                        }}
+                      >
+                        消除
+                      </Button>
+                    )}
+                  </div>
+                )}
               </div>
             ))}
           </div>
         )}
       </Drawer>
+
+      {/* 消除冲突弹窗（评审处置 #6：仅 admin/manager 入口可见） */}
+      <ConflictOverrideModal
+        target={overrideTarget}
+        open={overrideTarget !== null}
+        onClose={() => setOverrideTarget(null)}
+        onOverridden={() => {
+          setReloadFlag((f) => f + 1) // 重新拉热力：⚠ 消失、格值不变
+        }}
+      />
     </div>
   )
 }
@@ -328,6 +377,12 @@ function CellTooltip({
           <span>
             {e.project_name} · {e.phase_name}（{e.start.slice(5)}~{e.end.slice(5)}）
             {e.conflict && <span className="hm-conflict-mark"> ⚠</span>}
+            {e.conflict && e.conflict_detail && (
+              <span className="hm-tooltip-conflict">
+                {' '}与 {e.conflict_detail.partner_name}·{e.conflict_detail.partner_phase_name}
+                {' '}重叠 {e.conflict_detail.overlap_days} 天
+              </span>
+            )}
           </span>
         </div>
       ))}

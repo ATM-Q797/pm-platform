@@ -292,6 +292,70 @@ def test_10_conflict_marked(client, db_session):
     assert {e["phase_id"] for e in entries} == set(ids)
 
 
+def test_10b_conflict_detail_structure(client, db_session):
+    """CONFLICT_MODEL_V2 评审处置 #2：conflict_detail 携带对方阶段/项目/重叠天数；无冲突 null。"""
+    t = _today()
+    r = _mk_resource(db_session, "详情人")
+    ps = [_mk_project(db_session, f"详情项目{i + 1}") for i in range(4)]
+    phases = [_mk_phase(db_session, ps[i], f"详情阶段{i + 1}", t, t + timedelta(days=30))
+              for i in range(4)]
+    for ph in phases:
+        ph.assignees = [r]
+    # 无冲突者（仅 1 个阶段）
+    quiet = _mk_resource(db_session, "详情闲人")
+    phases[0].assignees.append(quiet)
+    db_session.commit()
+
+    data = _hm(client)
+    row = next(p for p in data["people"] if p["name"] == "详情人")
+    idx = _this_week_col(data)
+    entries = row["cell_phases"][idx]
+    assert all(e["conflict"] is True for e in entries)
+    for e in entries:
+        d = e["conflict_detail"]
+        assert d is not None
+        assert {"phase_a_id", "phase_b_id", "partner_name", "partner_phase_name", "overlap_days"} == set(d)
+        assert d["overlap_days"] == 30
+        assert d["phase_a_id"] < d["phase_b_id"]  # 归一化小 id 在前
+        assert e["phase_id"] in (d["phase_a_id"], d["phase_b_id"])
+
+    quiet_row = next(p for p in data["people"] if p["name"] == "详情闲人")
+    q_entries = [e for cp in quiet_row["cell_phases"] if cp for e in cp]
+    assert all(e["conflict"] is False for e in q_entries)  # 并行 1：不连带标 ⚠
+    assert all(e["conflict_detail"] is None for e in q_entries)
+
+
+def test_10c_shared_pair_not_marked_for_light_parallel_person(client, db_session):
+    """CONFLICT_MODEL_V2 §一（回归用户案例）：共担者本人并行 ≤3 → 不标 ⚠。
+
+    撞车者张三（4 并行）报冲突；共担者李四仅参与其中 1~2 个阶段 → 无 ⚠。
+    """
+    t = _today()
+    heavy = _mk_resource(db_session, "撞车共担张三")
+    light = _mk_resource(db_session, "共担李四")
+    ps = [_mk_project(db_session, f"共担项目{i + 1}") for i in range(4)]
+    phases = [_mk_phase(db_session, ps[i], f"共担阶段{i + 1}", t, t + timedelta(days=30))
+              for i in range(4)]
+    for ph in phases:
+        ph.assignees = [heavy]
+    # 李四共担其中 2 个阶段（同一对上，但本人并行仅 2 ≤3）
+    phases[0].assignees.append(light)
+    phases[1].assignees.append(light)
+    db_session.commit()
+
+    conflicts = client.get("/api/resources/conflicts").json()
+    assert [c["resource_name"] for c in conflicts] == ["撞车共担张三"]  # 李四不报
+
+    data = _hm(client)
+    heavy_row = next(p for p in data["people"] if p["name"] == "撞车共担张三")
+    heavy_entries = [e for cp in heavy_row["cell_phases"] if cp for e in cp]
+    assert all(e["conflict"] is True for e in heavy_entries)
+    light_row = next(p for p in data["people"] if p["name"] == "共担李四")
+    light_entries = [e for cp in light_row["cell_phases"] if cp for e in cp]
+    assert all(e["conflict"] is False for e in light_entries)  # 关键：共担者不连带 ⚠
+    assert all(e["conflict_detail"] is None for e in light_entries)
+
+
 def test_11_invalid_granularity_400(client, db_session):
     """用例 11：非法 granularity（如 'day'）→ 400。"""
     resp = client.get("/api/resources/heatmap", params={"granularity": "day"})

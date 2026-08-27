@@ -251,3 +251,61 @@ def test_unassigned_resource_no_conflict(client, db_session):
 
     data = client.get("/api/resources/conflicts").json()
     assert data == []
+
+
+def test_p8_phase_excluded_from_conflict(client, db_session):
+    """CONFLICT_MODEL_V2 §2.1：P8 交付不参与冲突对生成（热力图计数保留在热力测覆盖）。"""
+    r = _mk_resource(db_session, "交付排除人")
+    p1 = _mk_project(db_session, "P8甲项目")
+    p2 = _mk_project(db_session, "P8乙项目")
+    # 4 个 P8 阶段同窗深度重叠（若无 P8 排除会是 C(4,2)=6 对冲突）
+    for i in range(4):
+        ph = _mk_phase(db_session, p1 if i % 2 == 0 else p2, f"交付阶段{i + 1}",
+                       date(2026, 7, 1), date(2026, 7, 31))
+        ph.phase_type = "P8"
+        ph.assignees = [r]
+    # 同项目跳过 + P8 排除 → 无任何冲突对；再补一个 P5 与 P8 重叠也不报
+    p3 = _mk_project(db_session, "P5项目")
+    p5 = _mk_phase(db_session, p3, "结构设计", date(2026, 7, 1), date(2026, 7, 31))
+    p5.phase_type = "P5"
+    p5.assignees = [r]
+    db_session.commit()
+
+    data = client.get("/api/resources/conflicts").json()
+    assert data == []
+
+
+def test_override_excluded_from_conflicts(client, db_session):
+    """CONFLICT_MODEL_V2 §2.3：override 后该资源该对不再报（其余资源仍报）。"""
+    from app.models import ConflictOverride
+
+    r1 = _mk_resource(db_session, "消除回归人")
+    r2 = _mk_resource(db_session, "保留回归人")
+    p1 = _mk_project(db_session, "回归甲")
+    p2 = _mk_project(db_session, "回归乙")
+    a = _mk_phase(db_session, p1, "回归阶段甲", date(2026, 7, 1), date(2026, 7, 31))
+    b = _mk_phase(db_session, p2, "回归阶段乙", date(2026, 7, 1), date(2026, 7, 31))
+    a.assignees = [r1, r2]
+    b.assignees = [r1, r2]
+    # 各自补 2 个短干扰段推并行（头尾 5/6 天 <10 不构成额外对）
+    for r in (r1, r2):
+        q1 = _mk_project(db_session, f"干扰A{r.id}")
+        q2 = _mk_project(db_session, f"干扰B{r.id}")
+        _mk_phase(db_session, q1, "干扰一", date(2026, 7, 1), date(2026, 7, 6)).assignees = [r]
+        _mk_phase(db_session, q2, "干扰二", date(2026, 7, 25), date(2026, 7, 31)).assignees = [r]
+    db_session.commit()
+
+    before = client.get("/api/resources/conflicts").json()
+    assert len(before) == 2
+
+    # 归一化小 id 在前写入（(b,a) 逆序写也应命中 (a,b)）
+    db_session.add(ConflictOverride(
+        resource_id=r1.id,
+        phase_a_id=max(a.id, b.id),
+        phase_b_id=min(a.id, b.id),
+        reason="并行任务多但工作量小",
+    ))
+    db_session.commit()
+
+    after = client.get("/api/resources/conflicts").json()
+    assert [d["resource_id"] for d in after] == [r2.id]

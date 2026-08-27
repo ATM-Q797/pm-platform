@@ -158,3 +158,25 @@ class ResourceConflict(BaseModel):
     resource_id: int
     resource_name: str
     conflicts: list[ConflictPair]
+
+
+# ---------- 冲突手动消除（CONFLICT_MODEL_V2 §2.3） ----------
+
+class ConflictOverrideCreate(BaseModel):
+    """POST /conflicts/{resource_id}/override 请求体。"""
+    phase_a_id: int
+    phase_b_id: int
+    reason: str  # 消除原因（必填）
+
+
+class ConflictOverrideRead(BaseModel):
+    """一条消除记录（GET /conflicts/overrides / POST 响应）。"""
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    resource_id: int
+    phase_a_id: int
+    phase_b_id: int
+    reason: str
+    created_by: int | None = None
+    created_at: datetime | None = None
