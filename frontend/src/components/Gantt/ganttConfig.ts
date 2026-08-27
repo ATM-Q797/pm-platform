@@ -51,7 +51,7 @@ export function applyGanttConfig(gantt: GanttInstance) {
   gantt.config.autosize = false
   gantt.config.fit_tasks = true
   gantt.config.show_progress = true
-  gantt.config.smart_rendering = false  // 关闭虚拟渲染（数据量小，避免部分任务条不画）
+  gantt.config.smart_rendering = true  // 虚拟渲染（性能红线：false 时滚动全量重建行 DOM，192 行实测 7 秒/帧）
 
   // 拖拽禁用（所有角色通过 PhaseEditor 窗口修改日期，避免误操作）
   gantt.config.drag_move = false
