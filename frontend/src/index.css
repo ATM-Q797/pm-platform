@@ -40,6 +40,7 @@
   --gantt-bar-text: #111827;
   --gantt-link: #0369a1;
   --gantt-today: #e11d48;
+  --gantt-today-color: var(--gantt-today); /* 热力图今日线锚点（RESOURCE_HEATMAP 评审处置 #12） */
   --gantt-today-glow: rgba(225, 29, 72, 0.35);
   --gantt-today-label-text: #e11d48;
   --gantt-today-label-bg: rgba(225, 29, 72, 0.08);
@@ -109,6 +110,7 @@
   --gantt-bar-text: #ffffff;
   --gantt-link: #00d4ff;
   --gantt-today: #ff4d6d;
+  --gantt-today-color: var(--gantt-today); /* 热力图今日线锚点（RESOURCE_HEATMAP 评审处置 #12） */
   --gantt-today-glow: rgba(255, 77, 109, 0.45);
   --gantt-today-label-text: #ff8096;
   --gantt-today-label-bg: rgba(255, 77, 109, 0.12);

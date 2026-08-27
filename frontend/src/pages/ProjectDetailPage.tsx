@@ -12,6 +12,7 @@ const STATUS_COLOR: Record<string, string> = {
   进行中: 'processing',
   已完成: 'success',
   未开始: 'default',
+  搁置: 'warning',
   已搁置: 'warning',
 }
 

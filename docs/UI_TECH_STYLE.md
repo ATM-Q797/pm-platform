@@ -134,7 +134,7 @@ components: {
 | **P0** | index.css 变量换色 + main.tsx token + tech.css 网格/玻璃/发光 | 半天 |
 | **P1** | 导航壳玻璃 + 看板 6 卡 + gantt.css 换肤与脉冲 | 1 天 |
 | **P2** | 列表表格/Tag/筛选栏 + 登录页动效 + 资源负载 | 1 天 |
-| **P3** | 周报排版 + 我的任务 + 空状态/对比度微调 | 0.5 天 |
+| **P3** | 我的任务 + 空状态/对比度微调 | 0.5 天 |
 
 ---
 
@@ -172,7 +172,6 @@ frontend/src/pages/ProjectDetailPage.tsx 详情面板微调
 frontend/src/components/Gantt/gantt.css  甘特变量换肤 + 动画
 frontend/src/components/Resource/resourceView.css 资源负载
 frontend/src/pages/LoginPage.tsx         登录页动效
-frontend/src/pages/ReportPage.tsx        周报容器
 frontend/src/pages/MyTasksPage.tsx       我的任务
 ```
 （不涉及后端/数据库；不新增依赖）

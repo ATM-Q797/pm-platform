@@ -7,7 +7,8 @@
 2. 重叠判定严格 `<`：max(start_a, start_b) < min(end_a, end_b)（背靠背不算）
 3. 同项目的两个阶段不算冲突（正常分工，不算资源冲突）
 4. plan_start/plan_end 任一为 null → 跳过
-5. 状态为 已完成/已搁置 → 跳过
+5. 状态为 已完成/已搁置 → 跳过（阶段级）
+   所属项目状态为 搁置/已搁置 → 跳过（项目级，PROJECT_SHELVE §2.3）
 6. 同一对阶段只报一次（i < j 遍历天然去重）
 7. **重叠深度阈值**（项目并行是常态，仅"深度重叠"才报警）：
    - 重叠天数 ≥ _MIN_OVERLAP_DAYS（绝对下限，避免交接尾巴误报）
@@ -23,6 +24,9 @@ from app.schemas import ConflictPair, ResourceConflict
 
 # 不参与冲突检测的状态（已结束/不活跃）
 _SKIP_STATUSES = ("已完成", "已搁置")
+# 项目级搁置状态（双 key：新值「搁置」+ 旧值「已搁置」，PROJECT_SHELVE §2.3/决策 4）：
+# 搁置项目不占资源，其阶段退出冲突检测
+_SHELVED_PROJECT_STATUSES = ("搁置", "已搁置")
 # 冲突判定阈值：重叠需足够"深"（方案 A，2026-08-25 用户确认）
 _MIN_OVERLAP_DAYS = 10  # 绝对下限（天）：两周以上的整段重叠
 _MIN_OVERLAP_RATIO = 0.6  # 重叠天数 ≥ 较短阶段工期的比例
@@ -31,11 +35,12 @@ _MAX_PARALLEL = 3
 
 
 def _active_phases(resource: Resource) -> list:
-    """该资源名下可参与冲突检测的阶段（有完整日期且状态活跃）。"""
+    """该资源名下可参与冲突检测的阶段（有完整日期、状态活跃、项目未搁置）。"""
     return [
         ph for ph in resource.phases
         if ph.plan_start is not None and ph.plan_end is not None
         and ph.status not in _SKIP_STATUSES
+        and not (ph.project is not None and ph.project.status in _SHELVED_PROJECT_STATUSES)
     ]
 
 

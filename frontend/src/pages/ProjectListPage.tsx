@@ -12,11 +12,12 @@ import { getMe } from '../api/auth'
 import { MARKET_OPTION_ITEMS, MARKET_OPTIONS } from '../types'
 import type { ImportPreview, Project, ImportReport, Template, UserInfo } from '../types'
 
-// 状态 → Tag 颜色
+// 状态 → Tag 颜色（「搁置」为新名；旧值「已搁置」双 key 兼容同色，PROJECT_SHELVE §2.1）
 const STATUS_COLOR: Record<string, string> = {
   进行中: 'processing',
   已完成: 'success',
   未开始: 'default',
+  搁置: 'warning',
   已搁置: 'warning',
   延期: 'error',
 }
@@ -449,7 +450,8 @@ export default function ProjectListPage() {
             { value: '进行中', label: '进行中' },
             { value: '已完成', label: '已完成' },
             { value: '未开始', label: '未开始' },
-            { value: '已搁置', label: '已搁置' },
+            { value: '搁置', label: '搁置' },
+            { value: '已搁置', label: '已搁置（旧值）' },
           ]}
         />
         <Select
@@ -580,7 +582,8 @@ export default function ProjectListPage() {
               { value: '未开始', label: '未开始' },
               { value: '进行中', label: '进行中' },
               { value: '已完成', label: '已完成' },
-              { value: '已搁置', label: '已搁置' },
+              { value: '搁置', label: '搁置' },
+              { value: '已搁置', label: '已搁置（保存时转为搁置）' },
             ]} />
           </Form.Item>
           <Form.Item name="priority" label="优先级">
