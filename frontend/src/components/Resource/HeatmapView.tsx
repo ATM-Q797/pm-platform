@@ -1,10 +1,8 @@
 import { useEffect, useMemo, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Alert, Button, Drawer, Segmented, Spin, Tag, Tooltip } from 'antd'
+import { Alert, Drawer, Segmented, Spin, Tag, Tooltip } from 'antd'
 import { getHeatmap } from '../../api/resources'
-import { getMe } from '../../api/auth'
-import type { HeatmapCellPhase, HeatmapPerson, ResourceHeatmap, UserInfo } from '../../types'
-import ConflictOverrideModal, { type OverrideTarget } from './ConflictOverrideModal'
+import type { HeatmapCellPhase, HeatmapPerson, ResourceHeatmap } from '../../types'
 import '../../styles/resourceHeatmap.css'
 
 type Granularity = 'week' | 'month'
@@ -56,11 +54,9 @@ interface CellDrawerState {
   colIndex: number
 }
 
-export default function HeatmapView({ conflictVersion = 0, onConflictChanged }: {
-  /** 父级冲突版本号（甘特/报告消除后 bump → 本视图重新拉取，跨视图同步——用户问题 2） */
+export default function HeatmapView({ conflictVersion = 0 }: {
+  /** 父级冲突版本号（甘特消除后 bump → 本视图重新拉取，跨视图同步——用户 2026-08-28 决策 ③） */
   conflictVersion?: number
-  /** 本视图消除成功后通知父级 bump（甘特/报告同步刷新） */
-  onConflictChanged?: () => void
 }) {
   const navigate = useNavigate()
   const [windowKey, setWindowKey] = useState<WindowKey>('12')
@@ -71,15 +67,6 @@ export default function HeatmapView({ conflictVersion = 0, onConflictChanged }: 
   const [drawer, setDrawer] = useState<CellDrawerState | null>(null)
   const [idleExpanded, setIdleExpanded] = useState(false)
   const [hoverRow, setHoverRow] = useState<number | null>(null)
-  const [me, setMe] = useState<UserInfo | null>(null)
-  const [overrideTarget, setOverrideTarget] = useState<OverrideTarget | null>(null)
-  const [reloadFlag, setReloadFlag] = useState(0)
-
-  // 当前用户（消除按钮仅 admin/manager 显示，评审处置 #6）
-  useEffect(() => {
-    getMe().then(setMe).catch(() => {})
-  }, [])
-  const canOverride = me?.role === 'admin' || me?.role === 'manager'
 
   const weeks = WINDOW_OPTIONS.find((w) => w.value === windowKey)!.weeks
   /** ≥24 周（或全部）时周粒度禁用并强制月（用户决策 3） */
@@ -108,7 +95,7 @@ export default function HeatmapView({ conflictVersion = 0, onConflictChanged }: 
     return () => {
       cancelled = true
     }
-  }, [weeks, effectiveGranularity, reloadFlag, conflictVersion])
+  }, [weeks, effectiveGranularity, conflictVersion])
 
   /** ≥24 周（或全部）时周粒度禁用并强制月；切回短窗口保留当前粒度（用户可手动切换） */
 
@@ -255,26 +242,6 @@ export default function HeatmapView({ conflictVersion = 0, onConflictChanged }: 
                           ⚠ 与 {d.partner_name}·{d.partner_phase_name} 重叠 {d.overlap_days} 天
                           <span className="hm-conflict-scope">（覆盖 {d.overlap_start} ~ {d.overlap_end}）</span>
                         </span>
-                        {canOverride && (
-                          <Button
-                            size="small"
-                            danger
-                            onClick={(ev) => {
-                              ev.stopPropagation() // 不触发整行跳转
-                              setOverrideTarget({
-                                resourceId: drawer!.person.resource_id,
-                                resourceName: drawer!.person.name,
-                                phaseAId: d.phase_a_id,
-                                phaseBId: d.phase_b_id,
-                                summary: `${drawer!.person.name}：${e.project_name}·${e.phase_name} × ` +
-                                  `${d.partner_name}·${d.partner_phase_name}` +
-                                  `（重叠 ${d.overlap_days} 天，覆盖 ${d.overlap_start} ~ ${d.overlap_end}）`,
-                              })
-                            }}
-                          >
-                            消除
-                          </Button>
-                        )}
                       </div>
                     ))}
                   </div>
@@ -284,18 +251,6 @@ export default function HeatmapView({ conflictVersion = 0, onConflictChanged }: 
           </div>
         )}
       </Drawer>
-
-      {/* 消除冲突弹窗（评审处置 #6：仅 admin/manager 入口可见） */}
-      <ConflictOverrideModal
-        target={overrideTarget}
-        open={overrideTarget !== null}
-        onClose={() => setOverrideTarget(null)}
-        onOverridden={() => {
-          // 本视图消除成功 → 通知父级 bump（甘特/冲突报告同步刷新，用户问题 2）
-          onConflictChanged?.()
-          setReloadFlag((f) => f + 1) // 本地兜底重拉：⚠ 消失、格值不变
-        }}
-      />
     </div>
   )
 }

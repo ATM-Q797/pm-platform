@@ -91,12 +91,11 @@ def _is_deep_conflict(days: int, a_duration: int, b_duration: int) -> bool:
     return days * 10 >= shortest * 6  # days >= shortest * 0.6
 
 
-def _override_keys(db: Session) -> dict[int, set[tuple[int, int]]]:
-    """已手动消除的 (resource_id, 归一化 a, b) 集，检测时按资源排除。"""
-    result: dict[int, set[tuple[int, int]]] = {}
+def _overridden_phases(db: Session) -> dict[int, set[int]]:
+    """被消除的阶段：{resource_id: set(phase_id)}（v2.1 按阶段语义——该阶段不计入该资源并行计算）。"""
+    result: dict[int, set[int]] = {}
     for ov in db.scalars(select(ConflictOverride)):
-        a, b = ConflictOverride.normalize_pair(ov.phase_a_id, ov.phase_b_id)
-        result.setdefault(ov.resource_id, set()).add((a, b))
+        result.setdefault(ov.resource_id, set()).add(ov.phase_id)
     return result
 
 
@@ -107,13 +106,13 @@ def detect_conflicts(db: Session) -> list[ResourceConflict]:
     每人的并行判定独立（人员并行视角，CONFLICT_MODEL_V2 §2.2）。
     """
     resources = db.scalars(select(Resource).order_by(Resource.id)).all()
-    overrides = _override_keys(db)
+    overridden_map = _overridden_phases(db)
     result: list[ResourceConflict] = []
 
     for res in resources:
-        # 已消除的资源级集合（无记录的资源跳过查询开销）
-        overridden = overrides.get(res.id, frozenset())
-        phases = _active_phases(res)
+        # 已消除的阶段（v2.1：该阶段不计入该资源并行计算——剔除后不参与对生成与并行计数）
+        overridden = overridden_map.get(res.id, frozenset())
+        phases = [ph for ph in _active_phases(res) if ph.id not in overridden]
         pairs: list[ConflictPair] = []
         for i in range(len(phases)):
             for j in range(i + 1, len(phases)):

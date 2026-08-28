@@ -298,11 +298,10 @@ def test_override_excluded_from_conflicts(client, db_session):
     before = client.get("/api/resources/conflicts").json()
     assert len(before) == 2
 
-    # 归一化小 id 在前写入（(b,a) 逆序写也应命中 (a,b)）
+    # v2.1：按阶段消除——r1 消除阶段 a（该阶段不计入 r1 并行计算）
     db_session.add(ConflictOverride(
         resource_id=r1.id,
-        phase_a_id=max(a.id, b.id),
-        phase_b_id=min(a.id, b.id),
+        phase_id=a.id,
         reason="并行任务多但工作量小",
     ))
     db_session.commit()

@@ -86,7 +86,7 @@ export default function ResourceView({ scale = 'week', onPhaseClick, conflictVer
         // phase_id 按资源视角的冲突描述（用户问题 2：黄框只标"该资源视角"的冲突对
         // 成员——共担者行里的阶段即使参与他人冲突对也不标黄，与热力图 ⚠ 口径一致）
         const conflictMap = new Map<string, string>()
-        // "resourceId:phaseId" → 消除目标（冲突条点击弹消除 Modal，决策 ③）
+        // "resourceId:phaseId" → 消除目标（v2.1 按阶段：点击冲突条消除该甘特条）
         const pairMap = pairMapRef.current
         pairMap.clear()
         for (const rc of conflicts) {
@@ -95,16 +95,23 @@ export default function ResourceView({ scale = 'week', onPhaseClick, conflictVer
             conflictMap.set(`${rc.resource_id}:${c.phase_a_id}`, [conflictMap.get(`${rc.resource_id}:${c.phase_a_id}`), desc].filter(Boolean).join('；'))
             const descB = `与 ${c.project_a_name}·${c.phase_a_name} 重叠 ${c.overlap_days} 天`
             conflictMap.set(`${rc.resource_id}:${c.phase_b_id}`, [conflictMap.get(`${rc.resource_id}:${c.phase_b_id}`), descB].filter(Boolean).join('；'))
-            const target: OverrideTarget = {
-              resourceId: rc.resource_id,
-              resourceName: rc.resource_name,
-              phaseAId: c.phase_a_id,
-              phaseBId: c.phase_b_id,
-              summary: `${rc.resource_name}：${c.project_a_name}·${c.phase_a_name} × ` +
-                `${c.project_b_name}·${c.phase_b_name}（重叠 ${c.overlap_days} 天）`,
+            // 消除目标按阶段：同一阶段可能参与多个对，只存一份（消除即剔除该阶段）
+            if (!pairMap.has(`${rc.resource_id}:${c.phase_a_id}`)) {
+              pairMap.set(`${rc.resource_id}:${c.phase_a_id}`, {
+                resourceId: rc.resource_id,
+                resourceName: rc.resource_name,
+                phaseId: c.phase_a_id,
+                summary: `${c.project_a_name}·${c.phase_a_name}`,
+              })
             }
-            pairMap.set(`${rc.resource_id}:${c.phase_a_id}`, target)
-            pairMap.set(`${rc.resource_id}:${c.phase_b_id}`, target)
+            if (!pairMap.has(`${rc.resource_id}:${c.phase_b_id}`)) {
+              pairMap.set(`${rc.resource_id}:${c.phase_b_id}`, {
+                resourceId: rc.resource_id,
+                resourceName: rc.resource_name,
+                phaseId: c.phase_b_id,
+                summary: `${c.project_b_name}·${c.phase_b_name}`,
+              })
+            }
           }
         }
 
