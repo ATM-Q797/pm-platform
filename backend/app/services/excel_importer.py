@@ -346,10 +346,12 @@ def split_persons(value: Any) -> list[str]:
     return result
 
 
-def classify_row(code: Any, name: Any, phase_type_cell: Any = None) -> str:
+def classify_row(code: Any, name: Any, phase_type_cell: Any = None, special: bool = False) -> str:
     """行分类（§2.1，阶段类型优先）：'project' | 'phase' | 'skip'。
 
     ① 阶段类型列可解析（P1-P8 前缀或映射表命中）→ 'phase'（评审处置 #1，不依赖编号）
+    ①b special 模式（专项导入，用户 2026-08-28）：阶段类型列非空 且 名称非空 → 'phase'
+        ——专项自定义类型不依赖 P1-P8/映射表（评审 🔵#4 落实：无编号 + 自定义类型行不再被跳过）
     ② 编号纯数字 且 名称非空 → 'project'
     ③ 编号 ^\\d+-\\d+$ 或 ^\\d+\\.\\d+$ → 'phase'（兼容新旧两种编号格式）
     ④ 编号/名称/阶段类型全空 → 'skip'（静默空行）
@@ -362,13 +364,19 @@ def classify_row(code: Any, name: Any, phase_type_cell: Any = None) -> str:
     name_s = clean_cell(name)
     name_s = str(name_s).strip() if name_s is not None else ""
     pt_cell = clean_cell(phase_type_cell) if phase_type_cell is not None else None
+    pt_s = str(pt_cell).strip() if pt_cell is not None else ""
 
     # ④ 空行：三类关键单元格全空
-    if not code_s and not name_s and not pt_cell:
+    if not code_s and not name_s and not pt_s:
         return "skip"
 
     # ① 阶段类型优先（评审处置 #1）
-    if pt_cell and parse_phase_type_cell(pt_cell) is not None:
+    if pt_s and parse_phase_type_cell(pt_cell) is not None:
+        return "phase"
+
+    # ①b special 模式：阶段类型列非空 → 阶段行（不依赖编号/名称列——
+    #    用户表习惯"类型列即阶段名"，名称列可为空；名称由解析处兜底 phase_name = name or type）
+    if special and pt_s:
         return "phase"
 
     # ② 编号纯数字 + 名称非空 → 项目行
@@ -574,7 +582,7 @@ def parse_workbook(file_bytes: bytes, default_category: str = "新需求", speci
             actual_start_raw, actual_end_raw, phase_type_cell, assignees, progress, remark, market = row_vals[7:]
 
             report.total_rows += 1
-            row_kind = classify_row(code, name, phase_type_cell)
+            row_kind = classify_row(code, name, phase_type_cell, special=special)
 
             if row_kind == "skip":
                 # §2.7 跳过可见化：空行静默，其余（有内容但无法识别）记警告
