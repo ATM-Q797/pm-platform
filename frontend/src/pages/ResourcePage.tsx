@@ -1,27 +1,18 @@
 import { useEffect, useState } from 'react'
-import { Button, Card, Collapse, List, Popconfirm, Segmented, Space, Tag, message } from 'antd'
+import { Card, Segmented, Space, Tag } from 'antd'
 import ResourceView from '../components/Resource/ResourceView'
 import HeatmapView from '../components/Resource/HeatmapView'
 import PhaseEditor from '../components/PhaseEditor/PhaseEditor'
-import ConflictOverrideModal, { type OverrideTarget } from '../components/Resource/ConflictOverrideModal'
-import { getMe } from '../api/auth'
-import {
-  deleteConflictOverride,
-  getResourceConflicts,
-  listConflictOverrides,
-  listResources,
-} from '../api/resources'
-import type { ConflictOverride, ResourceConflict, UserInfo } from '../types'
 
 type ViewTab = 'heatmap' | 'gantt'
 
 /**
  * 资源负载页面：双 Tab（热力图 | 甘特，默认热力图，RESOURCE_HEATMAP §3.1）。
  *
- * - 热力图：人员 × 时间负载矩阵，谁忙/谁闲/谁撞车一眼可读
- * - 甘特：原每人一行多行甘特（只读），点击阶段弹只读查看面板
- * - 底部「资源冲突报告」（CONFLICT_MODEL_V2 §2.4）：每对可消除（admin/manager），
- *   「已消除记录」折叠区可撤销（仅 admin/manager 可见，决策 3）
+ * - 热力图：人员 × 时间负载矩阵，谁忙/谁闲/谁撞车一眼可读（只读）
+ * - 甘特：每人一行多行甘特（只读）；冲突消除唯一入口——点击黄色冲突条
+ *   消除该甘特条（该阶段不计入该人员并行计算，CONFLICT_MODEL_V2 v2.1）
+ * - 冲突报告与消除记录在「审核中心 → 资源冲突」（用户 2026-08-28 决策 ④）
  * 所有阶段调整请在项目管理页面操作。
  */
 export default function ResourcePage() {
@@ -29,51 +20,20 @@ export default function ResourcePage() {
   const [scale, setScale] = useState<'day' | 'week' | 'month'>('week')
   const [editingPhase, setEditingPhase] = useState<number | null>(null)
 
-  // ---- 冲突报告（CONFLICT_MODEL_V2 §2.4） ----
-  const [conflicts, setConflicts] = useState<ResourceConflict[]>([])
-  const [overrides, setOverrides] = useState<ConflictOverride[]>([])
-  const [resourceNames, setResourceNames] = useState<Map<number, string>>(new Map())
-  const [me, setMe] = useState<UserInfo | null>(null)
-  const [overrideTarget, setOverrideTarget] = useState<OverrideTarget | null>(null)
-  const [reportReload, setReportReload] = useState(0)
-  // 跨视图冲突同步（用户问题 2）：任一视图（热力图/甘特/报告）消除后 bump，
-  // 其余视图随 conflictVersion 变化自动重载；同时广播 'conflict-changed' 事件
-  // 供其他页面（Dashboard 抽屉）联动。
+  // 跨视图冲突同步（用户 2026-08-28 决策 ③）：甘特消除后 bump conflictVersion，
+  // 热力图随 prop 变化自动重载；同时广播 'conflict-changed' 事件供其他页面（Dashboard
+  // 抽屉/审核中心）联动。
   const [conflictVersion, setConflictVersion] = useState(0)
   const bumpConflict = () => {
     setConflictVersion((v) => v + 1)
-    setReportReload((v) => v + 1)
     window.dispatchEvent(new Event('conflict-changed'))
   }
-  const canOverride = me?.role === 'admin' || me?.role === 'manager'
 
   useEffect(() => {
-    getMe().then(setMe).catch(() => {})
-    listResources()
-      .then((rs) => setResourceNames(new Map(rs.map((r) => [r.id, r.name]))))
-      .catch(() => {})
-    // 其他页面（Dashboard 抽屉）消除后同步刷新本页（用户问题 2）
+    // 其他页面（审核中心撤销消除）后同步刷新本页
     window.addEventListener('conflict-changed', bumpConflict)
     return () => window.removeEventListener('conflict-changed', bumpConflict)
   }, [])
-
-  useEffect(() => {
-    getResourceConflicts().then(setConflicts).catch(() => {})
-    // 仅 admin/manager 可查消除记录（决策 3）；其他角色 403 → 置空
-    listConflictOverrides().then(setOverrides).catch(() => setOverrides([]))
-  }, [reportReload])
-
-  const handleRevoke = async (ov: ConflictOverride) => {
-    try {
-      await deleteConflictOverride(ov.id)
-      message.success('已撤销消除，该冲突对恢复报告')
-      bumpConflict()
-    } catch (e: any) {
-      message.error(e?.response?.data?.detail || '撤销失败，请重试')
-    }
-  }
-
-  const totalPairs = conflicts.reduce((n, rc) => n + rc.conflicts.length, 0)
 
   return (
     <Card
@@ -122,7 +82,7 @@ export default function ResourcePage() {
       }
     >
       {tab === 'heatmap' ? (
-        <HeatmapView conflictVersion={conflictVersion} onConflictChanged={bumpConflict} />
+        <HeatmapView conflictVersion={conflictVersion} />
       ) : (
         <>
           <div style={{ marginBottom: 8 }}>
@@ -167,104 +127,10 @@ export default function ResourcePage() {
         readonly
         hideExtra
       />
-
-      {/* 资源冲突报告（CONFLICT_MODEL_V2 §2.4）：消除 + 已消除记录（可撤销） */}
-      <Collapse
-        style={{ marginTop: 16 }}
-        defaultActiveKey={totalPairs > 0 ? ['report'] : []}
-        items={[
-          {
-            key: 'report',
-            label: `资源冲突报告（${totalPairs} 对 · 深度重叠且并行超限才报）`,
-            children: conflicts.length === 0 ? (
-              <span style={{ fontSize: 13, color: 'var(--text-tertiary)' }}>暂无资源冲突 🎉</span>
-            ) : (
-              conflicts.map((rc) => (
-                <div key={rc.resource_id} style={{ marginBottom: 12 }}>
-                  <b style={{ fontSize: 14 }}>{rc.resource_name}</b>
-                  <Tag color="orange" style={{ marginLeft: 8, color: '#b45309' }}>
-                    {rc.conflicts.length} 个冲突
-                  </Tag>
-                  <List
-                    size="small"
-                    dataSource={rc.conflicts}
-                    renderItem={(c) => (
-                      <List.Item
-                        style={{ padding: '6px 0' }}
-                        actions={canOverride ? [
-                          <Button
-                            key="override"
-                            size="small"
-                            danger
-                            onClick={() => setOverrideTarget({
-                              resourceId: rc.resource_id,
-                              resourceName: rc.resource_name,
-                              phaseAId: c.phase_a_id,
-                              phaseBId: c.phase_b_id,
-                              summary: `${rc.resource_name}：${c.project_a_name}·${c.phase_a_name} × ` +
-                                `${c.project_b_name}·${c.phase_b_name}（重叠 ${c.overlap_days} 天）`,
-                            })}
-                          >
-                            消除
-                          </Button>,
-                        ] : undefined}
-                      >
-                        <span style={{ fontSize: 13 }}>
-                          {c.project_a_name}·{c.phase_a_name} × {c.project_b_name}·{c.phase_b_name}
-                        </span>
-                        <Tag color="red" style={{ marginLeft: 8 }}>重叠 {c.overlap_days} 天</Tag>
-                      </List.Item>
-                    )}
-                  />
-                </div>
-              ))
-            ),
-          },
-          // 已消除记录：仅 admin/manager 可见可撤销（决策 3）
-          ...(canOverride ? [{
-            key: 'overrides',
-            label: `已消除记录（${overrides.length}）`,
-            children: overrides.length === 0 ? (
-              <span style={{ fontSize: 13, color: 'var(--text-tertiary)' }}>无消除记录</span>
-            ) : (
-              <List
-                size="small"
-                dataSource={overrides}
-                renderItem={(ov) => (
-                  <List.Item
-                    style={{ padding: '6px 0' }}
-                    actions={[
-                      <Popconfirm
-                        key="revoke"
-                        title="撤销消除？该冲突对将恢复报告"
-                        okText="撤销"
-                        cancelText="取消"
-                        onConfirm={() => handleRevoke(ov)}
-                      >
-                        <Button size="small">撤销</Button>
-                      </Popconfirm>,
-                    ]}
-                  >
-                    <span style={{ fontSize: 13 }}>
-                      {resourceNames.get(ov.resource_id) ?? `资源#${ov.resource_id}`}
-                      ：阶段 #{ov.phase_a_id} × #{ov.phase_b_id}
-                      <span style={{ color: 'var(--text-tertiary)' }}>
-                        ｜原因：{ov.reason}{ov.created_at ? `｜${ov.created_at.slice(0, 16).replace('T', ' ')}` : ''}
-                      </span>
-                    </span>
-                  </List.Item>
-                )}
-              />
-            ),
-          }] : []),
-        ]}
-      />
-      <ConflictOverrideModal
-        target={overrideTarget}
-        open={overrideTarget !== null}
-        onClose={() => setOverrideTarget(null)}
-        onOverridden={bumpConflict}
-      />
+      <div style={{ marginTop: 8, fontSize: 12, color: 'var(--text-tertiary)' }}>
+        冲突消除统一在甘特图：点击黄色冲突条 → 消除该甘特条（该阶段不计入该人员的并行计算）。
+        冲突报告与消除记录见「审核中心 → 资源冲突」。
+      </div>
     </Card>
   )
 }

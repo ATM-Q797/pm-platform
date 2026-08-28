@@ -41,7 +41,7 @@ export async function getResourceConflicts(): Promise<ResourceConflict[]> {
 
 export async function createConflictOverride(
   resourceId: number,
-  payload: { phase_a_id: number; phase_b_id: number; reason: string },
+  payload: { phase_id: number; reason: string },
 ): Promise<ConflictOverride> {
   const { data } = await client.post<ConflictOverride>(
     `/resources/conflicts/${resourceId}/override`,

@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Button, Card, Col, Row, Tag, Empty, Spin, message, Drawer, List } from 'antd'
+import { Card, Col, Row, Tag, Empty, Spin, message, Drawer, List } from 'antd'
 import {
   ProjectOutlined,
   ClockCircleOutlined,
@@ -12,9 +12,7 @@ import {
 } from '@ant-design/icons'
 import { getDashboardStats } from '../api/dashboard'
 import { getResourceConflicts } from '../api/resources'
-import { getMe } from '../api/auth'
-import ConflictOverrideModal, { type OverrideTarget } from '../components/Resource/ConflictOverrideModal'
-import type { DashboardStats, ResourceConflict, UserInfo } from '../types'
+import type { DashboardStats, ResourceConflict } from '../types'
 
 // 明细抽屉类型
 type DrawerKey = 'delayed' | 'due' | 'conflict' | 'rework' | null
@@ -37,14 +35,9 @@ export default function DashboardPage() {
   const [drawerKey, setDrawerKey] = useState<DrawerKey>(null)
   const [conflicts, setConflicts] = useState<ResourceConflict[]>([])
   const [conflictsLoading, setConflictsLoading] = useState(false)
-  // 冲突消除（决策 A：Dashboard 抽屉也提供消除入口）
-  const [me, setMe] = useState<UserInfo | null>(null)
-  const [overrideTarget, setOverrideTarget] = useState<OverrideTarget | null>(null)
-  const canOverride = me?.role === 'admin' || me?.role === 'manager'
 
   useEffect(() => {
-    getMe().then(setMe).catch(() => {})
-    // 资源页/其他入口消除后同步刷新本抽屉（用户问题 2：跨视图一致）
+    // 甘特消除后同步刷新本抽屉（用户 2026-08-28 决策 ③：消除统一在甘特，其他视图只同步）
     const onConflictChanged = () => {
       if (drawerKey === 'conflict') {
         setConflictsLoading(true)
@@ -305,31 +298,6 @@ export default function DashboardPage() {
                       <List.Item
                         style={{ cursor: 'pointer', padding: '8px 0' }}
                         onClick={() => navigate(`/projects/${c.project_a_id}`)}
-                        actions={
-                          canOverride
-                            ? [
-                                <Button
-                                  key="override"
-                                  size="small"
-                                  danger
-                                  onClick={(ev) => {
-                                    ev.stopPropagation()
-                                    setOverrideTarget({
-                                      resourceId: rc.resource_id,
-                                      resourceName: rc.resource_name,
-                                      phaseAId: c.phase_a_id,
-                                      phaseBId: c.phase_b_id,
-                                      summary: `${rc.resource_name}：${c.project_a_name}·${c.phase_a_name} × ` +
-                                        `${c.project_b_name}·${c.phase_b_name}（重叠 ${c.overlap_days} 天，` +
-                                        `覆盖 ${c.overlap_start} ~ ${c.overlap_end}）`,
-                                    })
-                                  }}
-                                >
-                                  消除
-                                </Button>,
-                              ]
-                            : []
-                        }
                       >
                         <List.Item.Meta
                           title={
@@ -371,19 +339,6 @@ export default function DashboardPage() {
           />
         )}
       </Drawer>
-
-      {/* 冲突消除弹窗（决策 A：Dashboard 抽屉入口） */}
-      <ConflictOverrideModal
-        target={overrideTarget}
-        open={overrideTarget !== null}
-        onClose={() => setOverrideTarget(null)}
-        onOverridden={() => {
-          // 通知全站（资源页监听后同步刷新）+ 本地刷新抽屉
-          window.dispatchEvent(new Event('conflict-changed'))
-          setConflictsLoading(true)
-          getResourceConflicts().then(setConflicts).catch(() => {}).finally(() => setConflictsLoading(false))
-        }}
-      />
     </div>
   )
 }

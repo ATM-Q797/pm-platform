@@ -166,9 +166,8 @@ class ResourceConflict(BaseModel):
 # ---------- 冲突手动消除（CONFLICT_MODEL_V2 §2.3） ----------
 
 class ConflictOverrideCreate(BaseModel):
-    """POST /conflicts/{resource_id}/override 请求体。"""
-    phase_a_id: int
-    phase_b_id: int
+    """POST /conflicts/{resource_id}/override 请求体（v2.1：按阶段消除）。"""
+    phase_id: int
     reason: str  # 消除原因（必填）
 
 
@@ -178,8 +177,7 @@ class ConflictOverrideRead(BaseModel):
 
     id: int
     resource_id: int
-    phase_a_id: int
-    phase_b_id: int
+    phase_id: int
     reason: str
     created_by: int | None = None
     created_at: datetime | None = None

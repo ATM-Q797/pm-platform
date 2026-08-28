@@ -77,53 +77,47 @@ def create_conflict_override(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    """手动消除某资源的某对冲突阶段（粒度：资源 × 冲突对）。
+    """手动消除某资源的某阶段（v2.1 按阶段语义：该阶段不计入该资源并行计算）。
 
-    错误语义（评审处置 #3）：重复 override → 409；对当前不构成冲突 → 400；
+    错误语义：重复消除同阶段 → 409；该阶段当前不冲突/不属于该资源 → 400；
     resource/phase id 不存在 → 404；权限不足 → 403；缺 reason → 422（Pydantic）。
     """
     resource = db.get(Resource, resource_id)
     if resource is None:
         raise HTTPException(404, f"人员不存在: {resource_id}")
 
-    ph_a = db.get(Phase, payload.phase_a_id)
-    ph_b = db.get(Phase, payload.phase_b_id)
-    missing = [
-        str(pid) for pid, ph in ((payload.phase_a_id, ph_a), (payload.phase_b_id, ph_b))
-        if ph is None
-    ]
-    if missing:
-        raise HTTPException(404, f"阶段不存在: {', '.join(missing)}")
+    ph = db.get(Phase, payload.phase_id)
+    if ph is None:
+        raise HTTPException(404, f"阶段不存在: {payload.phase_id}")
+    # 阶段必须属于该资源（v2.1 粒度校验）
+    if ph not in resource.phases:
+        raise HTTPException(400, "该阶段不属于该人员，无法消除")
 
-    _check_override_permission(user, [ph_a, ph_b], db)
+    _check_override_permission(user, [ph], db)
 
-    # a/b 归一化（小 id 在前）：(a,b) 与 (b,a) 视为同一对
-    a_id, b_id = ConflictOverride.normalize_pair(payload.phase_a_id, payload.phase_b_id)
-
-    # 重复消除 → 409（先于"是否构成冲突"判断：已消除的对自然不在检测剩余对中）
+    # 重复消除 → 409
     dup = db.scalars(
         select(ConflictOverride).where(
             ConflictOverride.resource_id == resource_id,
-            ConflictOverride.phase_a_id == a_id,
-            ConflictOverride.phase_b_id == b_id,
+            ConflictOverride.phase_id == payload.phase_id,
         )
     ).first()
     if dup is not None:
-        raise HTTPException(409, "该冲突对已消除，请勿重复操作")
+        raise HTTPException(409, "该阶段已消除，请勿重复操作")
 
-    # 当前不构成冲突的对 → 400（必须在检测剩余对中，防止消除任意阶段对）
-    current_pairs = {
-        (min(p.phase_a_id, p.phase_b_id), max(p.phase_a_id, p.phase_b_id))
+    # 当前不构成冲突 → 400（阶段必须出现在该资源检测剩余对的成员中）
+    current_phase_ids = {
+        pid
         for rc in detect_conflicts(db) if rc.resource_id == resource_id
         for p in rc.conflicts
+        for pid in (p.phase_a_id, p.phase_b_id)
     }
-    if (a_id, b_id) not in current_pairs:
-        raise HTTPException(400, "该对阶段当前对该人员不构成冲突，无需消除")
+    if payload.phase_id not in current_phase_ids:
+        raise HTTPException(400, "该阶段当前对该人员不构成冲突，无需消除")
 
     override = ConflictOverride(
         resource_id=resource_id,
-        phase_a_id=a_id,
-        phase_b_id=b_id,
+        phase_id=payload.phase_id,
         reason=payload.reason,
         created_by=user.id,
     )
@@ -157,7 +151,7 @@ def delete_conflict_override(
     if override is None:
         raise HTTPException(404, f"消除记录不存在: {override_id}")
 
-    phases = [ph for ph in (db.get(Phase, override.phase_a_id), db.get(Phase, override.phase_b_id)) if ph]
+    phases = [ph for ph in (db.get(Phase, override.phase_id),) if ph]
     _check_override_permission(user, phases, db)
 
     db.delete(override)

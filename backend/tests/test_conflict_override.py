@@ -78,10 +78,11 @@ def _pairs_of(client, resource_id: int) -> list[tuple[int, int]]:
             for c in row["conflicts"]]
 
 
-def _override(client, resource_id: int, a: int, b: int, reason: str = "并行任务多但工作量小"):
+def _override(client, resource_id: int, phase_id: int, reason: str = "并行任务多但工作量小"):
+    """v2.1：消除某资源的某阶段（甘特条）。"""
     return client.post(
         f"/api/resources/conflicts/{resource_id}/override",
-        json={"phase_a_id": a, "phase_b_id": b, "reason": reason},
+        json={"phase_id": phase_id, "reason": reason},
     )
 
 
@@ -166,7 +167,7 @@ def test_4_parallel_over_limit_reports(client, db_session):
 
 
 def test_5_override_granularity_per_resource(client, db_session):
-    """用例 5：override 后该资源该对不再报；其他资源同对仍报。"""
+    """用例 5（v2.1）：消除某资源的某阶段后，该资源并行降 → 报告消失；其他资源同对仍报。"""
     # 两个资源都在同一对阶段上并行 4 → 都报
     r1, a1, b1 = _mk_conflict(db_session, "消除者")
     r2 = _mk_resource(db_session, "未消除者")
@@ -176,13 +177,13 @@ def test_5_override_granularity_per_resource(client, db_session):
     db_session.commit()
 
     before = client.get("/api/resources/conflicts").json()
-    assert len(before) == 2  # 前置：两人都报（各恰好一对）
+    assert len(before) == 2  # 前置：两人都报
 
-    resp = _override(client, r1.id, a1.id, b1.id)
+    resp = _override(client, r1.id, a1.id)  # r1 消除阶段 a1（甘特条）
     assert resp.status_code == 201, resp.text
 
     after = client.get("/api/resources/conflicts").json()
-    assert [d["resource_id"] for d in after] == [r2.id]  # r1 报告消失，r2 仍报
+    assert [d["resource_id"] for d in after] == [r2.id]  # r1 报告消失（并行降），r2 仍报
     assert (min(a1.id, b1.id), max(a1.id, b1.id)) in _pairs_of(client, r2.id)
 
 
@@ -191,10 +192,10 @@ def test_6_override_revert_restores(client, db_session):
     r, a, b = _mk_conflict(db_session, "撤销人")
     db_session.commit()
 
-    resp = _override(client, r.id, a.id, b.id)
+    resp = _override(client, r.id, a.id)
     assert resp.status_code == 201
     ov_id = resp.json()["id"]
-    # 恰好一对冲突 → 消除后该资源从报告中完全消失
+    # 消除阶段 a → 并行降 → 该资源报告消失
     assert _pairs_of(client, r.id) == []
 
     del_resp = client.delete(f"/api/resources/conflicts/overrides/{ov_id}")
@@ -208,27 +209,26 @@ def test_7_reason_required(client, db_session):
     db_session.commit()
     resp = client.post(
         f"/api/resources/conflicts/{r.id}/override",
-        json={"phase_a_id": a.id, "phase_b_id": b.id},
+        json={"phase_id": a.id},
     )
     assert resp.status_code == 422
 
 
-def test_8_ab_order_normalized(client, db_session):
-    """用例 8：(a,b) 与 (b,a) 视为同一对：正序提交成功，逆序再提交 409。"""
+def test_8_duplicate_same_phase_409(client, db_session):
+    """用例 8（v2.1）：同一资源同一阶段重复消除 → 409（UNIQUE(resource_id, phase_id)）。"""
     r, a, b = _mk_conflict(db_session, "归一人")
     db_session.commit()
 
-    resp = _override(client, r.id, a.id, b.id)  # 正序
+    resp = _override(client, r.id, a.id)
     assert resp.status_code == 201
-    assert resp.json()["phase_a_id"] == min(a.id, b.id)  # 存储已归一化
-    assert resp.json()["phase_b_id"] == max(a.id, b.id)
+    assert resp.json()["phase_id"] == a.id
 
-    resp2 = _override(client, r.id, b.id, a.id)  # 逆序 = 同一对 → 409
+    resp2 = _override(client, r.id, a.id)  # 重复消除同阶段 → 409
     assert resp2.status_code == 409
 
 
 def test_9_heatmap_conflict_mark_disappears_after_override(client, db_session):
-    """用例 9：消除后该资源该阶段格 ⚠ 消失、格值（忙碌度）不变。"""
+    """用例 9（v2.1）：消除阶段 a 后——a 不再占热力格（不计入负载）、其余阶段并行降 → ⚠ 消失。"""
     r, a, b = _mk_conflict(db_session, "热力人")
     db_session.commit()
 
@@ -248,18 +248,19 @@ def test_9_heatmap_conflict_mark_disappears_after_override(client, db_session):
     assert detail["partner_phase_name"] == "热力人阶段乙"  # a 的对方是 b
     cells_before = row["cells"]
 
-    resp = _override(client, r.id, a.id, b.id)
+    resp = _override(client, r.id, a.id)
     assert resp.status_code == 201
 
     row2 = _hm()
     a_entries2 = [e for cp in row2["cell_phases"] if cp for e in cp if e["phase_id"] == a.id]
-    assert all(e["conflict"] is False for e in a_entries2)  # ⚠ 消失（唯一一对已消除）
-    assert all(e["conflict_details"] == [] for e in a_entries2)
-    assert row2["cells"] == cells_before  # 格值（忙碌度）不变
+    assert a_entries2 == []  # v2.1：被消除阶段不再占热力格（不计入负载）
+    b_entries2 = [e for cp in row2["cell_phases"] if cp for e in cp if e["phase_id"] == b.id]
+    assert all(e["conflict"] is False for e in b_entries2)  # 并行降 → b 不再标 ⚠
+    assert sum(row2["cells"]) < sum(cells_before)  # 格值下降（a 不再计入）
 
 
-def test_9b_all_pairs_overridden_clears_warning(client, db_session):
-    """用例 9 补充：该资源全部对消除后 ⚠ 完全消失、格值不变。"""
+def test_9b_eliminate_one_phase_lowers_parallel_clears_warning(client, db_session):
+    """用例 9b（v2.1）：4 阶段并行 → 消除 1 个 → 并行 3 ≤3 → 其余阶段 ⚠ 全消失（无需逐个消除）。"""
     r = _mk_resource(db_session, "全消人")
     phs = []
     for i in range(4):
@@ -275,41 +276,51 @@ def test_9b_all_pairs_overridden_clears_warning(client, db_session):
 
     row = _hm()
     assert all(e["conflict"] for cp in row["cell_phases"] if cp for e in cp)
-    cells_before = row["cells"]
 
-    # 消除全部 6 对
-    from itertools import combinations
-    for x, y in combinations(phs, 2):
-        resp = _override(client, r.id, x.id, y.id)
-        assert resp.status_code == 201, resp.text
+    # 只消除一个阶段 → 并行 4 → 3 → 所有冲突对自动消失（用户决策 ②）
+    resp = _override(client, r.id, phs[0].id)
+    assert resp.status_code == 201, resp.text
 
     row2 = _hm()
     entries = [e for cp in row2["cell_phases"] if cp for e in cp]
+    assert all(e["phase_id"] != phs[0].id for e in entries)  # 被消除阶段不占格
     assert all(e["conflict"] is False for e in entries)  # ⚠ 全消失
     assert all(e["conflict_details"] == [] for e in entries)
-    assert row2["cells"] == cells_before  # 格值不变
 
 
 # ---- 错误语义与权限 ----
 
 
 def test_duplicate_override_409(client, db_session):
-    """重复消除同一对 → 409。"""
+    """重复消除同一阶段 → 409。"""
     r, a, b = _mk_conflict(db_session, "重复人")
     db_session.commit()
-    assert _override(client, r.id, a.id, b.id).status_code == 201
-    assert _override(client, r.id, a.id, b.id).status_code == 409
+    assert _override(client, r.id, a.id).status_code == 201
+    assert _override(client, r.id, a.id).status_code == 409
 
 
-def test_not_conflicting_pair_400(client, db_session):
-    """对当前不构成冲突的对 POST → 400。"""
+def test_not_conflicting_phase_400(client, db_session):
+    """对当前不构成冲突的阶段 POST → 400。"""
     r, a, b = _mk_conflict(db_session, "错对人")
     p3 = _mk_project(db_session, "错对项目丙")
     c = _mk_phase(db_session, p3, "错对阶段丙", date(2026, 10, 1), date(2026, 10, 30))
     c.assignees = [r]  # 与 a/b 不重叠 → 不构成冲突
     db_session.commit()
 
-    resp = _override(client, r.id, a.id, c.id)
+    resp = _override(client, r.id, c.id)
+    assert resp.status_code == 400
+
+
+def test_phase_not_belonging_to_resource_400(client, db_session):
+    """阶段不属于该资源 → 400（v2.1 粒度校验）。"""
+    r, a, b = _mk_conflict(db_session, "归属人")
+    other = _mk_resource(db_session, "他人")
+    p3 = _mk_project(db_session, "他人项目")
+    c = _mk_phase(db_session, p3, "他人阶段", date(2026, 7, 1), date(2026, 7, 31))
+    c.assignees = [other]  # c 属于 other，不属于 r
+    db_session.commit()
+
+    resp = _override(client, r.id, c.id)
     assert resp.status_code == 400
 
 
@@ -317,7 +328,7 @@ def test_resource_not_found_404(client, db_session):
     """resource id 不存在 → 404。"""
     r, a, b = _mk_conflict(db_session, "存在人")
     db_session.commit()
-    resp = _override(client, 9999, a.id, b.id)
+    resp = _override(client, 9999, a.id)
     assert resp.status_code == 404
 
 
@@ -325,7 +336,7 @@ def test_phase_not_found_404(client, db_session):
     """phase id 不存在 → 404。"""
     r, a, b = _mk_conflict(db_session, "阶段人")
     db_session.commit()
-    resp = _override(client, r.id, a.id, 999999)
+    resp = _override(client, r.id, 999999)
     assert resp.status_code == 404
 
 
@@ -346,12 +357,12 @@ def test_10_permission_403_for_engineer(client, db_session):
     resp = client.post("/api/auth/login", json={"username": "eng_x", "password": "testpass"})
     assert resp.status_code == 200
 
-    assert _override(client, r.id, a.id, b.id).status_code == 403
+    assert _override(client, r.id, a.id).status_code == 403
     assert client.get("/api/resources/conflicts/overrides").status_code == 403
 
 
 def test_manager_only_own_projects(client, db_session):
-    """manager 仅能消除自己负责项目涉及的资源×阶段对（决策 1）。"""
+    """manager 仅能消除自己负责项目涉及的资源×阶段（决策 1）。"""
     r, a, b = _mk_conflict(db_session, "经理人")
     # 张三是默认 owner；建一个 manager 名为张三
     db_session.add(User(
@@ -367,12 +378,12 @@ def test_manager_only_own_projects(client, db_session):
 
     # 李四登录：不负责 a/b 所属项目 → 403
     client.post("/api/auth/login", json={"username": "mgr_li", "password": "testpass"})
-    resp = _override(client, r.id, a.id, b.id)
+    resp = _override(client, r.id, a.id)
     assert resp.status_code == 403
 
     # 张三登录：owner 匹配（managed_by 为空回退）→ 201
     client.post("/api/auth/login", json={"username": "mgr_zhang", "password": "testpass"})
-    resp = _override(client, r.id, a.id, b.id)
+    resp = _override(client, r.id, a.id)
     assert resp.status_code == 201, resp.text
 
 
@@ -384,7 +395,7 @@ def test_overrides_list_visible_to_manager(client, db_session):
         password_hash=hash_password("testpass"),
     ))
     db_session.commit()
-    assert _override(client, r.id, a.id, b.id).status_code == 201
+    assert _override(client, r.id, a.id).status_code == 201
 
     client.post("/api/auth/login", json={"username": "mgr_list", "password": "testpass"})
     resp = client.get("/api/resources/conflicts/overrides")
@@ -393,8 +404,7 @@ def test_overrides_list_visible_to_manager(client, db_session):
     assert len(data) == 1
     assert data[0]["resource_id"] == r.id
     assert data[0]["reason"] == "并行任务多但工作量小"
-    assert data[0]["phase_a_id"] == min(a.id, b.id)
-    assert data[0]["phase_b_id"] == max(a.id, b.id)
+    assert data[0]["phase_id"] == a.id
 
 
 def test_override_conflict_detail_partner_direction(client, db_session):

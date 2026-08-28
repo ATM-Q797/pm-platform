@@ -1,8 +1,12 @@
-# 资源冲突模型重构 v2 — 人员并行视角 + 手动消除 + P8 排除
+# 资源冲突模型重构 v2.1 — 按甘特条（阶段）消除 + 入口统一 + 报告转审核中心
 
-> **版本**: v1.0 | **日期**: 2026-08-27 | **状态**: 待评审
-> **背景**: 热力图 ⚠ 误伤——许进权（共担 P5 结构设计，本人并行仅 1）因共同负责人张晓平撞车被标 ⚠；用户要求冲突按**人员工作并行情况**判定，并支持**手动消除**（并行任务多但工作量小的实际情况）
-> **用户决策**: ① P8 交付仅排除冲突计算（热力图计数保留）；② ⚠ 阈值与 T4 并行规则同口径；③ 甘特冲突条也加消除入口
+> **版本**: v2.1 | **日期**: 2026-08-28 | **状态**: 实施中（用户 2026-08-28 四项决策）
+> **背景**: 热力图 ⚠ 误伤（共担者连带）已修复；用户进一步明确消除语义与入口
+> **用户决策（2026-08-28）**:
+> ① 消除目标 = **阶段（甘特条）**，不是冲突对——"点击消除该甘特条的冲突即表示该甘特条所对应的阶段风险低、**不计入项目并行计算逻辑**"
+> ② 未消除的甘特条继续按并行逻辑计算（并行 >3 显示冲突，直到消除某条把并行数降下来）
+> ③ 消除入口**统一在资源负载甘特图**；Dashboard / 热力图**不再提供消除接口**；消除后所有视图同步
+> ④ 冲突报告 + 消除记录**转移到审核中心**（ReviewPage 新 Tab）
 
 ---
 
@@ -34,35 +38,34 @@
 - 热力图 ⚠：`_conflict_phase_ids` 只收集**检测后剩余**冲突对成员——许进权不标 ✅
 - **共担阶段并行计数**：每人 +1（系统无工作量占比数据，不做加权——文档记录为未来增强：模板加"占比"列后按占比加权）
 
-### 2.3 手动消除冲突（决策 A：资源 × 冲突对）
+### 2.3 手动消除冲突（v2.1 语义：**按阶段（甘特条）消除**）
 
-**数据**：新表 `conflict_override`（评审处置 #1：建表方式 = 现有 SQLAlchemy 模式——models/__init__.py 注册 + `Base.metadata.create_all` 幂等建表；部署时并入 `deploy/migrate_v3.sql` 追加 CREATE TABLE IF NOT EXISTS；本设计**取代** PHASE6_DEV_PLAN.md"本阶段无表结构变更"约束——该约束仅指 T4 原阶段，不适用于本次 V2 重构）：
+**数据**：表 `conflict_override`（v2.1 结构变更：`phase_b_id` 移除，消除粒度 = 资源 × 阶段）：
 
 | 字段 | 类型 | 说明 |
 |---|---|---|
 | id | INTEGER PK | |
 | resource_id | INTEGER FK | 消除者（哪个人的视角） |
-| phase_a_id | INTEGER FK | 冲突对阶段 A |
-| phase_b_id | INTEGER FK | 冲突对阶段 B |
-| reason | TEXT | 消除原因（必填，如"并行任务多但工作量小"） |
+| phase_id | INTEGER FK | 被消除的阶段（甘特条）——**该阶段不计入该资源的并行计算** |
+| reason | TEXT | 消除原因（必填，如"风险低/工作量小"） |
 | created_by | INTEGER FK | 操作人 |
 | created_at | DATETIME | |
 
-**约束**（评审处置 #3）：`UNIQUE(resource_id, phase_a_id, phase_b_id)`（a/b 归一化后）；FK 级联删除。
+**约束**：`UNIQUE(resource_id, phase_id)`；FK 级联删除。
 
-**规则**：
-- 检测时：per-resource 冲突对**排除已 override 的 (resource, phase_a, phase_b)**（a/b 顺序归一化：小 id 在前）
-- 粒度 = 资源 × 冲突对：只消除"某个人的实际工作量小"，不影响其他人对同一对的判定
-- **可撤销**：override 记录可查（冲突报告页"已消除"区，仅 admin/manager 可见，决策 3）、可删（撤销后恢复报告）
-- **错误语义**（评审处置 #3）：重复 override（同资源同对）→ 409；对当前不构成冲突的对 POST → 400；resource/phase id 不存在 → 404；DELETE 不存在的 override → 404；DELETE 权限与 POST 相同
+**规则（用户决策 ①②）**：
+- 检测时：per-resource 的活跃阶段列表**剔除 override 的 (resource, phase)**——被剔除阶段不再参与冲突对生成与并行计数（与 P8 同类，但热力图/甘特条仍显示，仅不计负载）
+- **并行重算**：消除某阶段后，该资源并行数下降——若剩余阶段并行 ≤3，其冲突对**自动消失**（无需逐个消除）；若仍 >3，其余冲突对继续显示
+- **可撤销**：override 记录在审核中心可见、可删（撤销后该阶段重新计入并行）
 
 **API**：
 ```
-POST   /api/resources/conflicts/{resource_id}/override   body: {phase_a_id, phase_b_id, reason}
-GET    /api/resources/conflicts/overrides                # 全部消除记录（仅 admin/manager，决策 3）
+POST   /api/resources/conflicts/{resource_id}/override   body: {phase_id, reason}
+GET    /api/resources/conflicts/overrides                # 全部消除记录（审核中心，仅 admin/manager）
 DELETE /api/resources/conflicts/overrides/{override_id}  # 撤销（权限同 POST）
 ```
 权限（决策 1）：admin 全部资源；manager 仅**自己负责项目**涉及的资源×阶段对（`project.managed_by == user.id` 或 owner 匹配）；其他角色 403。
+错误语义：重复消除同阶段 → 409；该阶段当前不冲突/不属于该资源 → 400；id 不存在 → 404；reason 缺失 → 422。
 
 **热力图响应扩展**（评审处置 #2）：`cell_phases[].conflict` 之外增加 `conflict_detail` 对象（`phase_a_id`/`phase_b_id`、`partner_name`、`partner_phase_name`、`overlap_days`）——tooltip「与谁撞」与 Drawer 消除提交所需数据一次到位；无冲突时 null。
 

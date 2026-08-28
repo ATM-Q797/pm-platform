@@ -320,8 +320,7 @@ export interface ResourceConflict {
 export interface ConflictOverride {
   id: number
   resource_id: number
-  phase_a_id: number
-  phase_b_id: number
+  phase_id: number
   reason: string
   created_by: number | null
   created_at: string | null

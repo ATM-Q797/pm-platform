@@ -2,6 +2,8 @@ import { useEffect, useState } from 'react'
 import { Card, Table, Tag, Button, Space, Tabs, Modal, Input, message, Popconfirm, Popover } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import { listDeleteRequests, reviewDeleteRequest, listOperationLogs, listPhaseChangeRequests, reviewPhaseChangeRequest } from '../api/audit'
+import { deleteConflictOverride, getResourceConflicts, listConflictOverrides, listResources } from '../api/resources'
+import type { ConflictOverride, ResourceConflict } from '../types'
 import type { DeleteRequest, OperationLog, PhaseChangeRequest } from '../api/audit'
 
 const STATUS_TAG: Record<string, string> = {
@@ -24,6 +26,11 @@ export default function ReviewPage({ userRole = 'admin' }: { userRole?: string }
   const [rejectComment, setRejectComment] = useState('')
   // 阶段变更拒绝
   const [phaseRejectId, setPhaseRejectId] = useState<number | null>(null)
+  // 资源冲突报告 + 消除记录（CONFLICT_MODEL_V2 v2.1，用户 2026-08-28 决策 ④：转移到审核中心）
+  const [conflicts, setConflicts] = useState<ResourceConflict[]>([])
+  const [overrides, setOverrides] = useState<ConflictOverride[]>([])
+  const [resourceNames, setResourceNames] = useState<Map<number, string>>(new Map())
+  const [conflictReload, setConflictReload] = useState(0)
   const [phaseRejectName, setPhaseRejectName] = useState('')
   const [phaseRejectComment, setPhaseRejectComment] = useState('')
 
@@ -46,6 +53,73 @@ export default function ReviewPage({ userRole = 'admin' }: { userRole?: string }
   }
 
   useEffect(() => { load() }, [])
+
+  // 资源冲突报告 + 消除记录加载与同步（用户 2026-08-28 决策 ④）
+  useEffect(() => {
+    listResources()
+      .then((rs) => setResourceNames(new Map(rs.map((r) => [r.id, r.name]))))
+      .catch(() => {})
+    // 甘特消除后同步刷新（决策 ③：消除统一在甘特，其他视图同步）
+    window.addEventListener('conflict-changed', () => setConflictReload((v) => v + 1))
+  }, [])
+
+  useEffect(() => {
+    getResourceConflicts().then(setConflicts).catch(() => {})
+    listConflictOverrides().then(setOverrides).catch(() => setOverrides([]))
+  }, [conflictReload])
+
+  const handleRevokeOverride = async (ov: ConflictOverride) => {
+    try {
+      await deleteConflictOverride(ov.id)
+      message.success('已撤销消除，该阶段重新计入并行计算')
+      setConflictReload((v) => v + 1)
+      window.dispatchEvent(new Event('conflict-changed')) // 甘特/热力图同步恢复
+    } catch (e: any) {
+      message.error(e?.response?.data?.detail || '撤销失败，请重试')
+    }
+  }
+
+  // 冲突报告列（只读）
+  const conflictColumns: ColumnsType<any> = [
+    { title: '人员', dataIndex: 'resource_name', width: 120 },
+    { title: '阶段 A', dataIndex: 'phase_a_name', width: 160 },
+    { title: '项目 A', dataIndex: 'project_a_name' },
+    { title: '阶段 B', dataIndex: 'phase_b_name', width: 160 },
+    { title: '项目 B', dataIndex: 'project_b_name' },
+    { title: '重叠', dataIndex: 'overlap_days', width: 80, render: (v: number) => <Tag color="red">{v} 天</Tag> },
+  ]
+  const conflictRows = conflicts.flatMap((rc) =>
+    rc.conflicts.map((c) => ({ ...c, resource_name: rc.resource_name, key: `${rc.resource_id}-${c.phase_a_id}-${c.phase_b_id}` }))
+  )
+
+  // 消除记录列（可撤销）
+  const overrideColumns: ColumnsType<ConflictOverride> = [
+    { title: '人员', dataIndex: 'resource_id', width: 120, render: (rid: number) => resourceNames.get(rid) ?? `#${rid}` },
+    {
+      title: '消除的阶段',
+      dataIndex: 'phase_id',
+      render: (pid: number) => {
+        const hit = conflictRows.find((r) => r.phase_a_id === pid || r.phase_b_id === pid)
+        return hit ? `${hit.project_a_name}·${hit.phase_a_name}` : `阶段 #${pid}`
+      },
+    },
+    { title: '原因', dataIndex: 'reason' },
+    { title: '时间', dataIndex: 'created_at', width: 160, render: (v: string | null) => (v ? v.slice(0, 16).replace('T', ' ') : '-') },
+    {
+      title: '操作',
+      width: 100,
+      render: (_, ov) => (
+        <Popconfirm
+          title="撤销消除？该阶段将重新计入该人员的并行计算"
+          okText="撤销"
+          cancelText="取消"
+          onConfirm={() => handleRevokeOverride(ov)}
+        >
+          <Button size="small">撤销</Button>
+        </Popconfirm>
+      ),
+    },
+  ]
 
   const handleApprove = async (req: DeleteRequest) => {
     try {
@@ -274,6 +348,37 @@ export default function ReviewPage({ userRole = 'admin' }: { userRole?: string }
               />
             ),
           }] : []),
+          {
+            key: 'conflicts',
+            label: `资源冲突${conflictRows.length > 0 ? ` (${conflictRows.length})` : ''}`,
+            children: (
+              <>
+                <Table
+                  rowKey="key"
+                  columns={conflictColumns}
+                  dataSource={conflictRows}
+                  pagination={false}
+                  size="middle"
+                  locale={{ emptyText: '暂无资源冲突 🎉' }}
+                />
+                <div style={{ marginTop: 16, fontSize: 13, color: 'var(--text-tertiary)' }}>
+                  冲突消除统一在「资源负载 → 甘特图」：点击黄色冲突条 → 消除该甘特条（该阶段不计入该人员的并行计算）。
+                </div>
+                <div style={{ marginTop: 16 }}>
+                  <b>已消除记录（{overrides.length}）</b>
+                  <Table
+                    rowKey="id"
+                    columns={overrideColumns}
+                    dataSource={overrides}
+                    pagination={false}
+                    size="middle"
+                    style={{ marginTop: 8 }}
+                    locale={{ emptyText: '无消除记录' }}
+                  />
+                </div>
+              </>
+            ),
+          },
         ]}
       />
 
