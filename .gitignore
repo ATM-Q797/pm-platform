@@ -24,6 +24,10 @@ dist/
 *.db-journal
 *.db-wal
 
+# 本地开发运行产物（api.log 运行日志 / run_api.cmd 本机启动脚本）
+backend/api.log
+backend/run_api.cmd
+
 # OS
 Thumbs.db
 Desktop.ini
