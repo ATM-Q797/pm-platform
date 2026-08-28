@@ -259,6 +259,11 @@ export default function ProjectDetailPage() {
             scale={ganttScale}
             showCritical={showCritical}
             onPhaseClick={handlePhaseClick}
+            onDepsChanged={() => {
+              // 依赖连线增删成功 → 关键路径工期/路径名随依赖刷新（用户 2026-08-28）
+              setGanttKey((k) => k + 1)
+              load()
+            }}
           />
         )}
         <div style={{ marginTop: 8, fontSize: 12, color: 'var(--text-tertiary)' }}>

@@ -13,12 +13,16 @@ interface Props {
   scale?: 'day' | 'week' | 'month'
   showCritical?: boolean // 关键路径高亮开关（默认关）
   onPhaseClick: (phaseId: number) => void
+  onDepsChanged?: () => void // 依赖连线增删成功后通知父级（关键路径随依赖更新，用户 2026-08-28）
 }
 
-export default function GanttChart({ projectId, scale = 'week', showCritical = false, onPhaseClick }: Props) {
+export default function GanttChart({ projectId, scale = 'week', showCritical = false, onPhaseClick, onDepsChanged }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   // 保存 gantt 实例引用，供 scale 切换 useEffect 使用
   const ganttRef = useRef<any>(null)
+  // 依赖变更回调（ref 同步，事件处理器内取最新）
+  const onDepsChangedRef = useRef(onDepsChanged)
+  onDepsChangedRef.current = onDepsChanged
   // 用 ref 同步最新的 scale 值，供初始化 useEffect（依赖 projectId）在
   // gantt.init 之后立即应用正确尺度，避免组件重建后尺度与 Segmented 控件不一致
   const scaleRef = useRef(scale)
@@ -61,7 +65,7 @@ export default function GanttChart({ projectId, scale = 'week', showCritical = f
         ganttRef.current = gantt
         if (destroyed || !containerRef.current) return
         applyGanttConfig(gantt)
-        // 拖拽创建依赖连线 → 保存到后端
+        // 拖拽创建依赖连线 → 保存到后端；成功后通知父级（关键路径随依赖更新——用户 2026-08-28）
         const linkAddH = gantt.attachEvent('onAfterLinkAdd', async (_id: any, link: any) => {
           try {
             await createDependency(projectId, {
@@ -70,6 +74,7 @@ export default function GanttChart({ projectId, scale = 'week', showCritical = f
               type: mapLinkType(link.type),
             })
             gantt.message({ text: '已创建依赖', expire: 1500 })
+            onDepsChangedRef.current?.()
           } catch (e) {
             gantt.message({ text: '创建依赖失败', type: 'error', expire: 3000 })
           }
@@ -80,6 +85,7 @@ export default function GanttChart({ projectId, scale = 'week', showCritical = f
           try {
             await deleteDependency(Number(id))
             gantt.message({ text: '已删除依赖', expire: 1500 })
+            onDepsChangedRef.current?.()
           } catch (e) {
             gantt.message({ text: '删除依赖失败', type: 'error', expire: 3000 })
           }
