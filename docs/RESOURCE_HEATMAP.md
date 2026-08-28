@@ -48,6 +48,9 @@
 参数：
 ```
 weeks: int = 12        # 时间窗口（周数），0=全部（最早数据 → 最晚计划，含未来）
+                       # weeks>0 时窗口右端恒为今天：[N-1 周前的周一, 今天]——
+                       # 未来计划负载用「全部」查看（2026-08-28 用户裁决 A：
+                       # 否则窗口右端被最晚计划撑开，12 周选项失效）
 granularity: str = 'week'   # 'week' | 'month'（非法值 400）
 ```
 
@@ -76,7 +79,7 @@ granularity: str = 'week'   # 'week' | 'month'（非法值 400）
 1. 取全部人员（Resource）+ 各自阶段（PhaseAssignee → Phase → Project）
 2. 过滤活跃阶段：**与 PROJECT_SHELVE §2.5 完全一致**（`status not in (已完成, 已搁置)` 且 `project.status not in (搁置, 已搁置)` 双 key）——细节以 SHELVE 为准，此处不重复展开（评审处置 #7）；**专项项目阶段同样排除**（`project.is_special=true` 不占格/不计 peak——SPECIAL_PROJECT §二，专项项目是独立监控对象，不占用资源负载统计）；**`P8`/`P9` 阶段同样排除**（PHASE_TYPES_V2 §四：交付/联调测试不计入负载，不占格/不计 peak——2026-08-28 双兼容，f32717d 起 P8 已排除）
 3. 缺日期过滤：**无任何日期（无 plan 且无 actual）的阶段不占格**；**仅实际日期的阶段用 actual_start/actual_end 计入**；**半开区间（只有开始或只有结束）不占格**（评审处置 #5——避免缺失边界导致区间爆炸）
-4. 周期切片：**weeks 始终定义窗口长度，granularity 只影响桶大小**（24 周 + 月 → ~6 桶）（评审处置 #8）；桶对齐规则：**周粒度 = 周一为桶首**（评审处置 #10）；`start_date` 所在周**包含**在当前窗口首个桶内（阶段活动在本周必须可见——评审处置 #2）；阶段与桶相交（`plan_start <= 桶末 && plan_end >= 桶初`）→ 该桶活跃数 +1
+4. 周期切片：**weeks 始终定义窗口长度，granularity 只影响桶大小**（24 周 + 月 → ~6 桶）（评审处置 #8）；weeks>0 时**窗口右端=今天**（2026-08-28 用户裁决 A：右端被最晚计划撑开会让窗口选择失效——未来负载由 weeks=0「全部」承接，其右端=最晚计划含未来）；桶对齐规则：**周粒度 = 周一为桶首**（评审处置 #10）；`start_date` 所在周**包含**在当前窗口首个桶内（阶段活动在本周必须可见——评审处置 #2）；阶段与桶相交（`plan_start <= 桶末 && plan_end >= 桶初`）→ 该桶活跃数 +1
 5. `peak_parallel` = 该人员窗口内任意时刻最大并行数（用阶段起止做扫描线，跨桶连续计算，非桶内取整）
 6. 冲突标记：复用 `resource_conflicts.detect_conflicts` 的冲突阶段 id 集，`cell_phases[].conflict` 标红
 7. 排序：`peak_parallel` 降序 → `active_phases` 降序；零负载入 `idle_people`（按名称排序，评审处置 #11）
@@ -130,7 +133,7 @@ granularity: str = 'week'   # 'week' | 'month'（非法值 400）
 | 4 | 项目状态=搁置（含旧值已搁置，评审处置 #7） | 该阶段不计入 |
 | 4b | 仅实际日期阶段（无计划日期） | 用 actual_start/actual_end 计入（评审处置 #4） |
 | 5 | 无任何日期阶段（无 plan 且无 actual） | 不占格 |
-| 6 | 窗口 4/12/24 周边界截断 | 桶数与 start/end 正确 |
+| 6 | 窗口 4/12/24 周边界截断 | 桶数与 start/end 正确；**有未来计划数据时 weeks=12 仍为 12 列、end=今天**（2026-08-28 用户裁决 A 回归） |
 | 7 | granularity=month | 桶按月聚合 |
 | 8 | 零负载人员 | 进 idle_people |
 | 9 | 排序 | peak_parallel 降序 |

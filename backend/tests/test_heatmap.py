@@ -189,16 +189,43 @@ def test_5_no_dates_not_counted(client, db_session):
 
 
 def test_6_window_boundaries(client, db_session):
-    """用例 6：窗口 4/12/24 周边界截断 → 桶数与 start/end 正确。"""
+    """用例 6：窗口 4/12/24 周边界截断 → 桶数与 start/end 正确（空库基线）。"""
     for weeks in (4, 12, 24):
         data = _hm(client, weeks=weeks)
         assert len(data["columns"]) == weeks
-        # 窗口 = [start, 今天]，start 为 weeks-1 周前的周一
+        # 窗口 = [start, 今天]，start 为 weeks-1 周前的周一（裁决 A：右端恒为今天）
         expect_start = _week_monday(_today() - timedelta(weeks=weeks - 1))
         assert data["start_date"] == expect_start.isoformat()
         assert data["end_date"] == _today().isoformat()
         # 首桶含 start_date 所在周
         assert data["columns"][0] == expect_start.isoformat()
+
+
+def test_6b_future_plan_does_not_extend_window(client, db_session):
+    """用例 6b（裁决 A 回归，2026-08-28）：库中存在未来计划阶段时，weeks>0
+    窗口仍严格 = [N-1 周前的周一, 今天]，不因最晚 plan_end 撑开列数；
+    未来计划负载由 weeks=0「全部」承接（end_date = 最晚计划日）。
+    """
+    t = _today()
+    future_end = t + timedelta(days=100)
+    r = _mk_resource(db_session, "未来人")
+    p1 = _mk_project(db_session, "现在项目")
+    p2 = _mk_project(db_session, "未来项目")
+    now_ph = _mk_phase(db_session, p1, "当前阶段", t - timedelta(days=1), t + timedelta(days=3))
+    fut_ph = _mk_phase(db_session, p2, "未来阶段", future_end - timedelta(days=10), future_end)
+    for ph in (now_ph, fut_ph):
+        ph.assignees = [r]
+    db_session.commit()
+
+    fixed = _hm(client, weeks=4)
+    assert len(fixed["columns"]) == 4  # 未来阶段不撑破窗口
+    assert fixed["end_date"] == t.isoformat()
+    assert fut_ph.id not in {e["phase_id"] for cp in fixed["people"][0]["cell_phases"] if cp for e in cp}
+
+    full = _hm(client, weeks=0)
+    assert full["end_date"] == future_end.isoformat()  # 「全部」含未来
+    full_row = next(p for p in full["people"] if p["name"] == "未来人")
+    assert full_row["cells"][-1] >= 1  # 未来阶段落在末桶
 
 
 def test_7_month_granularity(client, db_session):
@@ -371,7 +398,7 @@ def test_12_negative_weeks_400(client, db_session):
 
 
 def test_13_weeks_zero_all(client, db_session):
-    """用例 13：weeks=0（全部）→ 窗口从数据最早日期起到今天，桶数正确。"""
+    """用例 13：weeks=0（全部）→ 窗口从数据最早日期起到最晚计划（含未来），桶数正确。"""
     today = _today()
     earliest = today - timedelta(days=100)  # 约 15 周前
     r = _mk_resource(db_session, "全窗人")
@@ -389,6 +416,23 @@ def test_13_weeks_zero_all(client, db_session):
     # 最早阶段在其所在周桶可见
     idx = _col_index(data, expect_start.isoformat())
     assert data["people"][0]["cells"][idx] == 1
+
+
+def test_13b_weeks_zero_includes_future_plan(client, db_session):
+    """用例 13b：weeks=0 右端 = 最晚计划日（含未来）——用户 2026-08-28 决策 2。"""
+    t = _today()
+    future_end = t + timedelta(days=100)
+    r = _mk_resource(db_session, "含未来人")
+    p = _mk_project(db_session, "含未来项目")
+    ph = _mk_phase(db_session, p, "未来阶段", future_end - timedelta(days=10), future_end)
+    ph.assignees = [r]
+    db_session.commit()
+
+    data = _hm(client, weeks=0)
+    assert data["end_date"] == future_end.isoformat()
+    row = data["people"][0]
+    assert row["peak_parallel"] == 1  # 窗口含未来阶段 → 非零负载
+    assert row["cells"][-1] >= 1      # 未来阶段落在末桶
 
 
 def test_14_half_open_interval_not_counted(client, db_session):

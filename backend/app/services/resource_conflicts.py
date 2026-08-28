@@ -5,7 +5,8 @@
 
 规则（CONFLICT_MODEL_V2 §2.1/§2.2，取代 PHASE6_DEV_PLAN.md T4 对应描述）：
 1. 按 assignee 分组，取所有 assigned 阶段
-2. P8 交付阶段不参与冲突对生成（决策 ①：交付仅退出冲突计算，热力图计数保留）
+2. P8 交付阶段不参与冲突对生成（决策 ①：f32717d 起三处全排除——甘特/热力图/冲突；
+   P9 交付排除随 PHASE_TYPES_V2 实施——当前库无 P9 数据）
 3. 重叠判定严格 `<`：max(start_a, start_b) < min(end_a, end_b)（背靠背不算）
 4. 同项目的两个阶段不算冲突（正常分工，不算资源冲突）
 5. plan_start/plan_end 任一为 null → 跳过
@@ -17,8 +18,9 @@
    - 且 重叠天数 ≥ 较短阶段工期的 _MIN_OVERLAP_RATIO（相对深度）
 9. **人员并行视角**（决策 ②，与热力图 ⚠ 同口径）：该资源在重叠窗口内
    同时活跃阶段数 > _MAX_PARALLEL 才报警（活跃 = 计划窗口与重叠区间相交）
-10. **手动消除**（§2.3）：conflict_override 表已记录的 (resource, a, b) 排除
-    （a/b 归一化小 id 在前；粒度 = 资源 × 冲突对，不影响其他资源对同对的判定）
+10. **手动消除**（§2.3，v2.1 阶段粒度）：conflict_override 已记录的
+    (resource_id, phase_id) 阶段整体退出该资源检测（不参与对生成与并行计数；
+    不影响其他资源对同一阶段的判定）
 """
 from __future__ import annotations
 
@@ -33,7 +35,8 @@ _SKIP_STATUSES = ("已完成", "已搁置")
 # 项目级搁置状态（双 key：新值「搁置」+ 旧值「已搁置」，PROJECT_SHELVE §2.3/决策 4）：
 # 搁置项目不占资源，其阶段退出冲突检测
 _SHELVED_PROJECT_STATUSES = ("搁置", "已搁置")
-# 不参与冲突检测的阶段类型（决策 ①：P8 交付不占冲突计算，热力图忙碌度保留）
+# 不参与冲突检测的阶段类型（决策 ①：P8 交付三处全排除——甘特/热力图/冲突，f32717d；
+# P9 交付排除随 PHASE_TYPES_V2 实施）
 _SKIP_PHASE_TYPES = ("P8",)
 # 冲突判定阈值：重叠需足够"深"（方案 A，2026-08-25 用户确认）
 _MIN_OVERLAP_DAYS = 10  # 绝对下限（天）：两周以上的整段重叠
@@ -133,9 +136,6 @@ def detect_conflicts(db: Session) -> list[ResourceConflict]:
                 a, b = phases[i], phases[j]
                 # 同项目两个阶段：正常分工，不算冲突
                 if a.project_id == b.project_id:
-                    continue
-                # 手动消除（a/b 归一化小 id 在前）：该资源该对不再报
-                if (min(a.id, b.id), max(a.id, b.id)) in overridden:
                     continue
                 days = _overlap_days(a.plan_start, a.plan_end, b.plan_start, b.plan_end)
                 if days is None:

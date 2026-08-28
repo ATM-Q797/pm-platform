@@ -12,7 +12,7 @@
 - peak_parallel = 扫描线求窗口内任意时刻最大同时活跃数（跨桶连续，非桶内取整）
 - 冲突标记复用 resource_conflicts.detect_conflicts 的冲突阶段 id 集
   （**按资源视角**，CONFLICT_MODEL_V2 §2.2：只收该人自己检测剩余对的成员阶段 id，
-  共担者不连带标 ⚠；P8 阶段占格但不标 ⚠）
+  共担者不连带标 ⚠；P8 三处全排除（甘特/热力图/冲突，f32717d）——不占格亦不标 ⚠）
 - cell_phases[].conflict_detail：{phase_a_id, phase_b_id, partner_name,
   partner_phase_name, overlap_days}——tooltip「与谁撞」与 Drawer 消除提交一次到位
 - 排序：peak_parallel 降序 → active_phases 降序；零负载入 idle_people（按名称，#11）
@@ -181,23 +181,26 @@ def _conflict_details_by_resource(db: Session) -> dict[int, dict[int, list[dict]
 def build_heatmap(db: Session, weeks: int = 12, granularity: str = "week") -> dict:
     """构建热力矩阵（RESOURCE_HEATMAP §2.1 响应结构）。
 
-    weeks: 窗口长度（周数）；0=全部（最早数据日期 → 今天）
+    weeks: 窗口长度（周数），weeks>0 → [N-1 周前的周一, 今天]（裁决 A）；
+           0=全部（最早数据日期 → 最晚计划，含未来）
     granularity: 'week' | 'month'（桶大小；窗口长度不受影响）
     """
     today = date.today()
-
-    # ---------- 窗口 ----------
-    # 终点 = max(today, 最晚计划日期)——未来计划负载必须可见（用户 2026-08-28：
-    # 热力图与冲突/甘特不同步的根源 = 窗口截止今天，未来并行看不到）
     latest_plan = db.scalar(select(func.max(Phase.plan_end)))
     latest_actual = db.scalar(select(func.max(Phase.actual_end)))
-    window_end = max(today, latest_plan or today, latest_actual or today)
+
+    # ---------- 窗口 ----------
     if weeks > 0:
+        # weeks>0（裁决 A，2026-08-28）：窗口右端恒为今天 [N-1 周前的周一, 今天]——
+        # 否则右端被最晚计划（如 2027-12-31）撑开，weeks 选项失效
+        window_end = today
         window_start = _week_start(today - timedelta(weeks=weeks - 1))
         if granularity == "month":
             window_start = _month_start(window_start)
     else:
-        # 0=全部：从全部人员有效阶段的最早日期起（无任何数据 → 仅本周）
+        # 0=全部：右端 = max(today, 最晚计划)——未来计划负载必须可见（含未来）；
+        # 起点 = 全部人员有效阶段的最早日期（无任何数据 → 仅本周）
+        window_end = max(today, latest_plan or today, latest_actual or today)
         earliest: date | None = None
         for res in db.scalars(select(Resource)):
             for ph in active_heatmap_phases(res):
