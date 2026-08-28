@@ -254,9 +254,14 @@ def test_9_heatmap_conflict_mark_disappears_after_override(client, db_session):
     assert all(len(e["conflict_details"]) >= 1 for e in a_entries)  # 详情一次到位
     detail = a_entries[0]["conflict_details"][0]
     assert detail["overlap_days"] == 30
-    # detail 归一化指向冲突对（a/b 谁 id 小在 phase_a_id）
-    assert {detail["phase_a_id"], detail["phase_b_id"]} == {a.id, b.id}
-    assert detail["partner_phase_name"] == "热力人阶段乙"  # a 的对方是 b
+    # detail 归一化指向冲突对（a/b 谁 id 小在 phase_a_id）；conflict_details 含全部对
+    # （a-b 及 a-并行段），断言 a-b 对在集合中而非依赖排序——对序依赖
+    # resource.phases 关系顺序（无 ORDER BY，不稳定），排序断言会 flaky
+    all_details = [d for cp in row["cell_phases"] if cp for e in cp
+                   if e["phase_id"] == a.id for d in e["conflict_details"]]
+    ab_pair = next(d for d in all_details
+                   if {d["phase_a_id"], d["phase_b_id"]} == {a.id, b.id})
+    assert ab_pair["partner_phase_name"] == "热力人阶段乙"  # a 的对方是 b
     cells_before = row["cells"]
     peak_before = row["peak_parallel"]
 
