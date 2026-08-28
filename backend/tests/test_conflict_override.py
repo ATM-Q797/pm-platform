@@ -39,22 +39,25 @@ def _mk_resource(db_session, name: str) -> Resource:
 
 
 def _add_parallel(db_session, r: Resource, n: int, start: date, end: date) -> None:
-    """给资源追加 n 个干扰阶段：短段嵌在 [start, end] 头/尾（与 a/b 重叠 <10 天
-    → 不构成额外冲突对；头尾两段互相错开 → 也不互撞），但都与重叠区间相交
-    → 把并行数推过 _MAX_PARALLEL=3。"""
-    spans = [(start, start + timedelta(days=5)), (end - timedelta(days=6), end)]
+    """给资源追加 n 个干扰阶段：**与 [start, end] 全窗同时重叠**（与 a/b 完全并行）。
+
+    用户 2026-08-28 口径修正：并行判定 = 重叠窗口内**同时活跃峰值**（扫描线），
+    头尾短段（一前一后不同时）不再虚增并行——干扰段必须与 a/b **同时存在**
+    才能把并行峰值推过 _MAX_PARALLEL=3。
+    干扰段与 a/b 深度重叠 → 会构成额外冲突对，因此辅助只用于需要"多对"的用例；
+    单对用例请用 _mk_conflict（1 对 + 2 全窗并行 = 恰好报 a-b 一对）。
+    """
     for i in range(n):
         p = _mk_project(db_session, f"并行{i + 1}")
-        s, e = spans[i % 2]
-        ph = _mk_phase(db_session, p, f"并行阶段{i + 1}", s, e)
+        ph = _mk_phase(db_session, p, f"并行阶段{i + 1}", start, end)
         ph.assignees = [r]
 
 
 def _mk_conflict(db_session, name: str, start=date(2026, 7, 1), end=date(2026, 7, 31)):
-    """构造恰好报**一对**冲突的资源：a/b 全窗深度重叠 + 2 个头尾干扰段（并行=4）。
+    """构造恰好报**一对**冲突的资源：a/b 全窗深度重叠 + 2 个全窗并行段（同时峰值=4）。
 
-    干扰段与 a/b 重叠仅 5~6 天（<10 下限）→ 不构成额外冲突对，
-    但都与 a∩b 重叠区间相交 → 并行数 4 > 3 → a-b 这一对报冲突。
+    并行段与 a/b 全窗同时重叠 → 峰值 4 > 3 → a-b 这一对报冲突
+    （并行段之间也全窗重叠 → 会产生额外对；如需"恰好一对"见下）
     返回 (resource, phase_a, phase_b)。
     """
     r = _mk_resource(db_session, name)
@@ -206,7 +209,9 @@ def test_6_override_revert_restores(client, db_session):
 
     del_resp = client.delete(f"/api/resources/conflicts/overrides/{ov_id}")
     assert del_resp.status_code == 204
-    assert _pairs_of(client, r.id) == [(min(a.id, b.id), max(a.id, b.id))]  # 恢复
+    # 撤销后恢复报告（4 阶段全窗 → 多对；断言 a-b 对在列）
+    pairs = _pairs_of(client, r.id)
+    assert (min(a.id, b.id), max(a.id, b.id)) in pairs
 
 
 def test_7_reason_required(client, db_session):
@@ -434,6 +439,9 @@ def test_override_conflict_detail_partner_direction(client, db_session):
     hm = client.get("/api/resources/heatmap", params={"weeks": 0}).json()
     row = next(p for p in hm["people"] if p["resource_id"] == r.id)
     entries = {e["phase_id"]: e for cp in row["cell_phases"] if cp for e in cp}
-    assert entries[a.id]["conflict_details"][0]["partner_name"] == "方向项目乙"
-    assert entries[b.id]["conflict_details"][0]["partner_name"] == "方向项目甲"
-    assert entries[a.id]["conflict_details"][0]["partner_phase_name"] == "方向阶段乙"
+    details_a = entries[a.id]["conflict_details"]
+    assert any(d["partner_name"] == "方向项目乙" and d["partner_phase_name"] == "方向阶段乙"
+               for d in details_a)  # a 视角能看到与 b 的对
+    details_b = entries[b.id]["conflict_details"]
+    assert any(d["partner_name"] == "方向项目甲" and d["partner_phase_name"] == "方向阶段甲"
+               for d in details_b)  # b 视角能看到与 a 的对（partner 从本人视角指向对方）

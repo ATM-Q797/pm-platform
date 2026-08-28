@@ -69,15 +69,27 @@ def _overlap_days(a_start, a_end, b_start, b_end) -> int | None:
 
 
 def _parallel_count(phases: list, overlap_start, overlap_end) -> int:
-    """重叠窗口内该资源同时活跃的阶段总数（含冲突双方）。
+    """重叠窗口内该资源**同时活跃**的峰值阶段数（含冲突双方）。
 
-    活跃 = 计划窗口与重叠区间有交集（plan_start < overlap_end 且 plan_end > overlap_start）。
+    用户 2026-08-28：相交计数会把"一前一后不同时存在"的阶段（如 478 8/5-8/21
+    与 498 8/27-9/2）都算入 → 虚增并行。改为扫描线峰值（与热力图 peak_parallel
+    同口径）：窗口内任意时刻同时活跃的最大阶段数 > _MAX_PARALLEL 才报冲突。
     """
-    return sum(
-        1 for ph in phases
-        if ph.plan_start is not None and ph.plan_end is not None
-        and ph.plan_start < overlap_end and ph.plan_end > overlap_start
-    )
+    events: list[tuple[date, int]] = []
+    for ph in phases:
+        if ph.plan_start is None or ph.plan_end is None:
+            continue
+        if ph.plan_start < overlap_end and ph.plan_end > overlap_start:
+            events.append((ph.plan_start, 1))
+            events.append((ph.plan_end, -1))
+    events.sort(key=lambda e: (e[0], e[1]))  # 同日结束先于开始（背靠背交接日不算并行）
+    peak = 0
+    cur = 0
+    for _d, delta in events:
+        cur += delta
+        if cur > peak:
+            peak = cur
+    return peak
 
 
 def _is_deep_conflict(days: int, a_duration: int, b_duration: int) -> bool:

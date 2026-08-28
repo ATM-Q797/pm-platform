@@ -287,12 +287,12 @@ def test_override_excluded_from_conflicts(client, db_session):
     b = _mk_phase(db_session, p2, "回归阶段乙", date(2026, 7, 1), date(2026, 7, 31))
     a.assignees = [r1, r2]
     b.assignees = [r1, r2]
-    # 各自补 2 个短干扰段推并行（头尾 5/6 天 <10 不构成额外对）
+    # 各自补 2 个全窗并行段（与 a/b 同时重叠 → 峰值 4 > 3 才报；用户 2026-08-28 口径）
     for r in (r1, r2):
         q1 = _mk_project(db_session, f"干扰A{r.id}")
         q2 = _mk_project(db_session, f"干扰B{r.id}")
-        _mk_phase(db_session, q1, "干扰一", date(2026, 7, 1), date(2026, 7, 6)).assignees = [r]
-        _mk_phase(db_session, q2, "干扰二", date(2026, 7, 25), date(2026, 7, 31)).assignees = [r]
+        _mk_phase(db_session, q1, "干扰一", date(2026, 7, 1), date(2026, 7, 31)).assignees = [r]
+        _mk_phase(db_session, q2, "干扰二", date(2026, 7, 1), date(2026, 7, 31)).assignees = [r]
     db_session.commit()
 
     before = client.get("/api/resources/conflicts").json()
