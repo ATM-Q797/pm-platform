@@ -146,6 +146,8 @@ def detect_conflicts(db: Session) -> list[ResourceConflict]:
                     project_b_id=b.project_id,
                     project_b_name=b.project.name,
                     overlap_days=days,
+                    overlap_start=interval[0],
+                    overlap_end=interval[1],
                 ))
         if pairs:
             # 最严重的冲突在前

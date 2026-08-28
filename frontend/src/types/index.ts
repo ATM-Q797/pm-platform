@@ -137,6 +137,8 @@ export interface ConflictDetail {
   partner_name: string // 对方项目名
   partner_phase_name: string // 对方阶段名
   overlap_days: number
+  overlap_start: string // 重叠窗口起止（消除影响范围提示，用户问题 1）
+  overlap_end: string
 }
 
 export interface HeatmapCellPhase {
@@ -148,7 +150,7 @@ export interface HeatmapCellPhase {
   end: string
   status: string | null
   conflict: boolean // 该人员视角真实冲突（检测剩余对，CONFLICT_MODEL_V2 §2.2）
-  conflict_detail: ConflictDetail | null // 无冲突为 null
+  conflict_details: ConflictDetail[] // 该阶段该人员全部冲突对（每对一行独立消除）；无冲突为空数组
 }
 
 export interface HeatmapPerson {
@@ -304,6 +306,8 @@ export interface ConflictPair {
   project_b_id: number
   project_b_name: string
   overlap_days: number
+  overlap_start: string // 重叠窗口起止（消除影响范围提示，用户问题 1）
+  overlap_end: string
 }
 
 export interface ResourceConflict {

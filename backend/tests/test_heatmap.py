@@ -293,7 +293,7 @@ def test_10_conflict_marked(client, db_session):
 
 
 def test_10b_conflict_detail_structure(client, db_session):
-    """CONFLICT_MODEL_V2 评审处置 #2：conflict_detail 携带对方阶段/项目/重叠天数；无冲突 null。"""
+    """CONFLICT_MODEL_V2 评审处置 #2：conflict_details 数组携带对方阶段/项目/重叠天数/窗口；无冲突空数组。"""
     t = _today()
     r = _mk_resource(db_session, "详情人")
     ps = [_mk_project(db_session, f"详情项目{i + 1}") for i in range(4)]
@@ -312,9 +312,11 @@ def test_10b_conflict_detail_structure(client, db_session):
     entries = row["cell_phases"][idx]
     assert all(e["conflict"] is True for e in entries)
     for e in entries:
-        d = e["conflict_detail"]
-        assert d is not None
-        assert {"phase_a_id", "phase_b_id", "partner_name", "partner_phase_name", "overlap_days"} == set(d)
+        ds = e["conflict_details"]
+        assert isinstance(ds, list) and len(ds) >= 1
+        d = ds[0]
+        assert {"phase_a_id", "phase_b_id", "partner_name", "partner_phase_name",
+                "overlap_days", "overlap_start", "overlap_end"} == set(d)
         assert d["overlap_days"] == 30
         assert d["phase_a_id"] < d["phase_b_id"]  # 归一化小 id 在前
         assert e["phase_id"] in (d["phase_a_id"], d["phase_b_id"])
@@ -322,7 +324,7 @@ def test_10b_conflict_detail_structure(client, db_session):
     quiet_row = next(p for p in data["people"] if p["name"] == "详情闲人")
     q_entries = [e for cp in quiet_row["cell_phases"] if cp for e in cp]
     assert all(e["conflict"] is False for e in q_entries)  # 并行 1：不连带标 ⚠
-    assert all(e["conflict_detail"] is None for e in q_entries)
+    assert all(e["conflict_details"] == [] for e in q_entries)
 
 
 def test_10c_shared_pair_not_marked_for_light_parallel_person(client, db_session):
@@ -353,7 +355,7 @@ def test_10c_shared_pair_not_marked_for_light_parallel_person(client, db_session
     light_row = next(p for p in data["people"] if p["name"] == "共担李四")
     light_entries = [e for cp in light_row["cell_phases"] if cp for e in cp]
     assert all(e["conflict"] is False for e in light_entries)  # 关键：共担者不连带 ⚠
-    assert all(e["conflict_detail"] is None for e in light_entries)
+    assert all(e["conflict_details"] == [] for e in light_entries)
 
 
 def test_11_invalid_granularity_400(client, db_session):

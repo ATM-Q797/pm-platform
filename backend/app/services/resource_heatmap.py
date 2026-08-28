@@ -124,7 +124,7 @@ def _peak_parallel(intervals: list[tuple[date, date]]) -> int:
 
 
 def _phase_entry(ph: Phase, project: Project, in_conflict: bool,
-                 conflict_detail: dict | None = None) -> dict:
+                 conflict_details: list[dict] | None = None) -> dict:
     s, e = phase_dates(ph)
     return {
         "phase_id": ph.id,
@@ -135,19 +135,20 @@ def _phase_entry(ph: Phase, project: Project, in_conflict: bool,
         "end": e.isoformat(),
         "status": ph.status,
         "conflict": in_conflict,
-        # CONFLICT_MODEL_V2 评审处置 #2：冲突对详情（对方阶段/项目/重叠天数），
-        # tooltip「与谁撞」与 Drawer 消除提交所需数据一次到位；无冲突为 None
-        "conflict_detail": conflict_detail,
+        # CONFLICT_MODEL_V2 评审处置 #2：冲突对详情数组（该阶段该人员的全部对，
+        # 用户问题 1：Drawer 每对一行独立消除）；无冲突为空数组
+        "conflict_details": conflict_details or [],
     }
 
 
-def _conflict_details_by_resource(db: Session) -> dict[int, dict[int, dict]]:
-    """按资源视角的冲突详情：{resource_id: {phase_id: conflict_detail}}。
+def _conflict_details_by_resource(db: Session) -> dict[int, dict[int, list[dict]]]:
+    """按资源视角的冲突详情：{resource_id: {phase_id: [detail, ...]}}。
 
     仅收**该人自己** detect_conflicts 剩余对的成员阶段 id（CONFLICT_MODEL_V2 §2.2：
-    共担者不连带标 ⚠）。一个阶段可能涉及多个冲突对，取重叠天数最深的一对展示。
+    共担者不连带标 ⚠）。一个阶段可能涉及多个冲突对——**全部保留**（按重叠天数
+    降序），前端 Drawer 每对一行独立消除（用户问题 1：消除一对不影响其余对）。
     """
-    result: dict[int, dict[int, dict]] = {}
+    result: dict[int, dict[int, list[dict]]] = {}
     for rc in detect_conflicts(db):
         by_phase = result.setdefault(rc.resource_id, {})
         for pair in rc.conflicts:
@@ -161,11 +162,13 @@ def _conflict_details_by_resource(db: Session) -> dict[int, dict[int, dict]]:
                     "partner_name": partner_project,
                     "partner_phase_name": partner_phase,
                     "overlap_days": pair.overlap_days,
+                    # 消除影响范围提示（用户问题 1）：该重叠覆盖的起止日期
+                    "overlap_start": pair.overlap_start.isoformat(),
+                    "overlap_end": pair.overlap_end.isoformat(),
                 }
-                existing = by_phase.get(me_id)
-                # 同阶段多冲突对：保留重叠最深（最严重）的详情
-                if existing is None or detail["overlap_days"] > existing["overlap_days"]:
-                    by_phase[me_id] = detail
+                by_phase.setdefault(me_id, []).append(detail)
+        for lst in by_phase.values():
+            lst.sort(key=lambda d: d["overlap_days"], reverse=True)
     return result
 
 
@@ -223,8 +226,8 @@ def build_heatmap(db: Session, weeks: int = 12, granularity: str = "week") -> di
                 if ps <= b.end and pe >= b.start:  # 与桶相交 → 计入
                     cells[idx] += 1
                     if ph_entry is None:
-                        detail = res_conflicts.get(ph.id)
-                        ph_entry = _phase_entry(ph, ph.project, detail is not None, detail)
+                        details = res_conflicts.get(ph.id)
+                        ph_entry = _phase_entry(ph, ph.project, bool(details), details)
                     cell_entries[idx].append(dict(ph_entry))
 
         if not any(cells):

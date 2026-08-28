@@ -12,6 +12,10 @@ import './resourceView.css'
 interface Props {
   scale?: 'day' | 'week' | 'month'
   onPhaseClick: (phaseId: number) => void
+  /** 父级冲突版本号（热力图/报告消除后 bump → 本视图重建，跨视图同步——用户问题 2） */
+  conflictVersion?: number
+  /** 本视图消除成功后通知父级 bump（热力图/报告同步刷新） */
+  onConflictChanged?: () => void
 }
 
 /**
@@ -22,7 +26,7 @@ interface Props {
  *
  * 人员行 id 用负数（-personId），阶段行 id 用 phase_id（正数），避免冲突。
  */
-export default function ResourceView({ scale = 'week', onPhaseClick }: Props) {
+export default function ResourceView({ scale = 'week', onPhaseClick, conflictVersion = 0, onConflictChanged }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   const ganttRef = useRef<any>(null)
   const scaleRef = useRef(scale)
@@ -79,17 +83,18 @@ export default function ResourceView({ scale = 'week', onPhaseClick }: Props) {
         ])
         if (destroyed) return
 
-        // phase_id → 冲突描述（"与 XX项目·XX阶段 重叠 N 天"，多条用分号连接）
-        const conflictMap = new Map<number, string>()
+        // phase_id 按资源视角的冲突描述（用户问题 2：黄框只标"该资源视角"的冲突对
+        // 成员——共担者行里的阶段即使参与他人冲突对也不标黄，与热力图 ⚠ 口径一致）
+        const conflictMap = new Map<string, string>()
         // "resourceId:phaseId" → 消除目标（冲突条点击弹消除 Modal，决策 ③）
         const pairMap = pairMapRef.current
         pairMap.clear()
         for (const rc of conflicts) {
           for (const c of rc.conflicts) {
             const desc = `与 ${c.project_b_name}·${c.phase_b_name} 重叠 ${c.overlap_days} 天`
-            conflictMap.set(c.phase_a_id, [conflictMap.get(c.phase_a_id), desc].filter(Boolean).join('；'))
+            conflictMap.set(`${rc.resource_id}:${c.phase_a_id}`, [conflictMap.get(`${rc.resource_id}:${c.phase_a_id}`), desc].filter(Boolean).join('；'))
             const descB = `与 ${c.project_a_name}·${c.phase_a_name} 重叠 ${c.overlap_days} 天`
-            conflictMap.set(c.phase_b_id, [conflictMap.get(c.phase_b_id), descB].filter(Boolean).join('；'))
+            conflictMap.set(`${rc.resource_id}:${c.phase_b_id}`, [conflictMap.get(`${rc.resource_id}:${c.phase_b_id}`), descB].filter(Boolean).join('；'))
             const target: OverrideTarget = {
               resourceId: rc.resource_id,
               resourceName: rc.resource_name,
@@ -120,8 +125,8 @@ export default function ResourceView({ scale = 'week', onPhaseClick }: Props) {
           const minDate = dates.length ? new Date(Math.min(...dates.map((d) => d.getTime()))) : today
           const maxDate = dates.length ? new Date(Math.max(...dates.map((d) => d.getTime()))) : today
 
-          // 该人员冲突阶段数（人员行角标）
-          const conflictCount = wl.workloads.filter((w) => conflictMap.has(w.phase_id)).length
+          // 该人员冲突阶段数（人员行角标）——按资源视角
+          const conflictCount = wl.workloads.filter((w) => conflictMap.has(`${wl.resource.id}:${w.phase_id}`)).length
 
           // 人员行（type=project，显示姓名 + 阶段数）
           tasks.push({
@@ -139,7 +144,7 @@ export default function ResourceView({ scale = 'week', onPhaseClick }: Props) {
           for (const w of wl.workloads) {
             const start = w.plan_start ? new Date(w.plan_start) : today
             const end = w.plan_end ? new Date(w.plan_end) : today
-            const conflictInfo = conflictMap.get(w.phase_id)
+            const conflictInfo = conflictMap.get(`${wl.resource.id}:${w.phase_id}`)
             // 注意：id 必须全局唯一。同一阶段可能被多人参与（phase_id 重复），
             // 直接用 phase_id 会导致 dhtmlxGantt 内部索引混乱、甘特条错位。
             // 用 personId * 100000 + phaseId 保证唯一，真实 phase_id 存在自定义字段。
@@ -216,8 +221,8 @@ export default function ResourceView({ scale = 'week', onPhaseClick }: Props) {
         gantt.clearAll()
       }
     }
-    // reloadFlag：消除成功后重建甘特（冲突条黄框消失）
-  }, [reloadFlag])
+    // reloadFlag：消除成功后重建甘特（冲突条黄框消失）；conflictVersion：跨视图同步（用户问题 2）
+  }, [reloadFlag, conflictVersion])
 
   // 尺度切换
   useEffect(() => {
@@ -236,7 +241,11 @@ export default function ResourceView({ scale = 'week', onPhaseClick }: Props) {
         target={overrideTarget}
         open={overrideTarget !== null}
         onClose={() => setOverrideTarget(null)}
-        onOverridden={() => setReloadFlag((v) => v + 1)}
+        onOverridden={() => {
+          // 本视图消除成功 → 通知父级 bump（热力图/报告同步刷新，用户问题 2）
+          onConflictChanged?.()
+          setReloadFlag((v) => v + 1) // 本地兜底重建甘特（黄框消失）
+        }}
         onViewPhase={() => {
           const pid = viewPhaseRef.current
           setOverrideTarget(null)
