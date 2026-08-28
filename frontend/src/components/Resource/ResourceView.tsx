@@ -35,11 +35,15 @@ export default function ResourceView({ scale = 'week', onPhaseClick, conflictVer
   // 冲突消除（CONFLICT_MODEL_V2 §2.4 决策 ③）：黄框冲突条点击 → 消除弹窗
   // 仅 admin/manager；非冲突条/无权限维持原行为（打开阶段详情）
   const [overrideTarget, setOverrideTarget] = useState<OverrideTarget | null>(null)
-  const [reloadFlag, setReloadFlag] = useState(0)
+  // 初始加载 + 外部强制刷新入口（reloadFlag 目前仅初始为 0；消除冲突走局部更新，不重建——用户 2026-08-28）
+  const [reloadFlag] = useState(0)
   const canOverrideRef = useRef(false)
   // "resourceId:phaseId" → 消除目标（该资源该阶段所属冲突对）
   const pairMapRef = useRef(new Map<string, OverrideTarget>())
+  // "resourceId:phaseId" → 冲突描述（局部更新用，消除后不重建甘特——用户 2026-08-28）
+  const conflictMapRef = useRef(new Map<string, string>())
   const viewPhaseRef = useRef<number | null>(null)
+  const conflictVersionFirstRun = useRef(true)
 
   useEffect(() => {
     getMe()
@@ -114,6 +118,7 @@ export default function ResourceView({ scale = 'week', onPhaseClick, conflictVer
             }
           }
         }
+        conflictMapRef.current = conflictMap
 
         // 过滤掉没有阶段的人员（不显示空行）
         const withWork = allWorkloads.filter((w) => w.workloads.length > 0)
@@ -228,8 +233,79 @@ export default function ResourceView({ scale = 'week', onPhaseClick, conflictVer
         gantt.clearAll()
       }
     }
-    // reloadFlag：消除成功后重建甘特（冲突条黄框消失）；conflictVersion：跨视图同步（用户问题 2）
-  }, [reloadFlag, conflictVersion])
+    // reloadFlag：强制重建（初始加载）；消除冲突后走下方局部更新，不重建（用户 2026-08-28）
+  }, [reloadFlag])
+
+  // 冲突变化（本页消除 / 审核中心撤销 / 其他视图）→ 局部更新冲突标记：
+  // 重拉 /conflicts → 只刷新受影响的任务条与人员行角标，保留滚动位置与展开状态
+  useEffect(() => {
+    if (conflictVersionFirstRun.current) {
+      conflictVersionFirstRun.current = false
+      return
+    }
+    let cancelled = false
+    getResourceConflicts()
+      .then((conflicts) => {
+        if (cancelled) return
+        const g = ganttRef.current
+        if (!g || !g.getTask) return
+        // 重建冲突映射（pairMap 供点击消除定位；conflictMap 供黄框标记）
+        const conflictMap = conflictMapRef.current
+        conflictMap.clear()
+        const pairMap = pairMapRef.current
+        pairMap.clear()
+        for (const rc of conflicts) {
+          for (const c of rc.conflicts) {
+            const desc = `与 ${c.project_b_name}·${c.phase_b_name} 重叠 ${c.overlap_days} 天`
+            conflictMap.set(`${rc.resource_id}:${c.phase_a_id}`, [conflictMap.get(`${rc.resource_id}:${c.phase_a_id}`), desc].filter(Boolean).join('；'))
+            const descB = `与 ${c.project_a_name}·${c.phase_a_name} 重叠 ${c.overlap_days} 天`
+            conflictMap.set(`${rc.resource_id}:${c.phase_b_id}`, [conflictMap.get(`${rc.resource_id}:${c.phase_b_id}`), descB].filter(Boolean).join('；'))
+            if (!pairMap.has(`${rc.resource_id}:${c.phase_a_id}`)) {
+              pairMap.set(`${rc.resource_id}:${c.phase_a_id}`, {
+                resourceId: rc.resource_id, resourceName: rc.resource_name,
+                phaseId: c.phase_a_id, summary: `${c.project_a_name}·${c.phase_a_name}`,
+              })
+            }
+            if (!pairMap.has(`${rc.resource_id}:${c.phase_b_id}`)) {
+              pairMap.set(`${rc.resource_id}:${c.phase_b_id}`, {
+                resourceId: rc.resource_id, resourceName: rc.resource_name,
+                phaseId: c.phase_b_id, summary: `${c.project_b_name}·${c.phase_b_name}`,
+              })
+            }
+          }
+        }
+        // 阶段行：更新 conflict_info（黄框/tooltip）
+        for (const t of g.getAllTask()) {
+          if (Number(t.id) > 0 && t.resource_id != null) {
+            const info = conflictMap.get(`${t.resource_id}:${t.phase_id}`)
+            if (t.conflict_info !== info) {
+              t.conflict_info = info
+              g.refreshTask(t.id)
+            }
+          }
+        }
+        // 人员行：⚠️N 角标
+        const counts = new Map<number, number>()
+        for (const t of g.getAllTask()) {
+          if (Number(t.id) > 0 && t.resource_id != null && t.conflict_info) {
+            counts.set(t.resource_id, (counts.get(t.resource_id) || 0) + 1)
+          }
+        }
+        for (const t of g.getAllTask()) {
+          if (Number(t.id) < 0) {
+            const n = counts.get(-Number(t.id)) || 0
+            const base = String(t.text).replace(/\s*⚠️\d*$/, '')
+            const text = n > 0 ? `${base} ⚠️${n}` : base
+            if (t.text !== text) {
+              t.text = text
+              g.refreshTask(t.id)
+            }
+          }
+        }
+      })
+      .catch(() => {})
+    return () => { cancelled = true }
+  }, [conflictVersion])
 
   // 尺度切换
   useEffect(() => {
@@ -249,9 +325,8 @@ export default function ResourceView({ scale = 'week', onPhaseClick, conflictVer
         open={overrideTarget !== null}
         onClose={() => setOverrideTarget(null)}
         onOverridden={() => {
-          // 本视图消除成功 → 通知父级 bump（热力图/报告同步刷新，用户问题 2）
+          // 本视图消除成功 → 父级 bump（conflictVersion → 本页局部更新 + 热力图/审核中心同步）
           onConflictChanged?.()
-          setReloadFlag((v) => v + 1) // 本地兜底重建甘特（黄框消失）
         }}
         onViewPhase={() => {
           const pid = viewPhaseRef.current
