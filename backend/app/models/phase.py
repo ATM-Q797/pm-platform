@@ -42,7 +42,7 @@ class Phase(Base):
     project_id: Mapped[int] = mapped_column(
         ForeignKey("project.id", ondelete="CASCADE"), nullable=False, index=True
     )
-    phase_type: Mapped[str] = mapped_column(String, nullable=False, index=True)  # P1-P8
+    phase_type: Mapped[str] = mapped_column(String, nullable=False, index=True)  # P1-P9（含 P71/P72 子编号；旧值 P1-P8 兼容）
     name: Mapped[str] = mapped_column(String, nullable=False)  # 阶段显示名称
     sequence: Mapped[int] = mapped_column(Integer, nullable=False)  # 项目内顺序
     plan_start: Mapped[date | None] = mapped_column(Date)

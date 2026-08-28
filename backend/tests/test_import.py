@@ -83,13 +83,16 @@ def test_parse_cell_date_none():
 
 
 def test_map_phase_type_known():
-    """文档 §5.3 映射表内的阶段名。"""
+    """文档 §5.3 映射表内的阶段名（PHASE_TYPES_V2 §二 重排后编号）。"""
     report = _empty_report()
     assert map_phase_type("工业设计", 1, "国内", report) == "P4"
     assert map_phase_type("结构设计", 1, "国内", report) == "P5"
-    assert map_phase_type("样机打样", 1, "国内", report) == "P6"
-    assert map_phase_type("联调测试", 1, "国内", report) == "P7"
-    assert map_phase_type("POC及投标", 1, "国内", report) == "P8"
+    assert map_phase_type("线缆设计", 1, "国内", report) == "P6"   # 新环节
+    assert map_phase_type("样机打样", 1, "国内", report) == "P71"  # 原 P6
+    assert map_phase_type("线缆打样", 1, "国内", report) == "P72"  # 新增
+    assert map_phase_type("联调测试", 1, "国内", report) == "P8"   # 原 P7
+    assert map_phase_type("POC及投标", 1, "国内", report) == "P9"  # 原 P8 交付族
+    assert map_phase_type("交付", 1, "国内", report) == "P9"
     assert map_phase_type("需求分析", 1, "国内", report) == "P1"
     assert report.errors == []
 
@@ -103,11 +106,28 @@ def test_map_phase_type_unknown_records_error():
     assert len(report.errors) == 2
 
 
+def test_phase_type_rank_renumbering():
+    """PHASE_TYPES_V2 §八 用例 2/3b：排序 P6 < P71 < P72 < P8 < P9；
+    旧值归一——旧 P7（联调测试）排 P72 之后（=新 P8 位）、旧 P8（交付）= 新 P9 位；未知排最后。"""
+    from app.services.excel_importer import _phase_type_rank
+
+    order = ["P1", "P2", "P3", "P4", "P5", "P6", "P71", "P72", "P8", "P9"]
+    ranks = [_phase_type_rank(pt) for pt in order]
+    assert ranks == sorted(ranks), "新编号排序错乱"
+    # 旧值归一（决策 ③ 历史数据不迁移）
+    assert _phase_type_rank("P7") == (8, 0)  # 旧联调测试 → 新 P8 位（排 P72 之后）
+    # P8 → (9, 0)：旧交付归一到 P9 位；新 P8=联调测试 phase_type 相同、机制上无法区分，
+    # 排序同样落 (9, 0) 与 P9 同位——与 §四排除的「机制双兼容」同源，设计 §三 明文接受
+    assert _phase_type_rank("P8") == _phase_type_rank("P9") == (9, 0)
+    assert _phase_type_rank("P6") < _phase_type_rank("P71")   # 旧样机打样在 P71 之前
+    assert _phase_type_rank("线缆设计") == _phase_type_rank("ZZZ") == (99, 99)  # 未知排最后
+
+
 def test_phase_name_mapping_table_completeness():
-    """验证映射表覆盖了文档 §5.3 原表 + 实际 Excel 的 5 个变体。"""
-    # §5.3 原表的 18 个
+    """验证映射表覆盖了文档 §5.3 原表 + 新环节 + 实际 Excel 的 5 个变体（PHASE_TYPES_V2 §二）。"""
+    # §5.3 原表 18 个 + 线缆设计/线缆打样（新增环节）
     expected_keys = {
-        "工业设计", "结构设计", "整机设计", "样机打样",
+        "工业设计", "结构设计", "整机设计", "样机打样", "线缆设计", "线缆打样",
         "联调测试", "测试", "POC及投标",
         "需求分析", "需求评估", "配置评估", "模块选型",
         "直接投料", "图纸归档", "归档", "BOM制作与激活",
@@ -509,8 +529,8 @@ def test_import_excel_direct_with_constructed_workbook(client, db_session):
     assert phases[1].phase_type == "P5"
     assert phases[1].name == "结构设计"
     assert phases[1].progress == 60
-    # 阶段 1-3：纯中文阶段类型列 → 映射表兜底
-    assert phases[2].phase_type == "P8"
+    # 阶段 1-3：纯中文阶段类型列 → 映射表兜底（PHASE_TYPES_V2：交付 → P9）
+    assert phases[2].phase_type == "P9"
     assert phases[2].name == "交付"
 
 

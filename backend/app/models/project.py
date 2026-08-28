@@ -29,7 +29,7 @@ class Project(Base):
     market: Mapped[str] = mapped_column(String, nullable=False, index=True)  # 国内/海外
     status: Mapped[str] = mapped_column(
         String, nullable=False, default="未开始", server_default="未开始", index=True
-    )  # 未开始/进行中/已完成/搁置（旧值「已搁置」兼容读取，PROJECT_SHELVE §2.1）
+    )  # 未开始/进行中/已完成/搁置（PROJECT_SHELVE §2.1）
     priority: Mapped[str | None] = mapped_column(String)  # 高/中/低
     plan_start: Mapped[date | None] = mapped_column(Date)
     plan_end: Mapped[date | None] = mapped_column(Date)

@@ -140,15 +140,12 @@ def test_3_done_and_phase_shelved_skipped(client, db_session):
 
 
 def test_4_project_shelved_skipped(client, db_session):
-    """用例 4：项目状态=搁置（含旧值已搁置，双 key）→ 该阶段不计入。"""
+    """用例 4：项目状态=搁置 → 该阶段不计入（2026-08-28 起旧值「已搁置」写入被 422 拒绝）。"""
     t = _today()
     r = _mk_resource(db_session, "搁置项目人")
     p_new = _mk_project(db_session, "搁置项目", status="搁置")
-    p_old = _mk_project(db_session, "旧搁置项目", status="已搁置")
-    ph1 = _mk_phase(db_session, p_new, "新搁置阶段", t, t + timedelta(days=7))
-    ph2 = _mk_phase(db_session, p_old, "旧搁置阶段", t, t + timedelta(days=7))
+    ph1 = _mk_phase(db_session, p_new, "搁置阶段", t, t + timedelta(days=7))
     ph1.assignees = [r]
-    ph2.assignees = [r]
     db_session.commit()
 
     data = _hm(client)
@@ -473,16 +470,14 @@ def test_15_current_week_visible(client, db_session):
 
 
 def test_shelved_project_excluded_from_workload(client, db_session):
-    """SHELVE 联动：搁置项目（双 key）的阶段从 /all/workload 与 /{id}/workload 排除。"""
+    """SHELVE 联动：搁置项目的阶段从 /all/workload 与 /{id}/workload 排除。"""
     t = _today()
     r = _mk_resource(db_session, "联动人")
     p_live = _mk_project(db_session, "活跃项目")
     p_shelved = _mk_project(db_session, "搁置项目", status="搁置")
-    p_old = _mk_project(db_session, "旧搁置项目", status="已搁置")
     ph_live = _mk_phase(db_session, p_live, "活跃阶段", t, t + timedelta(days=7))
     ph_shelved = _mk_phase(db_session, p_shelved, "搁置阶段", t, t + timedelta(days=7))
-    ph_old = _mk_phase(db_session, p_old, "旧搁置阶段", t, t + timedelta(days=7))
-    for ph in (ph_live, ph_shelved, ph_old):
+    for ph in (ph_live, ph_shelved):
         ph.assignees = [r]
     db_session.commit()
 
@@ -559,3 +554,33 @@ def test_p8_delivery_not_in_resource_views(client, db_session):
     all_wl = client.get("/api/resources/all/workload").json()
     me_wl = next(w for w in all_wl if w["resource"]["id"] == r.id)
     assert [w["phase_id"] for w in me_wl["workloads"]] == [p5.id]  # 甘特视图不含 P8
+
+
+def test_p9_and_new_p8_not_in_resource_views(client, db_session):
+    """PHASE_TYPES_V2 §八 用例 5：热力/资源甘特对新 P9 与新 P8（联调测试）双兼容排除。"""
+    t = _today()
+    r = _mk_resource(db_session, "交付族热力人")
+    p1 = _mk_project(db_session, "交付族项目甲")
+    p2 = _mk_project(db_session, "交付族项目乙")
+    p5 = _mk_phase(db_session, p1, "结构设计", t, t + timedelta(days=7))
+    p5.phase_type = "P5"
+    p5.assignees = [r]
+    p9 = _mk_phase(db_session, p2, "交付", t, t + timedelta(days=7))   # 新 P9 交付
+    p9.phase_type = "P9"
+    p9.assignees = [r]
+    p8n = _mk_phase(db_session, p2, "联调测试", t, t + timedelta(days=7))  # 新 P8 联调测试
+    p8n.phase_type = "P8"
+    p8n.assignees = [r]
+    db_session.commit()
+
+    hm = _hm(client, weeks=0)
+    row = next(p for p in hm["people"] if p["resource_id"] == r.id)
+    phase_ids = {e["phase_id"] for cp in row["cell_phases"] if cp for e in cp}
+    assert p5.id in phase_ids
+    assert p9.id not in phase_ids  # 新 P9 不占格
+    assert p8n.id not in phase_ids  # 新 P8（联调测试）机制双兼容同样不占格
+    assert row["peak_parallel"] == 1
+
+    all_wl = client.get("/api/resources/all/workload").json()
+    me_wl = next(w for w in all_wl if w["resource"]["id"] == r.id)
+    assert [w["phase_id"] for w in me_wl["workloads"]] == [p5.id]

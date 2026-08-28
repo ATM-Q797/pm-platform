@@ -205,13 +205,15 @@ def test_parse_progress_unified_0_100():
 # ---------- §2.6 阶段类型 ----------
 
 def test_parse_phase_type_cell_variants():
-    """P 前缀 / 全角 P / 纯中文名（映射表归一化索引）。"""
+    """P 前缀（含子编号 P71/P72）/ 全角 P / 纯中文名（映射表归一化索引）。"""
     assert parse_phase_type_cell("P1 需求评估") == ("P1", "需求评估")
     assert parse_phase_type_cell("P１ 需求评估") == ("P1", "需求评估")   # 用例 7
     assert parse_phase_type_cell("P4") == ("P4", "P4")
+    assert parse_phase_type_cell("P71 样机打样") == ("P71", "样机打样")  # PHASE_TYPES_V2 子编号
+    assert parse_phase_type_cell("P72线缆打样") == ("P72", "线缆打样")
     assert parse_phase_type_cell("工业设计") == ("P4", "工业设计")
     # 评审处置 #4：全角括号键经 NFKC 索引可匹配
-    assert parse_phase_type_cell("样机打样(1台)") == ("P6", "样机打样(1台)")
+    assert parse_phase_type_cell("样机打样(1台)") == ("P71", "样机打样(1台)")
     assert parse_phase_type_cell("自定义阶段") is None
 
 

@@ -27,9 +27,9 @@ router = APIRouter(prefix="/api/dashboard", tags=["看板"])
 
 # 未完成状态（参与延期/到期判定）
 _ACTIVE_STATUSES = ("未开始", "进行中")
-# 项目级搁置状态（双 key：新值「搁置」+ 旧值「已搁置」，PROJECT_SHELVE §2.2/决策 4）：
+# 项目级搁置状态（PROJECT_SHELVE §2.2/决策 4；2026-08-28 起旧值「已搁置」兼容已移除）：
 # 搁置项目 = 假完成，其阶段不参与任何阶段级报警
-_SHELVED_PROJECT_STATUSES = ("搁置", "已搁置")
+_SHELVED_PROJECT_STATUSES = ("搁置",)
 # 即将到期窗口（天）
 _DUE_SOON_DAYS = 7
 

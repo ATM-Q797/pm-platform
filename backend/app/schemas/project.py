@@ -10,7 +10,8 @@ from app.schemas.dependency import DependencyRead
 from app.schemas.phase import PhaseRead
 from app.schemas.template import TemplateBrief
 
-# 项目状态合法值（PROJECT_SHELVE §2.1：「搁置」为新名，旧值「已搁置」仅在更新时归一化接受）
+# 项目状态合法值（PROJECT_SHELVE §2.1；2026-08-28 用户决策：旧值「已搁置」兼容已移除——
+# 库中旧值已迁移，非法值一律 422）
 PROJECT_STATUSES = ("未开始", "进行中", "已完成", "搁置")
 
 
@@ -53,18 +54,16 @@ class ProjectUpdate(BaseModel):
     @field_validator("status")
     @classmethod
     def _normalize_status(cls, v: str | None) -> str | None:
-        """状态校验 + 旧值归一化（PROJECT_SHELVE 决策 1）。
+        """状态校验（PROJECT_SHELVE 决策 1；2026-08-28 起旧值兼容已移除）。
 
-        - 旧值「已搁置」→ 归一化为「搁置」保存（存量数据/旧客户端兼容）
-        - 其他非法值 → 422
+        - 仅接受 未开始/进行中/已完成/搁置
+        - 非法值（含旧值「已搁置」）→ 422
         - None / 未传 → 不校验（部分更新语义）
         """
         if v is None:
             return v
-        if v == "已搁置":
-            return "搁置"
         if v not in PROJECT_STATUSES:
-            raise ValueError(f"非法项目状态：{v}（合法值：{'/'.join(PROJECT_STATUSES)}，旧值「已搁置」将归一化为「搁置」）")
+            raise ValueError(f"非法项目状态：{v}（合法值：{'/'.join(PROJECT_STATUSES)}）")
         return v
 
 

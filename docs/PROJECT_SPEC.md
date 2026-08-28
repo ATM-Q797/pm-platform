@@ -270,7 +270,7 @@ PROJECT 1───N PHASE N───N DEPENDENCY
 | type | TEXT | NOT NULL DEFAULT 'FS' | FS/SS/FF/SF |
 | lag_days | INTEGER | DEFAULT 0 | 廦迟天数 |
 
-### 2.3 标准阶段字典（phase_type 枚举）
+### 2.3 标准阶段字典（phase_type 枚举；PHASE_TYPES_V2 §一 重排后）
 
 | 代码 | 中文名 | 英文名 | 说明 |
 |------|--------|--------|------|
@@ -279,10 +279,13 @@ PROJECT 1───N PHASE N───N DEPENDENCY
 | P3 | 模块选型 | selection | 核心模块/器件选型 |
 | P4 | 工业设计 | industrial_design | 外观/造型设计 |
 | P5 | 结构设计 | structure_design | 整机结构设计（含原"整机设计"） |
-| P6 | 样机打样 | prototyping | 首版样机制作 |
-| P7 | 联调测试 | testing | 功能/性能验证 |
-| P8 | 交付 | delivery | POC/投标/发货/量产保障 |
+| P6 | 线缆设计 | cable_design | 线缆设计（新拆分环节） |
+| P71 | 样机打样 | prototyping | 首版样机制作（子编号，原 P6） |
+| P72 | 线缆打样 | cable_prototyping | 线缆打样（子编号，与样机打样同主位并行） |
+| P8 | 联调测试 | testing | 功能/性能验证（原 P7） |
+| P9 | 交付 | delivery | POC/投标/发货/量产保障（原 P8） |
 
+> **历史兼容（决策 ③ 不迁移）**：存量阶段可能仍为旧值 `P6`（样机打样）/`P7`（联调测试）/`P8`（交付），显示保持原值；导入映射（§6.2）与排序按语义归一到新位（PHASE_TYPES_V2 §二/§三）。
 > **重要**: phase_type 是标准枚举值，但实际项目的阶段名称可以是自定义文本（如"结构设计(第一版)"）。phase_type 用于匹配模板和依赖规则，name 用于显示。
 
 ---
@@ -485,26 +488,29 @@ Sheet：`项目情况统计-国内`（8个项目）、`项目情况统计-海外
 | 阶段名不一致 | 映射表（见下） |
 | 单元格内换行（`\n`） | 清除换行，取第一行有效内容 |
 
-### 5.3 阶段名映射表
+### 5.3 阶段名映射表（PHASE_TYPES_V2 §二 重排后编号）
 
 Excel 中的阶段名 → 标准 phase_type 映射：
 
 ```
 「工业设计」       → P4 industrial_design
 「结构设计」、「整机设计」 → P5 structure_design
-「样机打样」       → P6 prototyping
-「样机打样（1台）」 → P6 prototyping
-「联调测试」、「测试」、「测试与发货」 → P7 testing
-「POC及投标」      → P8 delivery
+「线缆设计」       → P6 cable_design（新环节）
+「样机打样」       → P71 prototyping（原 P6）
+「样机打样（1台）」 → P71 prototyping
+「线缆打样」       → P72 cable_prototyping（新环节）
+「联调测试」、「测试」、「测试与发货」 → P8 testing（原 P7）
+「POC及投标」      → P9 delivery（原 P8）
 「需求分析」、「需求评估」 → P1 requirement
 「配置评估」       → P2 configuration
 「模块选型」       → P3 selection
-「直接投料」       → P8 delivery (量产)
+「直接投料」       → P9 delivery (量产)
 「图纸归档」、「归档」 → P5 structure_design (后续阶段)
-「BOM制作与激活」  → P8 delivery (量产)
-「首批生产保障」   → P8 delivery (量产)
-「投料」          → P8 delivery (量产)
-「发货」          → P8 delivery
+「BOM制作与激活」  → P9 delivery (量产)
+「首批生产保障」   → P9 delivery (量产)
+「投料」          → P9 delivery (量产)
+「发货」          → P9 delivery
+「归档（归档后再投料）」、「直接投料，BOM制作与激活」、「直接投料，激活时间」 → P9 delivery
 ```
 
 ### 5.4 导入流程
