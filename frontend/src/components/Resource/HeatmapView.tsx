@@ -274,7 +274,7 @@ function PersonRow({
       })}
       <div
         className={`hm-load-cell${rowCls}`}
-        title="窗口内峰值并行数（用户问题 3：只显示最大并行）"
+        title="窗口内峰值并行数"
         onMouseEnter={() => onHover(true)}
         onMouseLeave={() => onHover(false)}
       >
