@@ -13,13 +13,12 @@ import { getMe } from '../api/auth'
 import { MARKET_OPTION_ITEMS, MARKET_OPTIONS } from '../types'
 import type { ImportPreview, ImportReport, Project, UserInfo } from '../types'
 
-// 状态 → Tag 颜色（与项目列表页一致，双 key 兼容旧值「已搁置」）
+// 状态 → Tag 颜色（与项目列表页一致；旧值「已搁置」兼容已移除——2026-08-28）
 const STATUS_COLOR: Record<string, string> = {
   进行中: 'processing',
   已完成: 'success',
   未开始: 'default',
   搁置: 'warning',
-  已搁置: 'warning',
 }
 
 // 预警角标（SPECIAL_PROJECT §4.1，口径与 Dashboard 一致）
@@ -32,7 +31,7 @@ interface Badge {
 }
 
 function computeBadge(p: Project): Badge | null {
-  if (p.status === '搁置' || p.status === '已搁置' || p.status === '已完成') return null
+  if (p.status === '搁置' || p.status === '已完成') return null
   const today = dayjs().startOf('day')
   if (p.plan_end) {
     const end = dayjs(p.plan_end)
@@ -296,7 +295,7 @@ export default function SpecialProjectsPage() {
                   <Card
                     hoverable
                     size="small"
-                    onClick={() => navigate(`/projects/${p.id}`)}
+                    onClick={() => navigate(`/special-projects/${p.id}`)}
                     title={
                       <Space wrap style={{ width: '100%', justifyContent: 'space-between' }}>
                         <span style={{ fontSize: 14, fontWeight: 600 }}>{p.name}</span>
@@ -434,7 +433,6 @@ export default function SpecialProjectsPage() {
               { value: '进行中', label: '进行中' },
               { value: '已完成', label: '已完成' },
               { value: '搁置', label: '搁置' },
-              { value: '已搁置', label: '已搁置（保存时转为搁置）' },
             ]} />
           </Form.Item>
           <Space style={{ display: 'flex' }}>
@@ -478,7 +476,7 @@ export default function SpecialProjectsPage() {
               {importPreview.incoming.phases} 个阶段
             </p>
             <p style={{ marginBottom: 8, fontSize: 12, color: 'var(--text-secondary)' }}>
-              🛡️ 常规项目与人员数据不受影响；阶段类型按文件原样导入（不映射 P1-P8）
+              🛡️ 常规项目与人员数据不受影响；阶段类型按文件原样导入（不映射 P1-P9）
             </p>
             {importPreview.projects_preview.length > 0 && (
               <div style={{ marginBottom: 8 }}>

@@ -15,7 +15,7 @@ export interface Project {
   name: string
   owner: string
   market: string // 销售区域（拉美区/西欧区/...）
-  status: string // 未开始/进行中/已完成/搁置（旧值「已搁置」兼容显示，PROJECT_SHELVE §2.1）
+  status: string // 未开始/进行中/已完成/搁置（PROJECT_SHELVE §2.1）
   priority?: string | null // 高/中/低
   plan_start?: string | null // YYYY-MM-DD
   plan_end?: string | null

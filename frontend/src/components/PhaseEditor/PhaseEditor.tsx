@@ -43,16 +43,19 @@ interface Props {
 
 const STATUS_OPTIONS = ['未开始', '进行中', '已完成', '延期', '已搁置'].map((s) => ({ value: s, label: s }))
 
-// 标准阶段类型（PROJECT_SPEC §2.3），含默认显示名称
+// 标准阶段类型（PHASE_TYPES_V2 §一：P1-P9 + P71/P72 子编号），含默认显示名称；
+// 历史数据旧值（P6 样机打样/P7 联调测试/P8 交付）编辑时无匹配 → 回退显示原值文本
 const PHASE_TYPE_OPTIONS = [
   { value: 'P1', label: '需求评估', name: '需求评估' },
   { value: 'P2', label: '配置评估', name: '配置评估' },
   { value: 'P3', label: '模块选型', name: '模块选型' },
   { value: 'P4', label: '工业设计', name: '工业设计' },
   { value: 'P5', label: '结构设计', name: '结构设计' },
-  { value: 'P6', label: '样机打样', name: '样机打样' },
-  { value: 'P7', label: '联调测试', name: '联调测试' },
-  { value: 'P8', label: '交付', name: '交付' },
+  { value: 'P6', label: '线缆设计', name: '线缆设计' },
+  { value: 'P71', label: '样机打样', name: '样机打样' },
+  { value: 'P72', label: '线缆打样', name: '线缆打样' },
+  { value: 'P8', label: '联调测试', name: '联调测试' },
+  { value: 'P9', label: '交付', name: '交付' },
 ]
 
 export default function PhaseEditor({ phaseId, projectId, defaultSequence, readonly, userRole, hideExtra, specialProject, onClose, onSaved }: Props) {
@@ -68,7 +71,7 @@ export default function PhaseEditor({ phaseId, projectId, defaultSequence, reado
   const [projectInfo, setProjectInfo] = useState<{ name: string; owner: string } | null>(null)
   const [form] = Form.useForm()
 
-  // 阶段类型选项（SPECIAL_PROJECT §三）：专项项目放开自由输入——联想 = 本项目已用类型 + P1-P8 建议
+  // 阶段类型选项（SPECIAL_PROJECT §三）：专项项目放开自由输入——联想 = 本项目已用类型 + P1-P9 建议（含 P71/P72）
   const phaseTypeOptions = useMemo(() => {
     if (!specialProject) return PHASE_TYPE_OPTIONS
     const used = [...new Set(projectPhases.map((p) => p.phase_type).filter(Boolean))]
@@ -334,7 +337,7 @@ export default function PhaseEditor({ phaseId, projectId, defaultSequence, reado
       <Form form={form} layout="vertical" preserve={false} disabled={readonly}>
         <Form.Item name="phase_type" label="阶段类型" rules={[{ required: true, message: '请选择阶段类型' }]}>
           {specialProject ? (
-            // 专项项目：自由输入（联想 = 本项目已用类型 + P1-P8 建议，SPECIAL_PROJECT §三）
+            // 专项项目：自由输入（联想 = 本项目已用类型 + P1-P9 建议，SPECIAL_PROJECT §三）
             <AutoComplete
               placeholder="可自由输入或从联想中选择"
               options={phaseTypeOptions}
@@ -342,7 +345,7 @@ export default function PhaseEditor({ phaseId, projectId, defaultSequence, reado
               allowClear
             />
           ) : (
-            // 普通项目：维持 P1-P8 标准类型下拉（SPECIAL_PROJECT 决策 ②）
+            // 普通项目：维持 P1-P9 标准类型下拉（含 P71/P72 子编号，SPECIAL_PROJECT 决策 ②）
             <Select
               placeholder="请选择标准阶段类型"
               options={PHASE_TYPE_OPTIONS}

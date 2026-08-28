@@ -9,7 +9,7 @@ from app.schemas.resource import ResourceRead
 
 
 class PhaseBase(BaseModel):
-    phase_type: str  # P1-P8
+    phase_type: str  # P1-P9（含 P71/P72 子编号；旧值兼容）
     name: str
     sequence: int
     plan_start: date | None = None

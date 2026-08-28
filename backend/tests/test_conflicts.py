@@ -275,6 +275,31 @@ def test_p8_phase_excluded_from_conflict(client, db_session):
     assert data == []
 
 
+def test_p9_and_new_p8_excluded_from_conflict(client, db_session):
+    """PHASE_TYPES_V2 §八 用例 4：交付族三兼容——新 P9 交付不报冲突（新）；
+    旧 P8 交付排除（回归）；新 P8=联调测试同样排除（机制双兼容，用户知悉）。"""
+    r = _mk_resource(db_session, "交付族排除人")
+    p1 = _mk_project(db_session, "P9甲项目")
+    p2 = _mk_project(db_session, "P9乙项目")
+    # 新 P9 交付 与 旧 P8 交付 与 新 P8 联调测试：三者同窗深度重叠 + 2 并行段（峰值 5）
+    for pt in ("P9", "P8", "P7"):  # P7 = 旧编号联调测试（历史数据，决策 ③ 不迁移）
+        ph = _mk_phase(db_session, p1 if pt != "P8" else p2, f"交付族阶段{pt}",
+                       date(2026, 7, 1), date(2026, 7, 31))
+        ph.phase_type = pt
+        ph.assignees = [r]
+    for i in range(2):
+        pp = _mk_project(db_session, f"交付族并行{i + 1}")
+        ph = _mk_phase(db_session, pp, f"交付族并行阶段{i + 1}",
+                       date(2026, 7, 1), date(2026, 7, 31))
+        ph.phase_type = "P5"
+        ph.assignees = [r]
+    db_session.commit()
+
+    # P9/P8/旧P7 全部退出检测 → 仅剩 2 个 P5 并行（≤ _MAX_PARALLEL）→ 无冲突
+    data = client.get("/api/resources/conflicts").json()
+    assert data == []
+
+
 def test_override_excluded_from_conflicts(client, db_session):
     """CONFLICT_MODEL_V2 §2.3：override 后该资源该对不再报（其余资源仍报）。"""
     from app.models import ConflictOverride

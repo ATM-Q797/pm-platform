@@ -191,8 +191,8 @@ def _workload_visible(ph: Phase) -> bool:
     # 专项项目：资源负载不显示/不计入（SPECIAL_PROJECT §二）
     if ph.project is not None and ph.project.is_special:
         return False
-    # P8 交付：资源负载不显示/不计入（用户 2026-08-28）
-    if (ph.phase_type or "").upper() == "P8":
+    # P8/P9 交付族：资源负载不显示/不计入（用户 2026-08-28；PHASE_TYPES_V2 §四双兼容）
+    if (ph.phase_type or "").upper() in ("P8", "P9"):
         return False
     return True
 
@@ -209,7 +209,7 @@ def get_all_workloads(db: Session = Depends(get_db)):
 
     用于资源负载视图（每人一行甘特图），避免前端发 N 个请求。
     按人员 id 升序，每人的阶段按 plan_start 升序。
-    搁置项目（搁置/已搁置，PROJECT_SHELVE §2.5）与已完成/已搁置阶段不占负载。
+    搁置项目（PROJECT_SHELVE §2.5）与已完成/已搁置阶段不占负载。
     注意：此静态路径必须注册在 /{resource_id}/workload 之前。
     """
     resources = list(db.scalars(select(Resource).order_by(Resource.id)))

@@ -55,15 +55,14 @@ def test_update_status_shelve_saved(client, db_session):
     assert db_session.get(Project, p.id).status == "搁置"
 
 
-def test_update_status_legacy_normalized(client, db_session):
-    """旧值 '已搁置' 归一化为 '搁置' 保存（PROJECT_SHELVE 决策 1）。"""
+def test_update_status_legacy_rejected_422(client, db_session):
+    """旧值 '已搁置' 已不被接受 → 422（2026-08-28 用户决策：兼容移除，库中旧值已迁移）。"""
     p = _mk_project(db_session, "搁置项目B")
     db_session.commit()
 
     resp = client.put(f"/api/projects/{p.id}", json={"status": "已搁置"})
-    assert resp.status_code == 200
-    assert resp.json()["status"] == "搁置"
-    assert db_session.get(Project, p.id).status == "搁置"
+    assert resp.status_code == 422
+    assert db_session.get(Project, p.id).status == "进行中"
 
 
 def test_update_status_invalid_422(client, db_session):
@@ -89,13 +88,11 @@ def test_update_status_untouched_when_absent(client, db_session):
 # ---------- §2.2 看板排除（搁置项目不报警） ----------
 
 def test_dashboard_delayed_excludes_shelved_project(client, db_session):
-    """搁置项目（新值+旧值）的逾期阶段不进入 delayed_phases；正常项目保留。"""
+    """搁置项目的逾期阶段不进入 delayed_phases；正常项目保留。"""
     t = _today()
-    p_new = _mk_project(db_session, "搁置项目（新值）", status="搁置")
-    p_old = _mk_project(db_session, "搁置项目（旧值）", status="已搁置")
+    p_new = _mk_project(db_session, "搁置项目", status="搁置")
     p_ok = _mk_project(db_session, "活跃项目", status="进行中")
-    _mk_phase(db_session, p_new, "搁置新值逾期阶段", t - timedelta(days=10), t - timedelta(days=3))
-    _mk_phase(db_session, p_old, "搁置旧值逾期阶段", t - timedelta(days=10), t - timedelta(days=3))
+    _mk_phase(db_session, p_new, "搁置逾期阶段", t - timedelta(days=10), t - timedelta(days=3))
     ok = _mk_phase(db_session, p_ok, "活跃逾期阶段", t - timedelta(days=10), t - timedelta(days=3))
     db_session.commit()
 
@@ -106,13 +103,11 @@ def test_dashboard_delayed_excludes_shelved_project(client, db_session):
 
 
 def test_dashboard_due_soon_excludes_shelved_project(client, db_session):
-    """搁置项目（新值+旧值）的即将到期阶段不进入 due_soon_phases。"""
+    """搁置项目的即将到期阶段不进入 due_soon_phases。"""
     t = _today()
-    p_new = _mk_project(db_session, "搁置项目（新值）", status="搁置")
-    p_old = _mk_project(db_session, "搁置项目（旧值）", status="已搁置")
+    p_new = _mk_project(db_session, "搁置项目", status="搁置")
     p_ok = _mk_project(db_session, "活跃项目", status="进行中")
-    _mk_phase(db_session, p_new, "搁置新值到期阶段", t, t + timedelta(days=3))
-    _mk_phase(db_session, p_old, "搁置旧值到期阶段", t, t + timedelta(days=3))
+    _mk_phase(db_session, p_new, "搁置到期阶段", t, t + timedelta(days=3))
     _mk_phase(db_session, p_ok, "活跃到期阶段", t, t + timedelta(days=3))
     db_session.commit()
 
@@ -125,10 +120,9 @@ def test_dashboard_due_soon_excludes_shelved_project(client, db_session):
 def test_dashboard_project_level_delay_unchanged(client, db_session):
     """回归：项目级延期用 _ACTIVE_STATUSES（未开始/进行中），搁置项目本来就不报。"""
     t = _today()
-    p_new = _mk_project(db_session, "搁置项目（新值）", status="搁置")
-    p_old = _mk_project(db_session, "搁置项目（旧值）", status="已搁置")
+    p_new = _mk_project(db_session, "搁置项目", status="搁置")
     p_ok = _mk_project(db_session, "活跃项目", status="进行中")
-    for p in (p_new, p_old, p_ok):
+    for p in (p_new, p_ok):
         p.plan_end = t - timedelta(days=5)
     db_session.commit()
 
@@ -160,12 +154,6 @@ def test_conflicts_exclude_shelved_project_phases(client, db_session):
 
     data = client.get("/api/resources/conflicts").json()
     # 搁置项目阶段退出检测：剩 3 个活跃阶段（≤ _MAX_PARALLEL）→ 无冲突
-    assert data == []
-
-    # 新值 '搁置' 已验证；旧值 '已搁置' 同样排除（同一过滤口径）
-    p_shelved.status = "已搁置"
-    db_session.commit()
-    data = client.get("/api/resources/conflicts").json()
     assert data == []
 
 
@@ -257,22 +245,22 @@ def test_migrate_v3_sql_executable(tmp_path):
         conn.close()
 
 
-# ---------- 前端双 key 契约（静态断言，tsc/build 由验收命令兜底） ----------
+# ---------- 前端契约（静态断言，tsc/build 由验收命令兜底） ----------
 
-def test_frontend_status_color_dual_keys():
-    """列表/详情页 STATUS_COLOR 同时含 '搁置' 与 '已搁置'（迁移前旧数据不显示无色 Tag）。"""
+def test_frontend_status_color_single_key():
+    """列表/详情页 STATUS_COLOR 仅含 '搁置'（2026-08-28 用户决策：旧值兼容已移除）。"""
     for page in ("pages/ProjectListPage.tsx", "pages/ProjectDetailPage.tsx"):
         text = (FRONTEND_DIR / page).read_text(encoding="utf-8")
         m = re.search(r"const STATUS_COLOR[^=]*=\s*\{([^}]+)\}", text)
         assert m, f"{page} 缺少 STATUS_COLOR 定义"
         body = m.group(1)
         assert re.search(r"^\s*搁置:\s*'", body, re.M), f"{page} STATUS_COLOR 缺少 '搁置' key"
-        assert re.search(r"^\s*已搁置:\s*'", body, re.M), f"{page} STATUS_COLOR 缺少 '已搁置' key"
+        assert "已搁置" not in body, f"{page} STATUS_COLOR 仍残留旧值 '已搁置' key"
 
 
-def test_frontend_filter_and_edit_options_dual_keys():
-    """列表页筛选条与编辑弹窗 options 双 key：主选项 '搁置'，兼容选项 '已搁置'。"""
+def test_frontend_filter_and_edit_options_single_key():
+    """列表页筛选条与编辑弹窗 options 仅含主选项 '搁置'（旧值兼容已移除）。"""
     text = (FRONTEND_DIR / "pages" / "ProjectListPage.tsx").read_text(encoding="utf-8")
-    # 筛选条 + 编辑弹窗各出现一次「搁置」主选项与「已搁置」兼容选项
+    # 筛选条 + 编辑弹窗各出现一次「搁置」主选项；不再有「已搁置」兼容选项
     assert text.count("{ value: '搁置', label: '搁置' }") == 2
-    assert text.count("value: '已搁置'") == 2
+    assert text.count("{ value: '已搁置'") == 0

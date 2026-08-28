@@ -108,40 +108,42 @@ def _normalize_name(name: str) -> str:
     return unicodedata.normalize("NFKC", name).strip()
 
 
-# 阶段类型前缀（新格式 "P4 工业设计" → code=P4, name=工业设计）
-_PHASE_TYPE_PREFIX_RE = re.compile(r"^(P[1-8])\s*(.*)$")
+# 阶段类型前缀（新格式 "P4 工业设计" → code=P4, name=工业设计；P71/P72 子编号同样命中）
+_PHASE_TYPE_PREFIX_RE = re.compile(r"^(P\d{1,2})\s*(.*)$")
 
 # 阶段名 → phase_type 映射表（旧格式/新格式阶段类型列缺省时的兜底）
 # 基础部分来自 PROJECT_SPEC §5.3；扩充部分覆盖实际 Excel 里的阶段名变体。
 # key 为阶段名（trim 后），value 为 phase_type。
 # 查找走 _PHASE_NAME_LOOKUP（NFKC 归一化索引，评审处置 #4：全角括号键可匹配半角输入）。
 PHASE_NAME_TO_TYPE: dict[str, str] = {
-    # --- 基础映射（§5.3 原表）---
+    # --- 基础映射（§5.3 原表；PHASE_TYPES_V2 §二 重排后编号）---
     "工业设计": "P4",
     "结构设计": "P5",
     "整机设计": "P5",
-    "样机打样": "P6",
-    "联调测试": "P7",
-    "测试": "P7",
-    "POC及投标": "P8",
+    "线缆设计": "P6",            # 新增环节（PHASE_TYPES_V2 §一）
+    "样机打样": "P71",           # 原 P6，子编号（并行主位 P7）
+    "线缆打样": "P72",           # 新增，与样机打样同主位并行
+    "联调测试": "P8",            # 原 P7
+    "测试": "P8",                # 原 P7
+    "POC及投标": "P9",           # 原 P8（交付族）
     "需求分析": "P1",
     "需求评估": "P1",
     "配置评估": "P2",
     "模块选型": "P3",
-    "直接投料": "P8",
+    "直接投料": "P9",            # 原 P8（交付族）
     "图纸归档": "P5",
     "归档": "P5",
-    "BOM制作与激活": "P8",
-    "首批生产保障": "P8",
-    "投料": "P8",
-    "发货": "P8",
+    "BOM制作与激活": "P9",        # 原 P8（交付族）
+    "首批生产保障": "P9",         # 原 P8（交付族）
+    "投料": "P9",                # 原 P8（交付族）
+    "发货": "P9",                # 原 P8（交付族）
     # --- 扩充映射（实际 Excel 里的阶段名变体）---
-    "测试与发货": "P8",          # = 交付
-    "样机打样（1台）": "P6",     # = 样机打样
-    "归档（归档后再投料）": "P8", # 量产阶段的归档后投料 = 交付（区别于设计阶段的"归档"P5）
-    "直接投料，BOM制作与激活": "P8",  # = 交付
-    "直接投料，激活时间": "P8",   # = 交付
-    "交付": "P8",               # = 交付（直白词，§5.3 原表遗漏）
+    "测试与发货": "P9",          # = 交付（原 P8）
+    "样机打样（1台）": "P71",     # = 样机打样（原 P6）
+    "归档（归档后再投料）": "P9", # 量产阶段的归档后投料 = 交付（区别于设计阶段的"归档"P5）
+    "直接投料，BOM制作与激活": "P9",  # = 交付（原 P8）
+    "直接投料，激活时间": "P9",   # = 交付（原 P8）
+    "交付": "P9",               # = 交付（直白词，§5.3 原表遗漏；原 P8 → 新 P9）
 }
 
 # NFKC 归一化索引（评审处置 #4）：clean_cell 后的输入（全角括号已被归一化为半角）
@@ -933,12 +935,28 @@ def _next_project_code(db: Session) -> str:
     return str(max(nums) + 1) if nums else "1"
 
 
-# 阶段类型自然顺序（P1 最前 ... P8 最后），用于新增阶段的插入排序
-_PHASE_TYPE_ORDER = {f"P{i}": i for i in range(1, 9)}
+# 阶段类型自然顺序（PHASE_TYPES_V2 §三）：解析 P(主位)(子位)? → (主, 子) 元组比较，
+# 排序 P1 < ... < P6 < P71 < P72 < P8 < P9；未知类型排最后（现有行为）
+# 旧值归一（历史数据不迁移，决策 ③）：旧 P7（联调测试）语义 = 新 P8 → (8, 0)；
+# 旧 P8（交付）语义 = 新 P9 → (9, 0)；旧 P6（样机打样）= (6, 0)，P71 之前（自然覆盖，无需归一）
+_LEGACY_TYPE_RANK: dict[str, tuple[int, int]] = {"P7": (8, 0), "P8": (9, 0)}
+_PHASE_TYPE_MAIN_RE = re.compile(r"^P(\d{1,2})$")
+_UNKNOWN_TYPE_RANK = (99, 99)
 
 
-def _phase_type_rank(phase_type: str) -> int:
-    return _PHASE_TYPE_ORDER.get(phase_type, 9)
+def _phase_type_rank(phase_type: str) -> tuple[int, int]:
+    """阶段类型排序键：P71 → (7, 1)，P8 → (8, 0)，旧 P7 → (8, 0)（归一），未知 → (99, 99)。"""
+    pt = (phase_type or "").upper().strip()
+    legacy = _LEGACY_TYPE_RANK.get(pt)
+    if legacy is not None:
+        return legacy
+    m = _PHASE_TYPE_MAIN_RE.match(pt)
+    if m is None:
+        return _UNKNOWN_TYPE_RANK
+    digits = m.group(1)
+    if len(digits) >= 2:  # 子编号 P71/P72 → (7, 1)/(7, 2)
+        return (int(digits[0]), int(digits[1:]))
+    return (int(digits), 0)
 
 
 def _merge_project(
@@ -1027,7 +1045,7 @@ def _insert_phase(
     pp: ParsedPhase,
     resource_cache: dict[str, Resource],
 ) -> Phase:
-    """按阶段类型自然顺序插入新阶段（P1 最前 ... P8 最后），后续阶段序号顺延。返回新阶段。"""
+    """按阶段类型自然顺序插入新阶段（P1 最前 ... P71/P72 ... P8/P9 最后），后续阶段序号顺延。返回新阶段。"""
     # 找插入点：第一个类型顺序大于新阶段的现有阶段
     pos = 0
     for ph in existing:

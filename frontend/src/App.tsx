@@ -103,6 +103,8 @@ export default function App() {
 
   const selectedKey = location.pathname.startsWith('/resources')
     ? 'resources'
+    : location.pathname.startsWith('/special-projects')
+    ? 'special-projects' // 专项列表/详情（含 /special-projects/:id）都高亮「专项项目」——须在 /projects 判定之前
     : location.pathname.startsWith('/projects')
     ? 'projects'
     : location.pathname.startsWith('/users')
@@ -241,6 +243,13 @@ export default function App() {
               <Route path="/special-projects" element={
                 user.role === 'admin' || user.role === 'manager'
                   ? <SpecialProjectsPage />
+                  : <Navigate to="/" replace />
+              } />
+              {/* 专项项目详情：复用详情页（is_special 驱动返回按钮），并套用与列表相同的角色守卫——
+                  独立路由保证顶部菜单高亮停留在「专项项目」而非「项目列表」 */}
+              <Route path="/special-projects/:id" element={
+                user.role === 'admin' || user.role === 'manager'
+                  ? <ProjectDetailPage />
                   : <Navigate to="/" replace />
               } />
               <Route path="/resources" element={
