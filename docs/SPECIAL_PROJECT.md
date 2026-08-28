@@ -4,7 +4,7 @@
 > **需求**: 新增专项项目页面，重点监控指定创建的专项项目；阶段类型支持自定义；甘特悬浮显示备注
 > **用户决策（2026-08-28）**:
 > ① 专项标记 = **创建/编辑开关**（`is_special` 字段）
-> ② 自定义阶段类型 = **仅专项项目放开**（普通项目保持 P1-P8 约定）
+> ② 自定义阶段类型 = **仅专项项目放开**（普通项目保持标准阶段下拉——P1-P8 为决策时点表述，2026-08-28 同日重排为 P1-P9 + P71/P72，见 **PHASE_TYPES_V2**）
 > ③ 专项列表可见性 = **仅 admin/manager**
 > ④ 预警角标 = 全要
 > ⑤ **专项项目不计入资源负载**（热力图 + 资源甘特 + 冲突检测三处排除）
@@ -33,8 +33,8 @@
 
 - `phase_type` 字段本身是自由文本——后端零改动可存任意值
 - **前端限制在专项项目内放开**：
-  - `PhaseEditor`：所属项目 `is_special` → 阶段类型 `Select(P1-P8)` 切换为 **AutoComplete**（可自由输入；联想 = 该项目已用过的阶段类型 + P1-P8 建议）
-  - 普通项目：保持 P1-P8 下拉（现状不动）
+  - `PhaseEditor`：所属项目 `is_special` → 阶段类型 `Select` 切换为 **AutoComplete**（可自由输入；联想 = 该项目已用过的阶段类型 + 标准阶段建议——标准建议见 **PHASE_TYPES_V2 §五**（P1-P9 + P71/P72，2026-08-28 重排后 10 项））
+  - 普通项目：保持标准阶段下拉（P1-P9 + P71/P72，随 PHASE_TYPES_V2 重排——**不再是 P1-P8**，评审处置：本文档 P1-P8 表述统一替换）
 - **现有计算不受影响**（均不依赖 P 前缀）：
   - 甘特条颜色 = 按 `status`（task_class）
   - 关键路径 CPM = 按依赖
@@ -72,7 +72,7 @@
 
 - 路由指向同一 `ProjectDetailPage` 组件（带 id），通过 `ProjectRead.is_special` 字段驱动模式切换：阶段类型 AutoComplete（§三）、甘特 tooltip 备注（§五）
 - **权限（评审处置 #3：隔离管理一致性）**：专项项目的详情/甘特/阶段接口仅 admin/manager 可访问——`GET /api/projects/{id}`、`GET /api/projects/{id}/gantt`、阶段 CRUD 对 `is_special=true` 项目校验角色（非 admin/manager 403）；普通项目维持现有开放模式
-- **项目级接口权限（评审处置 #10 补充）**：`PUT/PATCH/DELETE /api/projects/{id}`（含 is_special 开关切换）与 `POST /api/projects`（is_special=true 创建）同样仅 admin/manager——防止非 admin 通过更新接口取消开关/创建隐藏项目绕过隔离
+- **项目级接口权限（评审处置 #10 补充）**：`PUT/PATCH/DELETE /api/projects/{id}`（含 is_special 开关切换）与 `POST /api/projects`（is_special=true 创建）仅 admin/manager——**校验以目标项目的 DB `is_special` 值为准**（非请求体标志，防止绕过）；**普通项目的更新/删除维持现有权限模式**（非本开关引入的收紧，评审处置：措辞明确）
 - 状态/阶段列表/甘特与现有详情一致
 - 阶段编辑器：阶段类型 AutoComplete（§三）
 - 甘特：tooltip 显示备注（§五）
@@ -168,10 +168,10 @@
 ## 八、验收标准
 
 - [ ] 专项项目创建/编辑（开关）、列表（仅 admin/manager）、详情（仅 admin/manager）、预警角标
-- [ ] 专项项目阶段类型可自由输入（AutoComplete 联想）；普通项目 P1-P8 不变
+- [ ] 专项项目阶段类型可自由输入（AutoComplete 联想）；普通项目 P1-P9 + P71/P72 标准下拉（随 PHASE_TYPES_V2 重排）
 - [ ] 专项项目完全退出资源负载三处（热力/甘特/冲突）与所有列表聚合（评审处置 #4）
 - [ ] 甘特悬浮显示备注（全局）
-- [ ] 前端交互验证（评审处置 #9）：① 菜单「专项项目」仅 admin/manager 可见；② 卡片角标渲染与优先级正确；③ 专项详情阶段类型 AutoComplete 联想（历史类型+P1-P8）；④ 甘特 hover 显示 📝 备注；⑤ 非 admin 直接访问专项路由 → 403 提示
+- [ ] 前端交互验证（评审处置 #9）：① 菜单「专项项目」仅 admin/manager 可见；② 卡片角标渲染与优先级正确；③ 专项详情阶段类型 AutoComplete 联想（历史类型 + 标准阶段建议 P1-P9/P71/P72）；④ 甘特 hover 显示 📝 备注；⑤ 非 admin 直接访问专项路由 → 403 提示
 - [ ] pytest 全绿 + tsc/build 零错误；迁移脚本含 is_special
 
 > 评审通过后由 eng-coder 实施。

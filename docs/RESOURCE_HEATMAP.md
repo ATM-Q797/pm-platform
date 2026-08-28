@@ -74,7 +74,7 @@ granularity: str = 'week'   # 'week' | 'month'（非法值 400）
 ### 2.2 计算规则（纯函数 `build_heatmap(db, weeks, granularity)`，放 `backend/app/services/resource_heatmap.py`）
 
 1. 取全部人员（Resource）+ 各自阶段（PhaseAssignee → Phase → Project）
-2. 过滤活跃阶段：**与 PROJECT_SHELVE §2.5 完全一致**（`status not in (已完成, 已搁置)` 且 `project.status not in (搁置, 已搁置)` 双 key）——细节以 SHELVE 为准，此处不重复展开（评审处置 #7）；**专项项目阶段同样排除**（`project.is_special=true` 不占格/不计 peak——SPECIAL_PROJECT §二，专项项目是独立监控对象，不占用资源负载统计）
+2. 过滤活跃阶段：**与 PROJECT_SHELVE §2.5 完全一致**（`status not in (已完成, 已搁置)` 且 `project.status not in (搁置, 已搁置)` 双 key）——细节以 SHELVE 为准，此处不重复展开（评审处置 #7）；**专项项目阶段同样排除**（`project.is_special=true` 不占格/不计 peak——SPECIAL_PROJECT §二，专项项目是独立监控对象，不占用资源负载统计）；**`P8`/`P9` 阶段同样排除**（PHASE_TYPES_V2 §四：交付/联调测试不计入负载，不占格/不计 peak——2026-08-28 双兼容，f32717d 起 P8 已排除）
 3. 缺日期过滤：**无任何日期（无 plan 且无 actual）的阶段不占格**；**仅实际日期的阶段用 actual_start/actual_end 计入**；**半开区间（只有开始或只有结束）不占格**（评审处置 #5——避免缺失边界导致区间爆炸）
 4. 周期切片：**weeks 始终定义窗口长度，granularity 只影响桶大小**（24 周 + 月 → ~6 桶）（评审处置 #8）；桶对齐规则：**周粒度 = 周一为桶首**（评审处置 #10）；`start_date` 所在周**包含**在当前窗口首个桶内（阶段活动在本周必须可见——评审处置 #2）；阶段与桶相交（`plan_start <= 桶末 && plan_end >= 桶初`）→ 该桶活跃数 +1
 5. `peak_parallel` = 该人员窗口内任意时刻最大并行数（用阶段起止做扫描线，跨桶连续计算，非桶内取整）
