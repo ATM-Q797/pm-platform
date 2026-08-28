@@ -9,6 +9,7 @@ from __future__ import annotations
 from datetime import date, timedelta
 
 from app.models import Phase, Project, Resource
+from app.services.resource_heatmap import _month_end, _month_start
 
 # ---- 公共构造 ----
 
@@ -186,43 +187,61 @@ def test_5_no_dates_not_counted(client, db_session):
 
 
 def test_6_window_boundaries(client, db_session):
-    """用例 6：窗口 4/12/24 周边界截断 → 桶数与 start/end 正确（空库基线）。"""
+    """用例 6：窗口 4/12/24 周边界 → 桶数=weeks+8（右端延至未来 8 周，2026-08-29 需求）。"""
     for weeks in (4, 12, 24):
         data = _hm(client, weeks=weeks)
-        assert len(data["columns"]) == weeks
-        # 窗口 = [start, 今天]，start 为 weeks-1 周前的周一（裁决 A：右端恒为今天）
+        assert len(data["columns"]) == weeks + 8
+        # 窗口 = [start, 今天+8周]，start 为 weeks-1 周前的周一
         expect_start = _week_monday(_today() - timedelta(weeks=weeks - 1))
         assert data["start_date"] == expect_start.isoformat()
-        assert data["end_date"] == _today().isoformat()
+        assert data["end_date"] == (_today() + timedelta(weeks=8)).isoformat()
         # 首桶含 start_date 所在周
         assert data["columns"][0] == expect_start.isoformat()
 
 
 def test_6b_future_plan_does_not_extend_window(client, db_session):
-    """用例 6b（裁决 A 回归，2026-08-28）：库中存在未来计划阶段时，weeks>0
-    窗口仍严格 = [N-1 周前的周一, 今天]，不因最晚 plan_end 撑开列数；
-    未来计划负载由 weeks=0「全部」承接（end_date = 最晚计划日）。
+    """用例 6b（2026-08-29 需求修订）：库中最远计划超过窗口时，weeks>0 列数不随数据膨胀
+    （恒为 weeks+8）；100 天外的超远阶段不占格；weeks=0「全部」仍含全部未来（end=最晚计划）。
     """
     t = _today()
-    future_end = t + timedelta(days=100)
+    far_end = t + timedelta(days=400)  # 超过周视图 +8 周 / 月视图 +3 月的未来
     r = _mk_resource(db_session, "未来人")
     p1 = _mk_project(db_session, "现在项目")
-    p2 = _mk_project(db_session, "未来项目")
+    p2 = _mk_project(db_session, "远期项目")
     now_ph = _mk_phase(db_session, p1, "当前阶段", t - timedelta(days=1), t + timedelta(days=3))
-    fut_ph = _mk_phase(db_session, p2, "未来阶段", future_end - timedelta(days=10), future_end)
-    for ph in (now_ph, fut_ph):
+    far_ph = _mk_phase(db_session, p2, "远期阶段", far_end - timedelta(days=10), far_end)
+    for ph in (now_ph, far_ph):
         ph.assignees = [r]
     db_session.commit()
 
     fixed = _hm(client, weeks=4)
-    assert len(fixed["columns"]) == 4  # 未来阶段不撑破窗口
-    assert fixed["end_date"] == t.isoformat()
-    assert fut_ph.id not in {e["phase_id"] for cp in fixed["people"][0]["cell_phases"] if cp for e in cp}
+    assert len(fixed["columns"]) == 4 + 8  # 列数固定，不随最远计划膨胀
+    assert fixed["end_date"] == (t + timedelta(weeks=8)).isoformat()
+    assert far_ph.id not in {e["phase_id"] for cp in fixed["people"][0]["cell_phases"] if cp for e in cp}
 
     full = _hm(client, weeks=0)
-    assert full["end_date"] == future_end.isoformat()  # 「全部」含未来
+    assert full["end_date"] == far_end.isoformat()  # 「全部」含全部未来
     full_row = next(p for p in full["people"] if p["name"] == "未来人")
-    assert full_row["cells"][-1] >= 1  # 未来阶段落在末桶
+    assert full_row["cells"][-1] >= 1  # 远期阶段落在末桶
+
+
+def test_6c_future_plan_visible_in_window(client, db_session):
+    """用例 6c（2026-08-29 需求核心）：未来 8 周内的计划阶段在周视图窗口内占格可见。"""
+    t = _today()
+    r = _mk_resource(db_session, "前瞻人")
+    p = _mk_project(db_session, "前瞻项目")
+    near = _mk_phase(db_session, p, "两周后阶段", t + timedelta(weeks=2), t + timedelta(weeks=3))
+    near.assignees = [r]
+    db_session.commit()
+
+    data = _hm(client, weeks=12)
+    row = data["people"][0]
+    assert row["cells"][-1] == 0          # +8 周处无负载
+    # 阶段 [+2 周, +3 周] 占其所在周桶（按列 label 定位，不依赖末桶索引）
+    label = _week_monday(t + timedelta(weeks=2)).isoformat()
+    assert label in data["columns"]
+    assert row["cells"][data["columns"].index(label)] == 1
+    assert data["end_date"] == (t + timedelta(weeks=8)).isoformat()
 
 
 def test_7_month_granularity(client, db_session):
@@ -236,10 +255,13 @@ def test_7_month_granularity(client, db_session):
 
     data = _hm(client, weeks=4, granularity="month")
     assert data["granularity"] == "month"
-    # 4 周窗口 ≈ 当月（可能含上月尾巴）：桶数 1-2，label 均为月首
-    assert 1 <= len(data["columns"]) <= 2
+    # 月视图窗口 = 当月起 + 3 个整月（2026-08-29 需求）：4 桶，label 均为月首，
+    # end = 第 3 个月的月末
+    assert len(data["columns"]) == 4
     for col in data["columns"]:
         assert col.endswith("-01")
+    expect_end = _month_end(_month_start(t.replace(day=1) + timedelta(days=92)))
+    assert data["end_date"] == expect_end.isoformat()
     row = data["people"][0]
     assert sum(row["cells"]) >= 1  # 该阶段至少落在 1 个月桶
 
@@ -460,7 +482,7 @@ def test_15_current_week_visible(client, db_session):
 
     data = _hm(client, weeks=4)
     idx = _this_week_col(data)
-    assert idx == len(data["columns"]) - 1  # 4 周窗口：当前周是末桶
+    # 周视图右端 = 今天+8 周（2026-08-29）：当前周不再是末桶，但必须可见
     row = data["people"][0]
     assert row["cells"][idx] == 1
     assert row["cell_phases"][idx][0]["phase_name"] == "本周阶段"
