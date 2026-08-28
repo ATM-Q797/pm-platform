@@ -144,7 +144,7 @@ export default function ResourceView({ scale = 'week', onPhaseClick, conflictVer
             progress: 0,
             parent: 0,
             type: 'project',
-            open: true,
+            open: false, // 人员负载行默认折叠，点击展开显示阶段（用户 2026-08-28）
           })
 
           // 该人员的每个阶段作为子任务

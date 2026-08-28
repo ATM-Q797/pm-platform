@@ -23,7 +23,7 @@ import calendar
 from dataclasses import dataclass
 from datetime import date, timedelta
 
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.models import Phase, Project, Resource
@@ -184,7 +184,11 @@ def build_heatmap(db: Session, weeks: int = 12, granularity: str = "week") -> di
     today = date.today()
 
     # ---------- 窗口 ----------
-    window_end = today
+    # 终点 = max(today, 最晚计划日期)——未来计划负载必须可见（用户 2026-08-28：
+    # 热力图与冲突/甘特不同步的根源 = 窗口截止今天，未来并行看不到）
+    latest_plan = db.scalar(select(func.max(Phase.plan_end)))
+    latest_actual = db.scalar(select(func.max(Phase.actual_end)))
+    window_end = max(today, latest_plan or today, latest_actual or today)
     if weeks > 0:
         window_start = _week_start(today - timedelta(weeks=weeks - 1))
         if granularity == "month":
