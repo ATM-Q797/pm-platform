@@ -6,6 +6,7 @@ gantt remark、预警口径数据、开关切换与列表过滤、普通列表/D
 """
 from __future__ import annotations
 
+import io
 from datetime import date, timedelta
 from io import BytesIO
 
@@ -711,3 +712,42 @@ def test_14_parse_special_mode_raw_phase_type(db_session):
     assert ph.phase_type == "" and ph.name == "电磁兼容测试"
     assert ph.assignees == ["李四"]
     assert parsed_old.report.errors == []
+
+
+
+def test_15_special_export_domain_and_permissions(client, db_session):
+    """用例 15：专项导出——special=true 仅含专项项目、非 admin/manager 403；
+    special=false 仅含常规项目（域隔离，用户 2026-08-28）。"""
+    import openpyxl
+
+    sp = _mk_project(db_session, "导出专项", is_special=True)
+    _mk_project(db_session, "导出常规")
+    db_session.commit()
+
+    def _names(resp) -> list[str]:
+        wb = openpyxl.load_workbook(io.BytesIO(resp.content))
+        ws = wb.active
+        names = []
+        for r in range(3, ws.max_row + 1):
+            v = ws.cell(row=r, column=3).value
+            if v:
+                names.append(v)
+        return names
+
+    # admin：专项导出只含专项
+    resp = client.get("/api/export/excel", params={"special": True})
+    assert resp.status_code == 200
+    assert _names(resp) == ["导出专项"]
+    # admin：常规导出只含常规
+    resp2 = client.get("/api/export/excel")
+    assert resp2.status_code == 200
+    assert _names(resp2) == ["导出常规"]
+
+    # engineer：专项导出 403；常规导出不受影响
+    _mk_user(db_session, "eng_export", "engineer")
+    db_session.commit()
+    _login(client, "eng_export")
+    resp3 = client.get("/api/export/excel", params={"special": True})
+    assert resp3.status_code == 403
+    resp4 = client.get("/api/export/excel")
+    assert resp4.status_code == 200

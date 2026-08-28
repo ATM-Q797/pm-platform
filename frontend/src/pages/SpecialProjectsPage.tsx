@@ -4,7 +4,7 @@ import {
   Card, Col, Row, Tag, Button, Space, Modal, Form, Input, Select,
   DatePicker, Switch, Progress, Spin, message, Empty, Upload, Popconfirm,
 } from 'antd'
-import { PlusOutlined, EditOutlined, DownloadOutlined } from '@ant-design/icons'
+import { PlusOutlined, EditOutlined, DownloadOutlined, UploadOutlined } from '@ant-design/icons'
 import dayjs from 'dayjs'
 import { listSpecialProjects, createProject, updateProject, deleteProject } from '../api/projects'
 import { importSpecial, specialImportPreview } from '../api/imports'
@@ -270,6 +270,9 @@ export default function SpecialProjectsPage() {
           <Upload accept=".xlsx,.xls" beforeUpload={handleSpecialImport} showUploadList={false}>
             <Button icon={<DownloadOutlined />} loading={previewLoading}>导入专项数据</Button>
           </Upload>
+          <Button icon={<UploadOutlined />} onClick={() => window.open('/api/export/excel?special=true')}>
+            导出专项数据
+          </Button>
           <Button type="primary" icon={<PlusOutlined />} onClick={() => { form.resetFields(); setCreateOpen(true) }}>
             新建专项项目
           </Button>

@@ -13,13 +13,14 @@ from datetime import date
 from urllib.parse import quote
 
 import openpyxl
-from fastapi import APIRouter, Depends
+from fastapi import APIRouter, Depends, HTTPException
 from fastapi.responses import StreamingResponse
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models import Phase, Project
+from app.core.deps import get_current_user
+from app.models import Phase, Project, User
 from app.services.excel_format import HEADERS, style_sheet
 
 router = APIRouter(prefix="/api/export", tags=["Excel导出"])
@@ -80,14 +81,22 @@ def _write_sheet(ws, projects: list[Project]) -> None:
 
 
 @router.get("/excel")
-def export_excel(db: Session = Depends(get_db)):
-    """导出所有项目为 Excel 文件（单 sheet，与填报模板格式一致）。"""
+def export_excel(special: bool = False, db: Session = Depends(get_db),
+                 user: User = Depends(get_current_user)):
+    """导出项目为 Excel 文件（单 sheet，与填报模板格式一致）。
+
+    - special=false（默认）：常规项目域（专项排除，SPECIAL_PROJECT §4.3）
+    - special=true：专项项目域（仅 admin/manager，用户 2026-08-28）
+    """
+    if special and user.role not in ("admin", "manager"):
+        raise HTTPException(status_code=403, detail="仅管理员/经理可导出专项项目")
     wb = openpyxl.Workbook()
     ws = wb.active
     ws.title = "项目填报"
-    # 专项项目独立监控，不参与普通列表导出（SPECIAL_PROJECT §4.3 列表聚合统一排除）
     all_projects = list(db.scalars(
-        select(Project).where(Project.is_special.is_(False)).order_by(Project.id)
+        select(Project).where(
+            Project.is_special.is_(True) if special else Project.is_special.is_(False)
+        ).order_by(Project.id)
     ))
     _write_sheet(ws, all_projects)
     # 应用模板样式与数据验证（列宽/边框/冻结/下拉/日期验证）
