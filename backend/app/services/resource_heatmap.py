@@ -182,9 +182,6 @@ def build_heatmap(db: Session, weeks: int = 12, granularity: str = "week") -> di
     granularity: 'week' | 'month'（桶大小；窗口长度不受影响）
     """
     today = date.today()
-    # v2.1：被消除的阶段（资源 × 阶段）不计入该资源的并行/负载——热力图不占格
-    from app.services.resource_conflicts import _overridden_phases
-    overridden_map = _overridden_phases(db)
 
     # ---------- 窗口 ----------
     window_end = today
@@ -214,13 +211,11 @@ def build_heatmap(db: Session, weeks: int = 12, granularity: str = "week") -> di
     people: list[dict] = []
     idle: list[dict] = []
     for res in db.scalars(select(Resource).order_by(Resource.id)):
-        # 仅统计与窗口相交的阶段（peak/active 都是"窗口内"口径，设计 §2.2）；
-        # 剔除已消除阶段（v2.1：不计入并行/负载）
-        overridden = overridden_map.get(res.id, frozenset())
+        # 仅统计与窗口相交的阶段（peak/active 都是"窗口内"口径，设计 §2.2）。
+        # 用户 2026-08-28：消除冲突仅抑制警告，热力图仍显示实际并行数——不剔除 override 阶段
         phases = [
             ph for ph in active_heatmap_phases(res)
-            if ph.id not in overridden
-            and phase_dates(ph)[0] <= window_end and phase_dates(ph)[1] >= window_start
+            if phase_dates(ph)[0] <= window_end and phase_dates(ph)[1] >= window_start
         ]
         intervals = [phase_dates(ph) for ph in phases]
 

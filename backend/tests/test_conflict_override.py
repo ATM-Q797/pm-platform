@@ -234,7 +234,7 @@ def test_8_duplicate_same_phase_409(client, db_session):
 
 
 def test_9_heatmap_conflict_mark_disappears_after_override(client, db_session):
-    """用例 9（v2.1）：消除阶段 a 后——a 不再占热力格（不计入负载）、其余阶段并行降 → ⚠ 消失。"""
+    """用例 9（v2.2）：消除阶段 a 后——⚠ 消失，但热力图仍显示实际并行数（a 仍占格、格值不变）。"""
     r, a, b = _mk_conflict(db_session, "热力人")
     db_session.commit()
 
@@ -253,20 +253,22 @@ def test_9_heatmap_conflict_mark_disappears_after_override(client, db_session):
     assert {detail["phase_a_id"], detail["phase_b_id"]} == {a.id, b.id}
     assert detail["partner_phase_name"] == "热力人阶段乙"  # a 的对方是 b
     cells_before = row["cells"]
+    peak_before = row["peak_parallel"]
 
     resp = _override(client, r.id, a.id)
     assert resp.status_code == 201
 
     row2 = _hm()
     a_entries2 = [e for cp in row2["cell_phases"] if cp for e in cp if e["phase_id"] == a.id]
-    assert a_entries2 == []  # v2.1：被消除阶段不再占热力格（不计入负载）
-    b_entries2 = [e for cp in row2["cell_phases"] if cp for e in cp if e["phase_id"] == b.id]
-    assert all(e["conflict"] is False for e in b_entries2)  # 并行降 → b 不再标 ⚠
-    assert sum(row2["cells"]) < sum(cells_before)  # 格值下降（a 不再计入）
+    assert len(a_entries2) == len(a_entries)  # v2.2：被消除阶段仍占热力格（实际并行数照显）
+    assert all(e["conflict"] is False for e in a_entries2)  # ⚠ 消失
+    assert all(e["conflict_details"] == [] for e in a_entries2)
+    assert row2["cells"] == cells_before  # 格值不变
+    assert row2["peak_parallel"] == peak_before  # 峰值不变
 
 
-def test_9b_eliminate_one_phase_lowers_parallel_clears_warning(client, db_session):
-    """用例 9b（v2.1）：4 阶段并行 → 消除 1 个 → 并行 3 ≤3 → 其余阶段 ⚠ 全消失（无需逐个消除）。"""
+def test_9b_eliminate_clears_warning_but_load_unchanged(client, db_session):
+    """用例 9b（v2.2）：4 阶段并行 → 消除 1 个 → 冲突警告全消失，但热力图 4 个阶段仍全显示（负载照旧）。"""
     r = _mk_resource(db_session, "全消人")
     phs = []
     for i in range(4):
@@ -282,16 +284,20 @@ def test_9b_eliminate_one_phase_lowers_parallel_clears_warning(client, db_sessio
 
     row = _hm()
     assert all(e["conflict"] for cp in row["cell_phases"] if cp for e in cp)
+    cells_before = row["cells"]
+    phase_ids_before = {e["phase_id"] for cp in row["cell_phases"] if cp for e in cp}
 
-    # 只消除一个阶段 → 并行 4 → 3 → 所有冲突对自动消失（用户决策 ②）
+    # 消除一个阶段 → 并行判定豁免该阶段 → 剩余 3 阶段并行 ≤3 → 全部冲突警告消失
     resp = _override(client, r.id, phs[0].id)
     assert resp.status_code == 201, resp.text
 
     row2 = _hm()
     entries = [e for cp in row2["cell_phases"] if cp for e in cp]
-    assert all(e["phase_id"] != phs[0].id for e in entries)  # 被消除阶段不占格
     assert all(e["conflict"] is False for e in entries)  # ⚠ 全消失
     assert all(e["conflict_details"] == [] for e in entries)
+    # v2.2：热力图仍显示全部 4 个阶段（实际并行数照显）
+    assert {e["phase_id"] for e in entries} == phase_ids_before
+    assert row2["cells"] == cells_before
 
 
 # ---- 错误语义与权限 ----

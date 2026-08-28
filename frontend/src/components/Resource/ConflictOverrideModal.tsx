@@ -11,11 +11,11 @@ export interface OverrideTarget {
 }
 
 /**
- * 冲突消除确认弹窗（v2.1：唯一入口 = 资源负载甘特图冲突条）。
+ * 冲突消除确认弹窗（v2.2：唯一入口 = 资源负载甘特图冲突条）。
  *
- * - 消除粒度 = 资源 × 阶段（甘特条）：该阶段不计入该资源的并行计算
- * - 并行重算：消除后该资源并行数下降，若剩余 ≤3 其冲突对自动消失（无需逐个消除）
- * - 提交成功后回调 onOverridden（全站视图经 conflict-changed 事件同步刷新）
+ * - 消除 = 管理者确认该并行不影响实际负荷：该阶段**不再触发该资源的冲突警告**
+ *   （并行判定豁免），但**热力图仍显示实际并行数**（负载照旧，用户 2026-08-28）
+ * - 撤销：审核中心 → 资源冲突 → 已消除记录
  * - 错误语义：409 已消除 / 400 当前不构成冲突 / 403 无权限 → message.error 提示
  */
 export default function ConflictOverrideModal({
@@ -53,7 +53,7 @@ export default function ConflictOverrideModal({
         phase_id: target.phaseId,
         reason: trimmed,
       })
-      message.success(`已消除 ${target.resourceName} 的「${target.summary}」——该阶段不再计入并行计算`)
+      message.success(`已确认 ${target.resourceName} 的「${target.summary}」可承受——冲突警告已消除（热力图仍显示实际并行数）`)
       onClose()
       onOverridden()
     } catch (e: any) {
@@ -88,10 +88,9 @@ export default function ConflictOverrideModal({
           </Button>
         )}
         <div className="co-hint">
-          消除该甘特条 = 该阶段<b>不计入该人员的并行计算</b>（风险低）。
-          消除后该人员并行数下降——若剩余阶段并行 ≤3，其余冲突自动消失；
-          仍 &gt;3 的冲突继续显示，直到消除某条把并行数降下来。
-          可在「审核中心 → 资源冲突」查看/撤销消除记录。
+          消除该甘特条 = <b>确认该并行不影响此人的实际工作负荷</b>（负载均衡说明）。
+          消除后：该阶段不再触发冲突警告（并行判定豁免），但<b>热力图仍显示实际并行数</b>，
+          便于持续观察真实负载。可在「审核中心 → 资源冲突」查看/撤销。
         </div>
         <Input.TextArea
           value={reason}
