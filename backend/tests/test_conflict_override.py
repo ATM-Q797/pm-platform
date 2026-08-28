@@ -89,8 +89,8 @@ def _override(client, resource_id: int, phase_id: int, reason: str = "并行任�
 # ---- 用例 1：P8 排除 ----
 
 
-def test_1_p8_excluded_from_conflict_but_counted_in_heatmap(client, db_session):
-    """用例 1：P8 阶段与 P5 深度重叠 → 不产生冲突对；热力图 P8 仍占格。"""
+def test_1_p8_excluded_from_conflict_and_resource_views(client, db_session):
+    """用例 1（v2.1 语义更新）：P8 阶段与 P5 深度重叠 → 不产生冲突对；热力图/甘特均不含 P8。"""
     r = _mk_resource(db_session, "交付人")
     p5 = _mk_project(db_session, "P5项目")
     p8 = _mk_project(db_session, "P8项目")
@@ -104,12 +104,18 @@ def test_1_p8_excluded_from_conflict_but_counted_in_heatmap(client, db_session):
     data = client.get("/api/resources/conflicts").json()
     assert data == []
 
-    # 热力图：P8 仍占格（忙碌度保留）——用绝对日期窗口覆盖 2026-07
+    # 热力图：P8 不占格（用户 2026-08-28：交付不计入负载）
     hm = client.get("/api/resources/heatmap", params={"weeks": 0}).json()
     row = next(p for p in hm["people"] if p["resource_id"] == r.id)
     all_entries = [e for cp in row["cell_phases"] if cp for e in cp]
     names = {e["phase_name"] for e in all_entries}
-    assert "交付" in names  # P8 占格
+    assert names == {"结构设计"}  # P8 不占格
+    assert row["peak_parallel"] == 1
+
+    # 甘特视图（/all/workload）同样不含 P8
+    wl = client.get("/api/resources/all/workload").json()
+    me_wl = next(w for w in wl if w["resource"]["id"] == r.id)
+    assert {w["phase_name"] for w in me_wl["workloads"]} == {"结构设计"}
     assert all(e["conflict"] is False for e in all_entries)  # 不标 ⚠
 
 

@@ -488,3 +488,30 @@ def test_heatmap_and_workload_same_scope(client, db_session):
                 for cp in hm["people"][0]["cell_phases"] if cp
                 for e in cp}
     assert wl_names == hm_names == {"正常阶段"}
+
+
+
+def test_p8_delivery_not_in_resource_views(client, db_session):
+    """用户 2026-08-28：P8 交付不占热力格、不在资源负载甘特显示（三处口径统一）。"""
+    t = _today()
+    r = _mk_resource(db_session, "交付热力人")
+    p1 = _mk_project(db_session, "交付项目甲")
+    p2 = _mk_project(db_session, "交付项目乙")
+    p5 = _mk_phase(db_session, p1, "结构设计", t, t + timedelta(days=7))
+    p5.phase_type = "P5"
+    p5.assignees = [r]
+    p8 = _mk_phase(db_session, p2, "交付", t, t + timedelta(days=7))
+    p8.phase_type = "P8"
+    p8.assignees = [r]
+    db_session.commit()
+
+    hm = _hm(client, weeks=0)
+    row = next(p for p in hm["people"] if p["resource_id"] == r.id)
+    phase_ids = {e["phase_id"] for cp in row["cell_phases"] if cp for e in cp}
+    assert p5.id in phase_ids
+    assert p8.id not in phase_ids  # P8 不占格
+    assert row["peak_parallel"] == 1  # 只有 P5 计入负载
+
+    all_wl = client.get("/api/resources/all/workload").json()
+    me_wl = next(w for w in all_wl if w["resource"]["id"] == r.id)
+    assert [w["phase_id"] for w in me_wl["workloads"]] == [p5.id]  # 甘特视图不含 P8

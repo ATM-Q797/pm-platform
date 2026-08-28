@@ -177,13 +177,18 @@ def _phase_to_workload(ph: Phase) -> dict:
 
 
 def _workload_visible(ph: Phase) -> bool:
-    """负载视图可见性（PROJECT_SHELVE §2.5）：搁置项目的阶段不占资源负载。
+    """负载视图可见性（PROJECT_SHELVE §2.5 + 用户 2026-08-28：P8 交付不显示）。
 
+    搁置项目的阶段不占资源负载；P8 交付占空间且不计入负载，资源负载视图
+    无存在必要（甘特/热力图/冲突检测三处口径统一排除）。
     阶段级已完成/已搁置跳过逻辑沿用 resource_conflicts._SKIP_STATUSES 口径。
     """
     if ph.status in ("已完成", "已搁置"):
         return False
     if ph.project is not None and ph.project.status in _SHELVED_PROJECT_STATUSES:
+        return False
+    # P8 交付：资源负载不显示/不计入（用户 2026-08-28）
+    if (ph.phase_type or "").upper() == "P8":
         return False
     return True
 

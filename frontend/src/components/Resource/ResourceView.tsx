@@ -132,7 +132,7 @@ export default function ResourceView({ scale = 'week', onPhaseClick, conflictVer
           const minDate = dates.length ? new Date(Math.min(...dates.map((d) => d.getTime()))) : today
           const maxDate = dates.length ? new Date(Math.max(...dates.map((d) => d.getTime()))) : today
 
-          // 该人员冲突阶段数（人员行角标）——按资源视角
+          // 该人员冲突阶段数（人员行角标）——按资源视角（P8 已由后端 /all/workload 排除）
           const conflictCount = wl.workloads.filter((w) => conflictMap.has(`${wl.resource.id}:${w.phase_id}`)).length
 
           // 人员行（type=project，显示姓名 + 阶段数）
