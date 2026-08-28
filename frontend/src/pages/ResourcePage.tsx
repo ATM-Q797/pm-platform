@@ -30,9 +30,10 @@ export default function ResourcePage() {
   }
 
   useEffect(() => {
-    // 其他页面（审核中心撤销消除）后同步刷新本页
-    window.addEventListener('conflict-changed', bumpConflict)
-    return () => window.removeEventListener('conflict-changed', bumpConflict)
+    // 其他页面（审核中心撤销消除）后同步刷新本页——监听器不 dispatch，避免与 bumpConflict 互发成环
+    const onExternalConflictChange = () => setConflictVersion((v) => v + 1)
+    window.addEventListener('conflict-changed', onExternalConflictChange)
+    return () => window.removeEventListener('conflict-changed', onExternalConflictChange)
   }, [])
 
   return (
