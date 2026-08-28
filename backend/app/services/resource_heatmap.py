@@ -47,6 +47,9 @@ def active_heatmap_phases(resource: Resource) -> list[Phase]:
             continue
         if ph.project is not None and ph.project.status in _SHELVED_PROJECT_STATUSES:
             continue
+        # P8 交付：资源负载不计入（用户 2026-08-28：占空间且不计入负载，无存在必要）
+        if (ph.phase_type or "").upper() == "P8":
+            continue
         if ph.plan_start is not None and ph.plan_end is not None:
             result.append(ph)  # 完整计划日期
         elif (ph.plan_start, ph.plan_end) == (None, None) and (
