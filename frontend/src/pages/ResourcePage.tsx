@@ -36,6 +36,15 @@ export default function ResourcePage() {
   const [me, setMe] = useState<UserInfo | null>(null)
   const [overrideTarget, setOverrideTarget] = useState<OverrideTarget | null>(null)
   const [reportReload, setReportReload] = useState(0)
+  // 跨视图冲突同步（用户问题 2）：任一视图（热力图/甘特/报告）消除后 bump，
+  // 其余视图随 conflictVersion 变化自动重载；同时广播 'conflict-changed' 事件
+  // 供其他页面（Dashboard 抽屉）联动。
+  const [conflictVersion, setConflictVersion] = useState(0)
+  const bumpConflict = () => {
+    setConflictVersion((v) => v + 1)
+    setReportReload((v) => v + 1)
+    window.dispatchEvent(new Event('conflict-changed'))
+  }
   const canOverride = me?.role === 'admin' || me?.role === 'manager'
 
   useEffect(() => {
@@ -43,6 +52,9 @@ export default function ResourcePage() {
     listResources()
       .then((rs) => setResourceNames(new Map(rs.map((r) => [r.id, r.name]))))
       .catch(() => {})
+    // 其他页面（Dashboard 抽屉）消除后同步刷新本页（用户问题 2）
+    window.addEventListener('conflict-changed', bumpConflict)
+    return () => window.removeEventListener('conflict-changed', bumpConflict)
   }, [])
 
   useEffect(() => {
@@ -55,7 +67,7 @@ export default function ResourcePage() {
     try {
       await deleteConflictOverride(ov.id)
       message.success('已撤销消除，该冲突对恢复报告')
-      setReportReload((v) => v + 1)
+      bumpConflict()
     } catch (e: any) {
       message.error(e?.response?.data?.detail || '撤销失败，请重试')
     }
@@ -110,7 +122,7 @@ export default function ResourcePage() {
       }
     >
       {tab === 'heatmap' ? (
-        <HeatmapView />
+        <HeatmapView conflictVersion={conflictVersion} onConflictChanged={bumpConflict} />
       ) : (
         <>
           <div style={{ marginBottom: 8 }}>
@@ -142,7 +154,7 @@ export default function ResourcePage() {
               ))}
             </Space>
           </div>
-          <ResourceView scale={scale} onPhaseClick={setEditingPhase} />
+          <ResourceView scale={scale} onPhaseClick={setEditingPhase} conflictVersion={conflictVersion} onConflictChanged={bumpConflict} />
           <div style={{ marginTop: 8, fontSize: 12, color: 'var(--text-tertiary)' }}>
             提示：每人一行，行内的甘特条为其参与的项目阶段（按状态着色）。点击阶段条可查看详情（只读）。阶段调整请在项目管理页面操作。
           </div>
@@ -251,7 +263,7 @@ export default function ResourcePage() {
         target={overrideTarget}
         open={overrideTarget !== null}
         onClose={() => setOverrideTarget(null)}
-        onOverridden={() => setReportReload((v) => v + 1)}
+        onOverridden={bumpConflict}
       />
     </Card>
   )

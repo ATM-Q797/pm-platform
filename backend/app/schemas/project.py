@@ -151,6 +151,9 @@ class ConflictPair(BaseModel):
     project_b_id: int
     project_b_name: str
     overlap_days: int
+    # 重叠窗口起止（用户问题 1：消除影响范围提示）
+    overlap_start: date
+    overlap_end: date
 
 
 class ResourceConflict(BaseModel):

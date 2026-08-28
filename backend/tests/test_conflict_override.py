@@ -138,7 +138,7 @@ def test_2_3_parallel_by_resource_shared_pair(client, db_session):
     for person in hm["people"]:
         entries = [e for cp in person["cell_phases"] if cp for e in cp]
         assert all(e["conflict"] is False for e in entries), person["name"]
-        assert all(e["conflict_detail"] is None for e in entries), person["name"]
+        assert all(e["conflict_details"] == [] for e in entries), person["name"]
 
 
 # ---- 用例 4：并行 4 报冲突 ----
@@ -240,8 +240,8 @@ def test_9_heatmap_conflict_mark_disappears_after_override(client, db_session):
     a_entries = [e for cp in row["cell_phases"] if cp for e in cp if e["phase_id"] == a.id]
     assert a_entries  # 前置：阶段 a 在热力图中
     assert all(e["conflict"] is True for e in a_entries)  # 消除前标 ⚠
-    assert all(e["conflict_detail"] is not None for e in a_entries)  # 详情一次到位
-    detail = a_entries[0]["conflict_detail"]
+    assert all(len(e["conflict_details"]) >= 1 for e in a_entries)  # 详情一次到位
+    detail = a_entries[0]["conflict_details"][0]
     assert detail["overlap_days"] == 30
     # detail 归一化指向冲突对（a/b 谁 id 小在 phase_a_id）
     assert {detail["phase_a_id"], detail["phase_b_id"]} == {a.id, b.id}
@@ -254,7 +254,7 @@ def test_9_heatmap_conflict_mark_disappears_after_override(client, db_session):
     row2 = _hm()
     a_entries2 = [e for cp in row2["cell_phases"] if cp for e in cp if e["phase_id"] == a.id]
     assert all(e["conflict"] is False for e in a_entries2)  # ⚠ 消失（唯一一对已消除）
-    assert all(e["conflict_detail"] is None for e in a_entries2)
+    assert all(e["conflict_details"] == [] for e in a_entries2)
     assert row2["cells"] == cells_before  # 格值（忙碌度）不变
 
 
@@ -286,7 +286,7 @@ def test_9b_all_pairs_overridden_clears_warning(client, db_session):
     row2 = _hm()
     entries = [e for cp in row2["cell_phases"] if cp for e in cp]
     assert all(e["conflict"] is False for e in entries)  # ⚠ 全消失
-    assert all(e["conflict_detail"] is None for e in entries)
+    assert all(e["conflict_details"] == [] for e in entries)
     assert row2["cells"] == cells_before  # 格值不变
 
 
@@ -412,6 +412,6 @@ def test_override_conflict_detail_partner_direction(client, db_session):
     hm = client.get("/api/resources/heatmap", params={"weeks": 0}).json()
     row = next(p for p in hm["people"] if p["resource_id"] == r.id)
     entries = {e["phase_id"]: e for cp in row["cell_phases"] if cp for e in cp}
-    assert entries[a.id]["conflict_detail"]["partner_name"] == "方向项目乙"
-    assert entries[b.id]["conflict_detail"]["partner_name"] == "方向项目甲"
-    assert entries[a.id]["conflict_detail"]["partner_phase_name"] == "方向阶段乙"
+    assert entries[a.id]["conflict_details"][0]["partner_name"] == "方向项目乙"
+    assert entries[b.id]["conflict_details"][0]["partner_name"] == "方向项目甲"
+    assert entries[a.id]["conflict_details"][0]["partner_phase_name"] == "方向阶段乙"

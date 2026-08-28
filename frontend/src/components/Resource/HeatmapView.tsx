@@ -56,7 +56,12 @@ interface CellDrawerState {
   colIndex: number
 }
 
-export default function HeatmapView() {
+export default function HeatmapView({ conflictVersion = 0, onConflictChanged }: {
+  /** 父级冲突版本号（甘特/报告消除后 bump → 本视图重新拉取，跨视图同步——用户问题 2） */
+  conflictVersion?: number
+  /** 本视图消除成功后通知父级 bump（甘特/报告同步刷新） */
+  onConflictChanged?: () => void
+}) {
   const navigate = useNavigate()
   const [windowKey, setWindowKey] = useState<WindowKey>('12')
   const [granularity, setGranularity] = useState<Granularity>('week')
@@ -103,7 +108,7 @@ export default function HeatmapView() {
     return () => {
       cancelled = true
     }
-  }, [weeks, effectiveGranularity, reloadFlag])
+  }, [weeks, effectiveGranularity, reloadFlag, conflictVersion])
 
   /** ≥24 周（或全部）时周粒度禁用并强制月；切回短窗口保留当前粒度（用户可手动切换） */
 
@@ -242,32 +247,36 @@ export default function HeatmapView() {
                   <span>{e.start} ~ {e.end}</span>
                   {e.status && <Tag className="hm-drawer-status">{e.status}</Tag>}
                 </div>
-                {e.conflict && e.conflict_detail && (
+                {e.conflict && e.conflict_details.length > 0 && (
                   <div className="hm-drawer-conflict-line">
-                    <span className="hm-conflict-detail">
-                      ⚠ 与 {e.conflict_detail.partner_name}·{e.conflict_detail.partner_phase_name}{' '}
-                      重叠 {e.conflict_detail.overlap_days} 天
-                    </span>
-                    {canOverride && (
-                      <Button
-                        size="small"
-                        danger
-                        onClick={(ev) => {
-                          ev.stopPropagation() // 不触发整行跳转
-                          setOverrideTarget({
-                            resourceId: drawer!.person.resource_id,
-                            resourceName: drawer!.person.name,
-                            phaseAId: e.conflict_detail!.phase_a_id,
-                            phaseBId: e.conflict_detail!.phase_b_id,
-                            summary: `${drawer!.person.name}：${e.project_name}·${e.phase_name} × ` +
-                              `${e.conflict_detail!.partner_name}·${e.conflict_detail!.partner_phase_name}` +
-                              `（重叠 ${e.conflict_detail!.overlap_days} 天）`,
-                          })
-                        }}
-                      >
-                        消除
-                      </Button>
-                    )}
+                    {e.conflict_details.map((d) => (
+                      <div key={`${d.phase_a_id}-${d.phase_b_id}`} className="hm-drawer-conflict-row">
+                        <span className="hm-conflict-detail">
+                          ⚠ 与 {d.partner_name}·{d.partner_phase_name} 重叠 {d.overlap_days} 天
+                          <span className="hm-conflict-scope">（覆盖 {d.overlap_start} ~ {d.overlap_end}）</span>
+                        </span>
+                        {canOverride && (
+                          <Button
+                            size="small"
+                            danger
+                            onClick={(ev) => {
+                              ev.stopPropagation() // 不触发整行跳转
+                              setOverrideTarget({
+                                resourceId: drawer!.person.resource_id,
+                                resourceName: drawer!.person.name,
+                                phaseAId: d.phase_a_id,
+                                phaseBId: d.phase_b_id,
+                                summary: `${drawer!.person.name}：${e.project_name}·${e.phase_name} × ` +
+                                  `${d.partner_name}·${d.partner_phase_name}` +
+                                  `（重叠 ${d.overlap_days} 天，覆盖 ${d.overlap_start} ~ ${d.overlap_end}）`,
+                              })
+                            }}
+                          >
+                            消除
+                          </Button>
+                        )}
+                      </div>
+                    ))}
                   </div>
                 )}
               </div>
@@ -282,7 +291,9 @@ export default function HeatmapView() {
         open={overrideTarget !== null}
         onClose={() => setOverrideTarget(null)}
         onOverridden={() => {
-          setReloadFlag((f) => f + 1) // 重新拉热力：⚠ 消失、格值不变
+          // 本视图消除成功 → 通知父级 bump（甘特/冲突报告同步刷新，用户问题 2）
+          onConflictChanged?.()
+          setReloadFlag((f) => f + 1) // 本地兜底重拉：⚠ 消失、格值不变
         }}
       />
     </div>
@@ -341,12 +352,11 @@ function PersonRow({
       })}
       <div
         className={`hm-load-cell${rowCls}`}
-        title="窗口内峰值并行数 / 活跃阶段总数"
+        title="窗口内峰值并行数（用户问题 3：只显示最大并行）"
         onMouseEnter={() => onHover(true)}
         onMouseLeave={() => onHover(false)}
       >
         <span className={`hm-peak${person.peak_parallel >= 3 ? ' high' : ''}`}>{person.peak_parallel}并行</span>
-        <span className="hm-active-total">{person.active_phases}阶段</span>
       </div>
     </>
   )
@@ -377,10 +387,11 @@ function CellTooltip({
           <span>
             {e.project_name} · {e.phase_name}（{e.start.slice(5)}~{e.end.slice(5)}）
             {e.conflict && <span className="hm-conflict-mark"> ⚠</span>}
-            {e.conflict && e.conflict_detail && (
+            {e.conflict && e.conflict_details.length > 0 && (
               <span className="hm-tooltip-conflict">
-                {' '}与 {e.conflict_detail.partner_name}·{e.conflict_detail.partner_phase_name}
-                {' '}重叠 {e.conflict_detail.overlap_days} 天
+                {' '}与 {e.conflict_details[0].partner_name}·{e.conflict_details[0].partner_phase_name}
+                {' '}重叠 {e.conflict_details[0].overlap_days} 天
+                {e.conflict_details.length > 1 && ` 等 ${e.conflict_details.length} 对`}
               </span>
             )}
           </span>
