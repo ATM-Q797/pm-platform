@@ -6,18 +6,10 @@ import type { HeatmapCellPhase, HeatmapPerson, ResourceHeatmap } from '../../typ
 import '../../styles/resourceHeatmap.css'
 
 type Granularity = 'week' | 'month'
-type WindowKey = '4' | '12' | '24' | '0'
 
-/** 窗口选项：0=全部（最早数据日期 → 今天） */
-const WINDOW_OPTIONS: { label: string; value: WindowKey; weeks: number }[] = [
-  { label: '4周', value: '4', weeks: 4 },
-  { label: '12周', value: '12', weeks: 12 },
-  { label: '24周', value: '24', weeks: 24 },
-  { label: '全部', value: '0', weeks: 0 },
-]
-
-/** 窗口 ≥24 周自动切月（用户决策 3：Segmented 联动，周选项禁用+提示） */
-const AUTO_MONTH_THRESHOLD = 24
+/** 固定窗口（2026-08-29 需求：窗口选择器已移除，仅保留周/月粒度切换）——
+ *  周视图 = 11 周前 → 今天+8 周；月视图 = 当月起 + 3 个整月 */
+const FIXED_WEEKS = 12
 
 /** 格子颜色分级（设计 §一：活跃数 → 深浅双主题） */
 function cellLevelClass(count: number, conflict: boolean): string {
@@ -59,7 +51,6 @@ export default function HeatmapView({ conflictVersion = 0 }: {
   conflictVersion?: number
 }) {
   const navigate = useNavigate()
-  const [windowKey, setWindowKey] = useState<WindowKey>('12')
   const [granularity, setGranularity] = useState<Granularity>('week')
   const [data, setData] = useState<ResourceHeatmap | null>(null)
   const [loading, setLoading] = useState(false)
@@ -67,11 +58,6 @@ export default function HeatmapView({ conflictVersion = 0 }: {
   const [drawer, setDrawer] = useState<CellDrawerState | null>(null)
   const [idleExpanded, setIdleExpanded] = useState(false)
   const [hoverRow, setHoverRow] = useState<number | null>(null)
-
-  const weeks = WINDOW_OPTIONS.find((w) => w.value === windowKey)!.weeks
-  /** ≥24 周（或全部）时周粒度禁用并强制月（用户决策 3） */
-  const weekDisabled = weeks === 0 || weeks >= AUTO_MONTH_THRESHOLD
-  const effectiveGranularity: Granularity = weekDisabled ? 'month' : granularity
 
   const todayStr = useMemo(() => {
     const d = new Date()
@@ -82,7 +68,7 @@ export default function HeatmapView({ conflictVersion = 0 }: {
     let cancelled = false
     setLoading(true)
     setError(null)
-    getHeatmap({ weeks, granularity: effectiveGranularity })
+    getHeatmap({ weeks: FIXED_WEEKS, granularity })
       .then((d) => {
         if (!cancelled) setData(d)
       })
@@ -95,14 +81,12 @@ export default function HeatmapView({ conflictVersion = 0 }: {
     return () => {
       cancelled = true
     }
-  }, [weeks, effectiveGranularity, conflictVersion])
+  }, [granularity, conflictVersion])
 
-  /** ≥24 周（或全部）时周粒度禁用并强制月；切回短窗口保留当前粒度（用户可手动切换） */
-
-  // 切窗口/粒度后关闭 Drawer（数据列已变，旧 index 失效）
+  // 切粒度后关闭 Drawer（数据列已变，旧 index 失效）
   useEffect(() => {
     setDrawer(null)
-  }, [windowKey, effectiveGranularity])
+  }, [granularity])
 
   const drawerPhases: HeatmapCellPhase[] = drawer && data
     ? data.people.find((p) => p.resource_id === drawer.person.resource_id)?.cell_phases[drawer.colIndex] ?? []
@@ -110,35 +94,18 @@ export default function HeatmapView({ conflictVersion = 0 }: {
 
   const drawerCol = drawer && data ? data.columns[drawer.colIndex] : ''
 
-  const handleWindowChange = (val: WindowKey) => {
-    setWindowKey(val)
-    if (val === '0' || Number(val) >= AUTO_MONTH_THRESHOLD) {
-      // ≥24 周/全部 → 自动切月（决策 3）
-      setGranularity('month')
-    }
-  }
-
   return (
     <div className="hm-wrap">
       <div className="hm-toolbar">
-        <span className="hm-toolbar-label">时间窗口</span>
-        <Segmented
-          options={WINDOW_OPTIONS.map((w) => ({ label: w.label, value: w.value }))}
-          value={windowKey}
-          onChange={(v) => handleWindowChange(v as WindowKey)}
-        />
         <span className="hm-toolbar-label">粒度</span>
         <Segmented
           options={[
-            { label: '周', value: 'week', disabled: weekDisabled },
+            { label: '周', value: 'week' },
             { label: '月', value: 'month' },
           ]}
-          value={effectiveGranularity}
+          value={granularity}
           onChange={(v) => setGranularity(v as Granularity)}
         />
-        {weekDisabled && (
-          <span className="hm-hint">窗口 ≥24 周自动按月聚合（周粒度已禁用）</span>
-        )}
         {data && (
           <span className="hm-hint">
             {data.start_date} ~ {data.end_date} · {data.people.length} 人有负载 · {data.idle_people.length} 人空闲
