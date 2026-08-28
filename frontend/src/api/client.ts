@@ -16,7 +16,9 @@ client.interceptors.response.use(
       location.href = '/login'
       return Promise.reject(new Error('请先登录'))
     }
-    const msg = error.response?.data?.detail || error.message || '请求失败'
+    // detail 可能是字符串 / 数组（422 校验）/ 对象——统一序列化，避免 message 变 "[object Object]"
+    const raw = error.response?.data?.detail ?? error.message ?? '请求失败'
+    const msg = typeof raw === 'string' ? raw : JSON.stringify(raw)
     return Promise.reject(new Error(msg))
   }
 )
