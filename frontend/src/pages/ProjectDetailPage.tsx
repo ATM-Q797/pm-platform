@@ -128,6 +128,9 @@ export default function ProjectDetailPage() {
 
       <Card style={{ marginBottom: 16 }}>
         <Descriptions
+          size="small"
+          column={{ xs: 1, sm: 2, md: 3, lg: 4 }}
+          labelStyle={{ width: 92, flexShrink: 0 }}
           title={
             editingName ? (
               <Space>
@@ -170,8 +173,6 @@ export default function ProjectDetailPage() {
               </Space>
             )
           }
-          column={4}
-          size="small"
         >
           <Descriptions.Item label="状态">
             <Tag color={STATUS_COLOR[project.status] || 'default'}>{project.status}</Tag>
