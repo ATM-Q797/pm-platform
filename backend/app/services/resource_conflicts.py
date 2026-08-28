@@ -43,13 +43,15 @@ _MAX_PARALLEL = 3
 
 
 def _active_phases(resource: Resource) -> list:
-    """该资源名下可参与冲突检测的阶段（类型非 P8、有完整日期、状态活跃、项目未搁置）。"""
+    """该资源名下可参与冲突检测的阶段（类型非 P8、有完整日期、状态活跃、项目未搁置/非专项）。"""
     return [
         ph for ph in resource.phases
         if ph.phase_type not in _SKIP_PHASE_TYPES
         and ph.plan_start is not None and ph.plan_end is not None
         and ph.status not in _SKIP_STATUSES
         and not (ph.project is not None and ph.project.status in _SHELVED_PROJECT_STATUSES)
+        # 专项项目：独立监控对象，不参与冲突检测（SPECIAL_PROJECT §二）
+        and not (ph.project is not None and ph.project.is_special)
     ]
 
 

@@ -39,23 +39,29 @@ def get_dashboard_stats(db: Session = Depends(get_db)):
     """首页看板聚合统计：项目/阶段状态分布、延期预警、返工统计。"""
     today = date.today()
 
-    # 项目状态分布
+    # 项目状态分布（专项项目独立监控，不计入看板——SPECIAL_PROJECT §4.3）
     project_status_rows = db.execute(
-        select(Project.status, func.count()).group_by(Project.status)
+        select(Project.status, func.count())
+        .where(Project.is_special.is_(False))
+        .group_by(Project.status)
     ).all()
     project_status = [StatusCount(status=s, count=c) for s, c in project_status_rows]
 
-    # 阶段状态分布
+    # 阶段状态分布（专项项目阶段同样排除）
     phase_status_rows = db.execute(
-        select(Phase.status, func.count()).group_by(Phase.status)
+        select(Phase.status, func.count())
+        .join(Project, Phase.project_id == Project.id)
+        .where(Project.is_special.is_(False))
+        .group_by(Phase.status)
     ).all()
     phase_status = [StatusCount(status=s, count=c) for s, c in phase_status_rows]
 
-    # 延期项目：plan_end < 今天，且状态为 未开始/进行中（未完成、未搁置）
+    # 延期项目：plan_end < 今天，且状态为 未开始/进行中（未完成、未搁置）；排除专项
     delayed = db.scalars(
         select(Project).where(
             Project.plan_end < today,
             Project.status.in_(_ACTIVE_STATUSES),
+            Project.is_special.is_(False),
         )
     ).all()
     delayed_projects = sorted(
@@ -76,12 +82,17 @@ def get_dashboard_stats(db: Session = Depends(get_db)):
         reverse=True,
     )
 
-    # 返工统计
+    # 返工统计（专项项目阶段不计入）
     total_rework_count = db.execute(
         select(func.coalesce(func.sum(Phase.rework_count), 0))
+        .join(Project, Phase.project_id == Project.id)
+        .where(Project.is_special.is_(False))
     ).scalar() or 0
     rework_phase_rows = db.scalars(
-        select(Phase).where(Phase.rework_count > 0).order_by(Phase.rework_count.desc())
+        select(Phase)
+        .join(Project, Phase.project_id == Project.id)
+        .where(Phase.rework_count > 0, Project.is_special.is_(False))
+        .order_by(Phase.rework_count.desc())
     ).all()
     rework_phases = [
         ReworkPhase(
@@ -99,12 +110,13 @@ def get_dashboard_stats(db: Session = Depends(get_db)):
     total_phases = sum(c for _, c in phase_status_rows)
 
     # ---------- T5：阶段级延期 / 即将到期 / 冲突计数 ----------
-    # 阶段级实际延期：plan_end < 今天 && 状态未完成 && 所属项目未搁置（计算式，不写库）
+    # 阶段级实际延期：plan_end < 今天 && 状态未完成 && 所属项目未搁置且非专项（计算式，不写库）
     delayed_phase_rows = db.scalars(
         select(Phase).join(Project, Phase.project_id == Project.id).where(
             Phase.plan_end < today,
             Phase.status.in_(_ACTIVE_STATUSES),
             Project.status.not_in(_SHELVED_PROJECT_STATUSES),
+            Project.is_special.is_(False),
         )
     ).all()
     delayed_phases = sorted(
@@ -122,13 +134,14 @@ def get_dashboard_stats(db: Session = Depends(get_db)):
         reverse=True,
     )
 
-    # 即将到期：plan_end 在未来 7 天内（含今天）&& 状态未完成 && 所属项目未搁置
+    # 即将到期：plan_end 在未来 7 天内（含今天）&& 状态未完成 && 所属项目未搁置且非专项
     due_soon_rows = db.scalars(
         select(Phase).join(Project, Phase.project_id == Project.id).where(
             Phase.plan_end >= today,
             Phase.plan_end <= today + timedelta(days=_DUE_SOON_DAYS),
             Phase.status.in_(_ACTIVE_STATUSES),
             Project.status.not_in(_SHELVED_PROJECT_STATUSES),
+            Project.is_special.is_(False),
         )
     ).all()
     due_soon_phases = sorted(

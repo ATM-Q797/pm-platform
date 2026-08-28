@@ -85,7 +85,10 @@ def export_excel(db: Session = Depends(get_db)):
     wb = openpyxl.Workbook()
     ws = wb.active
     ws.title = "项目填报"
-    all_projects = list(db.scalars(select(Project).order_by(Project.id)))
+    # 专项项目独立监控，不参与普通列表导出（SPECIAL_PROJECT §4.3 列表聚合统一排除）
+    all_projects = list(db.scalars(
+        select(Project).where(Project.is_special.is_(False)).order_by(Project.id)
+    ))
     _write_sheet(ws, all_projects)
     # 应用模板样式与数据验证（列宽/边框/冻结/下拉/日期验证）
     style_sheet(ws)

@@ -50,6 +50,17 @@ def require_role(*roles: str):
 
 # ---------- 纯检查函数（供端点内手动调用）----------
 
+def check_special_project_access(project: Project, user: User) -> None:
+    """专项项目隔离（SPECIAL_PROJECT §4.2/§4.3）：is_special 项目仅 admin/manager。
+
+    专项项目独立监控（仅专项页可见），详情/甘特/阶段/项目级写接口对
+    is_special=true 的项目校验角色——非 admin/manager 一律 403；
+    普通项目不拦截（维持现有开放/负责人模式）。
+    """
+    if project.is_special and user.role not in ("admin", "manager"):
+        raise HTTPException(status.HTTP_403_FORBIDDEN, "专项项目仅管理员或项目负责人可访问")
+
+
 def check_project_access(project_id: int, user: User, db: Session) -> Project:
     """检查项目访问权（不依赖 Depends，直接调用）。无权限时抛 403/404。"""
     if user.role == "admin":

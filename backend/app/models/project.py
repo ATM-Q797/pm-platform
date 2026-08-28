@@ -7,7 +7,7 @@ from __future__ import annotations
 from datetime import date, datetime
 from typing import TYPE_CHECKING
 
-from sqlalchemy import Date, DateTime, ForeignKey, String, func
+from sqlalchemy import Boolean, Date, DateTime, ForeignKey, String, func
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.database import Base
@@ -35,6 +35,10 @@ class Project(Base):
     plan_end: Mapped[date | None] = mapped_column(Date)
     template_id: Mapped[int | None] = mapped_column(ForeignKey("template.id"))
     remark: Mapped[str | None] = mapped_column(String)
+    # 专项项目标记（SPECIAL_PROJECT §一）：专项项目独立监控，不占资源负载/普通列表
+    is_special: Mapped[bool] = mapped_column(
+        Boolean, nullable=False, default=False, server_default="false", index=True
+    )
     # Phase 5：项目负责人（user 关联）+ 创建者
     managed_by: Mapped[int | None] = mapped_column(ForeignKey("user_account.id"))
     created_by: Mapped[int | None] = mapped_column(ForeignKey("user_account.id"))

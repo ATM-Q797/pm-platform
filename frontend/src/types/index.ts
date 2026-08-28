@@ -21,6 +21,7 @@ export interface Project {
   plan_end?: string | null
   template_id?: number | null
   remark?: string | null
+  is_special?: boolean // 专项项目标记（SPECIAL_PROJECT §一）
   managed_by?: number | null // 项目负责人 user_id
   created_by?: number | null // 创建者 user_id
   created_at?: string | null
@@ -46,6 +47,7 @@ export interface ProjectCreate {
   plan_end?: string | null
   template_id?: number | null
   remark?: string | null
+  is_special?: boolean // 专项项目标记（SPECIAL_PROJECT §一）
   managed_by?: number | null // 项目负责人 user_id
 }
 
@@ -121,6 +123,7 @@ export interface WorkloadItem {
   plan_end: string | null
   status: string | null
   period: (string | null)[]
+  remark?: string | null // 阶段备注（甘特悬浮显示，SPECIAL_PROJECT §五）
 }
 
 export interface ResourceWorkload {
@@ -198,6 +201,7 @@ export interface GanttTask {
   type: string // "project" | "task"
   open?: boolean
   rework_count?: number | null
+  remark?: string | null // 阶段备注（甘特悬浮显示，SPECIAL_PROJECT §五）
 }
 
 export interface GanttLink {

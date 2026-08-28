@@ -174,6 +174,7 @@ export default function ResourceView({ scale = 'week', onPhaseClick, conflictVer
               resource_id: wl.resource.id, // 冲突条消除定位用（resource × 阶段对）
               phase_id: w.phase_id, // 真实阶段 id，点击时取这个
               conflict_info: conflictInfo, // 冲突描述（有值 → 黄色标记 + tooltip）
+              remark: w.remark || '', // 甘特悬浮显示备注（SPECIAL_PROJECT §五）
             })
           }
         }

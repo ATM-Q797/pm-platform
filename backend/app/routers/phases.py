@@ -8,13 +8,29 @@ from fastapi import APIRouter, Depends, HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.core.deps import get_current_user, check_project_access, check_phase_access
+from app.core.deps import (
+    check_special_project_access,
+    get_current_user,
+    check_project_access,
+    check_phase_access,
+)
 from app.database import get_db
 from app.models import Dependency, Phase, Project, Resource, ReworkLog, User
 from app.routers.audit import log_operation
 from app.schemas import PhaseCreate, PhaseRead, PhaseUpdate, ReworkLogRead, ReworkRequest
 
 router = APIRouter(tags=["阶段"])
+
+
+def _phase_project_special_guard(phase: Phase, user: User, db: Session) -> None:
+    """阶段所属项目为专项 → 仅 admin/manager（SPECIAL_PROJECT §4.2：阶段接口隔离）。
+
+    专项项目独立监控，其阶段接口（列表/详情/CRUD/移动/返工）仅 admin/manager 可访问；
+    普通项目不拦截（维持现有 check_phase_access 模式）。
+    """
+    project = db.get(Project, phase.project_id)
+    if project is not None:
+        check_special_project_access(project, user)
 
 
 def _sync_assignees(db: Session, phase: Phase, assignee_ids: list[int]) -> None:
@@ -86,17 +102,30 @@ def _create_prerequisite_dependencies(
 
 
 @router.get("/api/projects/{project_id}/phases", response_model=list[PhaseRead])
-def list_phases(project_id: int, db: Session = Depends(get_db)):
-    if db.get(Project, project_id) is None:
+def list_phases(
+    project_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    project = db.get(Project, project_id)
+    if project is None:
         raise HTTPException(404, "项目不存在")
+    # 专项项目隔离（SPECIAL_PROJECT §4.2）：阶段列表仅 admin/manager
+    check_special_project_access(project, user)
     return list(db.scalars(select(Phase).where(Phase.project_id == project_id).order_by(Phase.sequence)))
 
 
 @router.get("/api/phases/{phase_id}", response_model=PhaseRead)
-def get_phase(phase_id: int, db: Session = Depends(get_db)):
+def get_phase(
+    phase_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
     phase = db.get(Phase, phase_id)
     if phase is None:
         raise HTTPException(404, "阶段不存在")
+    # 专项项目隔离（SPECIAL_PROJECT §4.2）：阶段详情仅 admin/manager
+    _phase_project_special_guard(phase, user, db)
     return phase
 
 
@@ -111,8 +140,14 @@ def create_phase(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    # 检查项目存在 + 操作权限
-    check_project_access(project_id, user, db)
+    # 检查项目存在 + 操作权限（专项项目隔离：专项阶段仅 admin/manager，普通项目维持现状）
+    project = db.get(Project, project_id)
+    if project is None:
+        raise HTTPException(404, "项目不存在")
+    if project.is_special:
+        check_special_project_access(project, user)
+    else:
+        check_project_access(project_id, user, db)
 
     # sequence 处理：直接用传入值插入，后续 _normalize_sequence 会重排保证连续
     new_seq = payload.sequence
@@ -164,7 +199,15 @@ def update_phase(
     user: User = Depends(get_current_user),
 ):
     # 检查阶段存在 + 操作权限
-    phase = check_phase_access(phase_id, user, db)
+    phase = db.get(Phase, phase_id)
+    if phase is None:
+        raise HTTPException(404, "阶段不存在")
+    project = db.get(Project, phase.project_id)
+    if project is not None and project.is_special:
+        # 专项项目隔离（SPECIAL_PROJECT §4.2）：专项阶段仅 admin/manager
+        check_special_project_access(project, user)
+    else:
+        check_phase_access(phase_id, user, db)
     data = payload.model_dump(exclude_unset=True)
 
     assignee_ids = data.pop("assignee_ids", None)
@@ -212,7 +255,15 @@ def move_phase(
     - direction="down"：与下一个阶段（sequence 大于当前的最小值）交换
     基于实际 sequence 排序而非假设连续值。
     """
-    phase = check_phase_access(phase_id, user, db)
+    phase = db.get(Phase, phase_id)
+    if phase is None:
+        raise HTTPException(404, "阶段不存在")
+    project = db.get(Project, phase.project_id)
+    if project is not None and project.is_special:
+        # 专项项目隔离（SPECIAL_PROJECT §4.2）：专项阶段仅 admin/manager
+        check_special_project_access(project, user)
+    else:
+        check_phase_access(phase_id, user, db)
 
     if direction == "up":
         neighbor = db.scalars(
@@ -252,7 +303,15 @@ def delete_phase(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    phase = check_phase_access(phase_id, user, db)
+    phase = db.get(Phase, phase_id)
+    if phase is None:
+        raise HTTPException(404, "阶段不存在")
+    project = db.get(Project, phase.project_id)
+    if project is not None and project.is_special:
+        # 专项项目隔离（SPECIAL_PROJECT §4.2）：专项阶段仅 admin/manager
+        check_special_project_access(project, user)
+    else:
+        check_phase_access(phase_id, user, db)
     project_id = phase.project_id
     db.delete(phase)
     db.flush()
@@ -273,7 +332,15 @@ def rework_phase(
     - 任意阶段可从 进行中/已完成 回退到目标状态（默认未开始）
     - 清空 actual_end，重新走流程
     """
-    phase = check_phase_access(phase_id, user, db)
+    phase = db.get(Phase, phase_id)
+    if phase is None:
+        raise HTTPException(404, "阶段不存在")
+    project = db.get(Project, phase.project_id)
+    if project is not None and project.is_special:
+        # 专项项目隔离（SPECIAL_PROJECT §4.2）：专项阶段仅 admin/manager
+        check_special_project_access(project, user)
+    else:
+        check_phase_access(phase_id, user, db)
     from_status = phase.status
     log = ReworkLog(
         phase_id=phase_id,

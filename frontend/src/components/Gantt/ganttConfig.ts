@@ -107,12 +107,16 @@ export function applyGanttConfig(gantt: GanttInstance) {
     return classes.join(' ')
   }
 
-  // tooltip：冲突阶段显示冲突详情，否则显示默认信息
+  // tooltip：冲突阶段显示冲突详情，否则显示默认信息；阶段备注非空时追加 📝 备注（SPECIAL_PROJECT §五，全局生效）
   gantt.templates.tooltip_text = function (_start: any, _end: any, task: any) {
+    let html = `<b>${task.text}</b>`
     if (task.conflict_info) {
-      return `<b>${task.text}</b><br/><span style="color:#d48806">⚠️ ${task.conflict_info}</span>`
+      html += `<br/><span style="color:#d48806">⚠️ ${task.conflict_info}</span>`
     }
-    return `<b>${task.text}</b>`
+    if (task.remark) {
+      html += `<br/>📝 备注：${task.remark}`
+    }
+    return html
   }
 
   gantt.templates.task_row_class = function (_start: any, _end: any, task: any) {

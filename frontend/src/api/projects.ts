@@ -10,6 +10,12 @@ export async function listProjects(params?: {
   return data
 }
 
+/** 专项项目列表（SPECIAL_PROJECT §4.3）：仅 admin/manager 可调，仅 is_special=true */
+export async function listSpecialProjects(): Promise<Project[]> {
+  const { data } = await client.get<Project[]>('/projects/special')
+  return data
+}
+
 export async function getProject(id: number): Promise<ProjectDetail> {
   const { data } = await client.get<ProjectDetail>(`/projects/${id}`)
   return data

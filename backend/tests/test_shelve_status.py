@@ -218,9 +218,23 @@ def test_conflicts_phase_level_shelved_still_skipped(client, db_session):
 # ---------- §2.4 迁移脚本 ----------
 
 def test_migrate_v3_sql_executable(tmp_path):
-    """migrate_v3.sql 在 SQLite 上可执行：'已搁置' → '搁置'，幂等。"""
+    """migrate_v3.sql 在 SQLite 上可执行：'已搁置' → '搁置'，幂等。
+
+    注意（SPECIAL_PROJECT §一）：is_special 加列为 PostgreSQL 专用语句
+    （ADD COLUMN IF NOT EXISTS，SQLite 不支持），SQLite 执行时剔除该行——
+    本地库的 is_special 列由应用层脚本 backend/_migrate.py 迁移。
+    """
     sql_path = DEPLOY_DIR / "migrate_v3.sql"
     assert sql_path.exists(), "deploy/migrate_v3.sql 缺失"
+
+    def _sqlite_safe_script() -> str:
+        # SQLite 不支持 ADD COLUMN IF NOT EXISTS；索引依赖该列——两条 DDL 均为 PG 专用
+        lines = [
+            line for line in sql_path.read_text(encoding="utf-8").splitlines()
+            if "ADD COLUMN IF NOT EXISTS" not in line
+            and "ix_project_is_special" not in line
+        ]
+        return "\n".join(lines)
 
     conn = sqlite3.connect(tmp_path / "migrate_test.db")
     try:
@@ -232,12 +246,12 @@ def test_migrate_v3_sql_executable(tmp_path):
         conn.commit()
 
         # executescript 可执行带注释的多语句脚本
-        conn.executescript(sql_path.read_text(encoding="utf-8"))
+        conn.executescript(_sqlite_safe_script())
         statuses = [row[0] for row in conn.execute("SELECT status FROM project ORDER BY id")]
         assert statuses == ["未开始", "进行中", "已完成", "搁置", "搁置", "搁置"]
 
         # 幂等：重复执行无副作用
-        conn.executescript(sql_path.read_text(encoding="utf-8"))
+        conn.executescript(_sqlite_safe_script())
         assert [row[0] for row in conn.execute("SELECT status FROM project ORDER BY id")] == statuses
     finally:
         conn.close()

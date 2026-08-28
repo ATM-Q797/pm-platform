@@ -35,3 +35,7 @@ deploy/.env
 
 # 样例数据（含真实业务数据，不入库）
 样例/
+
+# 工作区工具状态（不入库）
+.thincoder/
+METHODOLOGY.md

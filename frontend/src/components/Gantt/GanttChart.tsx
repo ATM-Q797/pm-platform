@@ -107,6 +107,7 @@ export default function GanttChart({ projectId, scale = 'week', showCritical = f
           if (phase) {
             enriched.status = phase.status
             enriched.assignee_names = phase.assignees?.map((a: any) => resourceMap.get(a.id) || a.name).join('、') || ''
+            enriched.remark = phase.remark || '' // 甘特悬浮显示备注（SPECIAL_PROJECT §五）
           }
           return enriched
         })

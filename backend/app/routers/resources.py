@@ -173,19 +173,23 @@ def _phase_to_workload(ph: Phase) -> dict:
             ph.plan_start.isoformat() if ph.plan_start else None,
             ph.plan_end.isoformat() if ph.plan_end else None,
         ],
+        "remark": ph.remark,  # 甘特悬浮显示备注（SPECIAL_PROJECT §五）
     }
 
 
 def _workload_visible(ph: Phase) -> bool:
     """负载视图可见性（PROJECT_SHELVE §2.5 + 用户 2026-08-28：P8 交付不显示）。
 
-    搁置项目的阶段不占资源负载；P8 交付占空间且不计入负载，资源负载视图
-    无存在必要（甘特/热力图/冲突检测三处口径统一排除）。
+    搁置项目的阶段不占资源负载；专项项目独立监控、不占资源负载（SPECIAL_PROJECT §二）；
+    P8 交付占空间且不计入负载，资源负载视图无存在必要（甘特/热力图/冲突检测三处口径统一排除）。
     阶段级已完成/已搁置跳过逻辑沿用 resource_conflicts._SKIP_STATUSES 口径。
     """
     if ph.status in ("已完成", "已搁置"):
         return False
     if ph.project is not None and ph.project.status in _SHELVED_PROJECT_STATUSES:
+        return False
+    # 专项项目：资源负载不显示/不计入（SPECIAL_PROJECT §二）
+    if ph.project is not None and ph.project.is_special:
         return False
     # P8 交付：资源负载不显示/不计入（用户 2026-08-28）
     if (ph.phase_type or "").upper() == "P8":
