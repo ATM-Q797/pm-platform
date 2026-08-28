@@ -1,8 +1,8 @@
 // 与后端 Pydantic schema 一一对应的 TypeScript 类型定义
 
-// 市场区域（与 docs/项目填报模板.xlsx 下拉一致）
+// 市场区域（与 docs/项目填报模板.xlsx 下拉一致；「海外通用」= 跨区域兜底，用户 2026-08-28）
 export const MARKET_OPTIONS = [
-  '拉美区', '西欧区', '东欧区', '中东区', '亚太区', '土耳其区', '非洲区', '北美区', 'OEM业务部',
+  '拉美区', '西欧区', '东欧区', '中东区', '亚太区', '土耳其区', '非洲区', '北美区', 'OEM业务部', '海外通用',
 ]
 
 export const MARKET_OPTION_ITEMS = MARKET_OPTIONS.map((m) => ({ value: m, label: m }))

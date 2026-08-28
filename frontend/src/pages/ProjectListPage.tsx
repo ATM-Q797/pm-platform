@@ -217,14 +217,15 @@ export default function ProjectListPage() {
     try {
       const values = await form.validateFields()
       setCreating(true)
-      // 从 managed_by（user_id）反查用户姓名，同步填入 owner（兼容显示/旧逻辑）
-      const managerUser = managers.find((m) => m.id === values.managed_by)
+      // 负责人 = 自由文本（可自定义创建，用户 2026-08-28）；若输入匹配系统用户则绑定 managed_by（权限锚点），否则留空
+      const ownerName = (values.managed_by as string || '').trim()
+      const managerUser = managers.find((m) => m.name === ownerName)
       // 项目编号由系统自动生成（连续整数），无需前端填写
       const project = await createProject({
         category: values.category,
         name: values.name,
-        owner: managerUser?.name || '',
-        managed_by: values.managed_by,
+        owner: ownerName,
+        managed_by: managerUser?.id ?? null,
         market: values.market,
         plan_start: values.plan_start?.format('YYYY-MM-DD') || null,
         plan_end: values.plan_end?.format('YYYY-MM-DD') || null,
@@ -523,12 +524,7 @@ export default function ProjectListPage() {
             </Form.Item>
           </Space>
           <Form.Item name="managed_by" label="项目负责人" rules={[{ required: true, message: '请选择负责人' }]}>
-            <Select
-              placeholder="选择项目负责人"
-              showSearch
-              optionFilterProp="label"
-              options={managers.map((m) => ({ value: m.id, label: `${m.name}（${m.username}）` }))}
-            />
+            <Input placeholder="可输入任意人员姓名（不限于系统用户）" />
           </Form.Item>
           <Space style={{ display: 'flex' }}>
             <Form.Item name="plan_start" label="计划开始">
