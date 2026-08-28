@@ -38,25 +38,26 @@
 - 热力图 ⚠：`_conflict_phase_ids` 只收集**检测后剩余**冲突对成员——许进权不标 ✅
 - **共担阶段并行计数**：每人 +1（系统无工作量占比数据，不做加权——文档记录为未来增强：模板加"占比"列后按占比加权）
 
-### 2.3 手动消除冲突（v2.1 语义：**按阶段（甘特条）消除**）
+### 2.3 手动消除冲突（v2.2 语义：**抑制冲突警告，负载照显**）
 
-**数据**：表 `conflict_override`（v2.1 结构变更：`phase_b_id` 移除，消除粒度 = 资源 × 阶段）：
+**数据**：表 `conflict_override`（粒度 = 资源 × 阶段）：
 
 | 字段 | 类型 | 说明 |
 |---|---|---|
 | id | INTEGER PK | |
 | resource_id | INTEGER FK | 消除者（哪个人的视角） |
-| phase_id | INTEGER FK | 被消除的阶段（甘特条）——**该阶段不计入该资源的并行计算** |
-| reason | TEXT | 消除原因（必填，如"风险低/工作量小"） |
+| phase_id | INTEGER FK | 被消除的阶段（甘特条） |
+| reason | TEXT | 消除原因（必填，如"并行不影响实际负荷"） |
 | created_by | INTEGER FK | 操作人 |
 | created_at | DATETIME | |
 
 **约束**：`UNIQUE(resource_id, phase_id)`；FK 级联删除。
 
-**规则（用户决策 ①②）**：
-- 检测时：per-resource 的活跃阶段列表**剔除 override 的 (resource, phase)**——被剔除阶段不再参与冲突对生成与并行计数（与 P8 同类，但热力图/甘特条仍显示，仅不计负载）
-- **并行重算**：消除某阶段后，该资源并行数下降——若剩余阶段并行 ≤3，其冲突对**自动消失**（无需逐个消除）；若仍 >3，其余冲突对继续显示
-- **可撤销**：override 记录在审核中心可见、可删（撤销后该阶段重新计入并行）
+**规则（用户 2026-08-28 最终语义）**：
+- 消除 = **管理者确认该并行不影响此人的实际工作负荷**（负载均衡说明）
+- 检测时：该阶段从该资源的**并行判定中豁免**（不参与冲突对生成与并行计数）——其冲突警告消失；未消除阶段继续按并行逻辑计算
+- **热力图仍显示实际并行数**：被消除阶段**照常占格、照常计 peak**——"并行 4 但无冲突警告"= 已确认该并行可承受，便于持续观察真实负载
+- **可撤销**：override 记录在审核中心可见、可删（撤销后该阶段恢复冲突判定）
 
 **API**：
 ```
@@ -64,7 +65,7 @@ POST   /api/resources/conflicts/{resource_id}/override   body: {phase_id, reason
 GET    /api/resources/conflicts/overrides                # 全部消除记录（审核中心，仅 admin/manager）
 DELETE /api/resources/conflicts/overrides/{override_id}  # 撤销（权限同 POST）
 ```
-权限（决策 1）：admin 全部资源；manager 仅**自己负责项目**涉及的资源×阶段对（`project.managed_by == user.id` 或 owner 匹配）；其他角色 403。
+权限：admin 全部资源；manager 仅**自己负责项目**涉及的资源×阶段对（`project.managed_by == user.id` 或 owner 匹配）；其他角色 403。
 错误语义：重复消除同阶段 → 409；该阶段当前不冲突/不属于该资源 → 400；id 不存在 → 404；reason 缺失 → 422。
 
 **热力图响应扩展**（评审处置 #2）：`cell_phases[].conflict` 之外增加 `conflict_detail` 对象（`phase_a_id`/`phase_b_id`、`partner_name`、`partner_phase_name`、`overlap_days`）——tooltip「与谁撞」与 Drawer 消除提交所需数据一次到位；无冲突时 null。
