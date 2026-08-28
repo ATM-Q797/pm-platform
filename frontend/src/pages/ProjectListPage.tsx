@@ -423,9 +423,9 @@ export default function ProjectListPage() {
             </Button>
           )}
           <Upload accept=".xlsx,.xls" beforeUpload={handleImport} showUploadList={false}>
-            <Button icon={<UploadOutlined />} loading={previewLoading}>导入 Excel</Button>
+            <Button icon={<DownloadOutlined />} loading={previewLoading}>导入 Excel</Button>
           </Upload>
-          <Button icon={<DownloadOutlined />} onClick={() => window.open('/api/export/excel')}>
+          <Button icon={<UploadOutlined />} onClick={() => window.open('/api/export/excel')}>
             导出 Excel
           </Button>
           <Button icon={<ReloadOutlined />} onClick={load} />
