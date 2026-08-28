@@ -6,7 +6,7 @@ import {
 } from 'antd'
 import { PlusOutlined, EditOutlined, UploadOutlined } from '@ant-design/icons'
 import dayjs from 'dayjs'
-import { listSpecialProjects, createProject, updateProject } from '../api/projects'
+import { listSpecialProjects, createProject, updateProject, deleteProject } from '../api/projects'
 import { importSpecial, specialImportPreview } from '../api/imports'
 import { listUsers } from '../api/users'
 import { getMe } from '../api/auth'
@@ -131,6 +131,22 @@ export default function SpecialProjectsPage() {
       is_special: p.is_special ?? true,
     })
     setEditOpen(true)
+  }
+
+  const handleDelete = async () => {
+    if (!editing) return
+    try {
+      setSaving(true)
+      await deleteProject(editing.id)
+      message.success(`专项项目「${editing.name}」已删除`)
+      setEditOpen(false)
+      setEditing(null)
+      load()
+    } catch (e) {
+      message.error((e as Error).message)
+    } finally {
+      setSaving(false)
+    }
   }
 
   const handleEditSubmit = async () => {
@@ -370,6 +386,24 @@ export default function SpecialProjectsPage() {
         confirmLoading={saving}
         width={520}
         okText="保存"
+        footer={(_, { OkBtn, CancelBtn }) => (
+          <>
+            {editing && (
+              <Popconfirm
+                title="确认删除该专项项目？"
+                description="项目及其全部阶段数据将被永久删除，不可恢复。"
+                okText="删除"
+                okType="danger"
+                cancelText="取消"
+                onConfirm={handleDelete}
+              >
+                <Button danger style={{ marginRight: 'auto' }}>删除项目</Button>
+              </Popconfirm>
+            )}
+            <CancelBtn />
+            <OkBtn />
+          </>
+        )}
       >
         <Form form={editForm} layout="vertical" style={{ marginTop: 16 }} preserve={false}>
           <Form.Item name="name" label="项目名称" rules={[{ required: true, message: '请输入项目名称' }]}>

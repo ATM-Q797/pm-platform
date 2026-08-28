@@ -13,6 +13,7 @@ import openpyxl
 
 from app.core.security import hash_password
 from app.models import Phase, Project, Resource, User
+from app.services.excel_importer import parse_workbook
 
 # ---- 公共构造 ----
 
@@ -429,6 +430,38 @@ def _mk_special_with_phase(db_session, name: str) -> tuple[Project, Phase, Resou
     ph = _mk_phase(db_session, sp, f"{name}-阶段", _today(), _today() + timedelta(days=30))
     ph.assignees = [r]
     return sp, ph, r
+
+
+def test_special_mode_custom_type_without_code(client, db_session):
+    """用户 2026-08-28 真实表《自研机械锁钥匙锁项目填报总表》：阶段行无编号、
+    阶段类型列即阶段名（自定义类型）→ special 模式全识别（0 警告）。"""
+    import openpyxl
+    from io import BytesIO
+
+    wb = openpyxl.Workbook()
+    ws = wb.active
+    ws.title = "专项测试"
+    ws.append(["智能终端研发项目管理平台 — 项目填报模板"])  # 标题行（第 1 行，_DATA_START_ROW=3）
+    ws.append(["项目编号", "项目类目", "项目名称", "项目负责人", "市场", "阶段类型",
+               "计划开始", "计划结束", "实际开始", "实际结束", "阶段负责人", "阶段状态", "阶段进度", "备注"])
+    ws.append([1, "新需求", "自研项目A", "张三", "海外通用", None,
+               "2026-01-01", "2026-12-31", None, None, None, "进行中", None, None])
+    for i, t in enumerate(["项目立项", "一样图纸设计", "VDS认证送样测试"], start=1):
+        ws.append([None, None, None, None, None, t,
+                   f"2026-0{i}-01", f"2026-0{i}-28", None, None, "张三", "未开始", 0, None])
+    buf = BytesIO()
+    wb.save(buf)
+    parsed = parse_workbook(buf.getvalue(), special=True)
+    assert len(parsed.report.errors) == 0
+    assert len(parsed.report.warnings) == 0  # 无编号 + 自定义类型行不再被跳过
+    assert len(parsed.projects) == 1
+    assert [ph.phase_type for ph in parsed.projects[0].phases] == [
+        "项目立项", "一样图纸设计", "VDS认证送样测试"]
+    assert [ph.name for ph in parsed.projects[0].phases] == [
+        "项目立项", "一样图纸设计", "VDS认证送样测试"]  # 名称兜底 = 类型列
+    # 常规模式该表仍跳过（自定义类型不属于常规项目域）
+    parsed2 = parse_workbook(buf.getvalue())
+    assert len(parsed2.report.warnings) == 3
 
 
 def test_13_regular_replace_preserves_special(client, db_session):
