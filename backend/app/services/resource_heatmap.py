@@ -182,9 +182,10 @@ def _conflict_details_by_resource(db: Session) -> dict[int, dict[int, list[dict]
 def build_heatmap(db: Session, weeks: int = 12, granularity: str = "week") -> dict:
     """构建热力矩阵（RESOURCE_HEATMAP §2.1 响应结构）。
 
-    weeks: 窗口长度（周数），weeks>0 → [N-1 周前的周一, 今天]（裁决 A）；
+    weeks: 窗口长度（周数），weeks>0 → 起点 N-1 周前的周一；右端=今天+8 周
+           （月视图=第 3 个整月月末）——未来计划负载固定可见（2026-08-29 需求）；
            0=全部（最早数据日期 → 最晚计划，含未来）
-    granularity: 'week' | 'month'（桶大小；窗口长度不受影响）
+    granularity: 'week' | 'month'（桶大小；影响窗口右端的未来延展口径）
     """
     today = date.today()
     latest_plan = db.scalar(select(func.max(Phase.plan_end)))
@@ -192,9 +193,15 @@ def build_heatmap(db: Session, weeks: int = 12, granularity: str = "week") -> di
 
     # ---------- 窗口 ----------
     if weeks > 0:
-        # weeks>0（裁决 A，2026-08-28）：窗口右端恒为今天 [N-1 周前的周一, 今天]——
-        # 否则右端被最晚计划（如 2027-12-31）撑开，weeks 选项失效
-        window_end = today
+        # weeks>0（裁决 A + 2026-08-29 需求）：起点 = N-1 周前的周一；右端延至未来——
+        # 周视图 = 今天 + 8 周（未来计划负载在固定窗口内直接可见）；
+        # 月视图 = 今天所在月起 + 3 个整月（自然月对齐，右端 = 第 3 个月月末）。
+        # （历史注：裁决 A 原为右端=今天，2026-08-29 用户需求改为含未来 8 周/3 个月）
+        if granularity == "month":
+            month_anchor = _month_start(today)
+            window_end = _month_end(_month_start(month_anchor + timedelta(days=92)))
+        else:
+            window_end = today + timedelta(weeks=8)
         window_start = _week_start(today - timedelta(weeks=weeks - 1))
         if granularity == "month":
             window_start = _month_start(window_start)
