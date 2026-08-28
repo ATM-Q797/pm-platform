@@ -1,9 +1,10 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   Drawer,
   Form,
   Input,
   Select,
+  AutoComplete,
   Slider,
   DatePicker,
   Button,
@@ -34,6 +35,8 @@ interface Props {
   userRole?: string
   /** 精简模式：隐藏顺序调整、依赖等高级字段（资源视图使用） */
   hideExtra?: boolean
+  /** 专项项目模式：阶段类型放开自由输入（AutoComplete 联想，SPECIAL_PROJECT §三） */
+  specialProject?: boolean
   onClose: () => void
   onSaved: () => void
 }
@@ -52,7 +55,7 @@ const PHASE_TYPE_OPTIONS = [
   { value: 'P8', label: '交付', name: '交付' },
 ]
 
-export default function PhaseEditor({ phaseId, projectId, defaultSequence, readonly, userRole, hideExtra, onClose, onSaved }: Props) {
+export default function PhaseEditor({ phaseId, projectId, defaultSequence, readonly, userRole, hideExtra, specialProject, onClose, onSaved }: Props) {
   const isCreate = phaseId === null
   const isOpen = phaseId !== undefined && (phaseId !== null || projectId != null)
 
@@ -64,6 +67,16 @@ export default function PhaseEditor({ phaseId, projectId, defaultSequence, reado
   const [currentDeps, setCurrentDeps] = useState<Dependency[]>([])
   const [projectInfo, setProjectInfo] = useState<{ name: string; owner: string } | null>(null)
   const [form] = Form.useForm()
+
+  // 阶段类型选项（SPECIAL_PROJECT §三）：专项项目放开自由输入——联想 = 本项目已用类型 + P1-P8 建议
+  const phaseTypeOptions = useMemo(() => {
+    if (!specialProject) return PHASE_TYPE_OPTIONS
+    const used = [...new Set(projectPhases.map((p) => p.phase_type).filter(Boolean))]
+    const custom = used
+      .filter((t) => !PHASE_TYPE_OPTIONS.some((o) => o.value === t))
+      .map((t) => ({ value: t, label: t }))
+    return [...PHASE_TYPE_OPTIONS, ...custom]
+  }, [specialProject, projectPhases])
 
   useEffect(() => {
     if (phaseId != null && phaseId > 0) {
@@ -320,10 +333,21 @@ export default function PhaseEditor({ phaseId, projectId, defaultSequence, reado
     >
       <Form form={form} layout="vertical" preserve={false} disabled={readonly}>
         <Form.Item name="phase_type" label="阶段类型" rules={[{ required: true, message: '请选择阶段类型' }]}>
-          <Select
-            placeholder="请选择标准阶段类型"
-            options={PHASE_TYPE_OPTIONS}
-          />
+          {specialProject ? (
+            // 专项项目：自由输入（联想 = 本项目已用类型 + P1-P8 建议，SPECIAL_PROJECT §三）
+            <AutoComplete
+              placeholder="可自由输入或从联想中选择"
+              options={phaseTypeOptions}
+              filterOption={(input, option) => (option?.value ?? '').includes(input)}
+              allowClear
+            />
+          ) : (
+            // 普通项目：维持 P1-P8 标准类型下拉（SPECIAL_PROJECT 决策 ②）
+            <Select
+              placeholder="请选择标准阶段类型"
+              options={PHASE_TYPE_OPTIONS}
+            />
+          )}
         </Form.Item>
         {isCreate ? (
           <Form.Item name="sequence" label="插入位置">

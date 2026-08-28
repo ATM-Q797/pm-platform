@@ -32,7 +32,7 @@ import openpyxl
 from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
-from app.models import Dependency, Phase, Project, Resource, User
+from app.models import Dependency, Phase, Project, Resource, User, phase_assignee
 from app.schemas.import_report import (
     ImportError,
     ImportExistingCounts,
@@ -455,6 +455,21 @@ def _get_or_create_resource(db: Session, cache: dict[str, Resource], name: str) 
     return r
 
 
+def _special_referenced_resource_ids():
+    """专项项目阶段引用的 Resource id 子查询（SPECIAL_PROJECT §五·B）。
+
+    常规导入（全量重置）清理 Resource 时的保留集：专项 assignees 全局复用
+    Resource 行，若被常规导入删除会导致专项阶段 assignee 断裂。
+    """
+    return (
+        select(Resource.id)
+        .join(phase_assignee, phase_assignee.c.resource_id == Resource.id)
+        .join(Phase, Phase.id == phase_assignee.c.phase_id)
+        .join(Project, Project.id == Phase.project_id)
+        .where(Project.is_special.is_(True))
+    )
+
+
 # ---------- 内存数据结构（解析阶段产出，零 DB 副作用） ----------
 
 @dataclass
@@ -502,12 +517,15 @@ class ParsedWorkbook:
 
 # ---------- 阶段一：解析（纯函数，不碰数据库） ----------
 
-def parse_workbook(file_bytes: bytes, default_category: str = "新需求") -> ParsedWorkbook:
+def parse_workbook(file_bytes: bytes, default_category: str = "新需求", special: bool = False) -> ParsedWorkbook:
     """解析 Excel 文件为内存数据结构。
 
     - 不访问数据库、无任何副作用
     - 返回 ParsedWorkbook：项目列表 + 报告（错误/警告/行数统计）
     - 文件级错误（无法读取/无数据 sheet）时 projects 为空、errors 非空
+    - special=True（专项导入，SPECIAL_PROJECT §五·B）：阶段类型列**原样存储**
+      （trim 后直接作为 phase_type，不映射 P1-P8、不做兜底/警告；
+      旧格式无类型列 → phase_type 留空）
     """
     report = ImportReport()
     projects: list[ParsedProject] = []
@@ -633,30 +651,36 @@ def parse_workbook(file_bytes: bytes, default_category: str = "新需求") -> Pa
                 # - 纯中文（'工业设计'）→ 映射表归一化索引兜底
                 # - 名称列有值时优先用名称列
                 # - 旧格式无阶段类型列 → 名称列走 map_phase_type（error 兜底，历史行为）
-                pt = parse_phase_type_cell(phase_type_cell)
-                if pt:
-                    phase_type, type_name = pt
-                    phase_name = name_str or type_name
-                elif fmt == "new" and phase_type_cell is not None and _clean_str(phase_type_cell):
-                    # 新格式：阶段类型列有值但不可解析 → 警告 + 跳过该行（§2.6 决策 2）
-                    report.warnings.append(ImportWarning(
-                        row=r, sheet=sheet_name, field="phase_type",
-                        message=f"阶段类型'{_clean_str(phase_type_cell)}'无法识别，已跳过该行",
-                    ))
-                    continue
+                # - 专项模式（special=True，§五·B）：阶段类型列**原样存储**——
+                #   不映射 P1-P8、不做兜底/警告；旧格式无类型列 → phase_type 留空
+                if special:
+                    phase_type = _clean_str(phase_type_cell)
+                    phase_name = name_str or phase_type
                 else:
-                    phase_type = None
-                    phase_name = name_str or _clean_str(phase_type_cell)
-                if not phase_type:
-                    phase_type = map_phase_type(phase_name, r, sheet_name, report)
-                    if phase_type is None:
-                        # 旧格式名称兜底失败（新格式无阶段类型列值的路径不会到这）：
-                        # 名称列也无法映射 → 不猜、不吞，跳过该行（§2.6 决策 2）
+                    pt = parse_phase_type_cell(phase_type_cell)
+                    if pt:
+                        phase_type, type_name = pt
+                        phase_name = name_str or type_name
+                    elif fmt == "new" and phase_type_cell is not None and _clean_str(phase_type_cell):
+                        # 新格式：阶段类型列有值但不可解析 → 警告 + 跳过该行（§2.6 决策 2）
                         report.warnings.append(ImportWarning(
                             row=r, sheet=sheet_name, field="phase_type",
-                            message=f"阶段类型'{phase_name}'无法识别，已跳过该行",
+                            message=f"阶段类型'{_clean_str(phase_type_cell)}'无法识别，已跳过该行",
                         ))
                         continue
+                    else:
+                        phase_type = None
+                        phase_name = name_str or _clean_str(phase_type_cell)
+                    if not phase_type:
+                        phase_type = map_phase_type(phase_name, r, sheet_name, report)
+                        if phase_type is None:
+                            # 旧格式名称兜底失败（新格式无阶段类型列值的路径不会到这）：
+                            # 名称列也无法映射 → 不猜、不吞，跳过该行（§2.6 决策 2）
+                            report.warnings.append(ImportWarning(
+                                row=r, sheet=sheet_name, field="phase_type",
+                                message=f"阶段类型'{phase_name}'无法识别，已跳过该行",
+                            ))
+                            continue
 
                 plan_start = parse_cell_date(plan_start_raw, r, sheet_name, "plan_start", report)
                 plan_end = parse_cell_date(plan_end_raw, r, sheet_name, "plan_end", report)
@@ -703,8 +727,11 @@ def parse_workbook(file_bytes: bytes, default_category: str = "新需求") -> Pa
 # ---------- 阶段二：落库 ----------
 
 def import_parsed(db: Session, parsed: ParsedWorkbook) -> ImportReport:
-    """把解析结果写入数据库（全量重置：先删所有 Project/Resource，保留 Template）。
+    """把解析结果写入数据库（全量重置：删所有常规 Project/Resource，保留 Template）。
 
+    - 专项项目完全隔离（SPECIAL_PROJECT §五·B）：只删 `is_special=False` 的项目；
+      Resource 只删"专项未引用的行"（专项 assignees 全局复用 Resource，不能断裂）；
+      报告 warnings 追加"专项项目 N 个不受影响"信息
     - parsed.report 中的 errors/warnings/统计原样保留，补充 resources_created
     - 返回 ImportReport，并存为最近报告供 GET /api/import/report 查询
     """
@@ -715,19 +742,28 @@ def import_parsed(db: Session, parsed: ParsedWorkbook) -> ImportReport:
         _set_last_report(report)
         return report
 
-    # 全量重置：删 Project（级联）+ Resource（保留 Template）
+    # 全量重置（常规域）：删非专项 Project（级联）+ Resource（保留 Template）
     # 先解除 user→resource 引用：PG 外键约束下直接删被引用的 resource 会失败
+    special_count = db.query(Project).filter(Project.is_special.is_(True)).count()
     db.execute(update(User).values(resource_id=None).where(User.resource_id.is_not(None)))
-    db.query(Project).delete()
-    db.query(Resource).delete()
+    db.query(Project).filter(Project.is_special.is_(False)).delete()
+    db.query(Resource).filter(Resource.id.not_in(_special_referenced_resource_ids())).delete()
     db.flush()
+    if special_count:
+        report.warnings.append(ImportWarning(
+            row=0, sheet="(导入)", field="is_special",
+            message=f"专项项目 {special_count} 个不受影响（常规导入不重置专项域）",
+        ))
 
     resource_cache: dict[str, Resource] = {}
     resources_created = 0
+    # 项目编号续编起点：现有最大纯数字编号 + 1（保留的专项项目可能占用 '1'..'N'，
+    # 直接用文件行号会撞唯一约束 project.code——实测 PG 复现）
+    code_base = int(_next_project_code(db))
 
-    for project in parsed.projects:
+    for i, project in enumerate(parsed.projects):
         proj = Project(
-            code=project.code,
+            code=str(code_base + i),
             category=project.category,
             name=project.name,
             owner=project.owner,
@@ -788,6 +824,92 @@ def import_parsed(db: Session, parsed: ParsedWorkbook) -> ImportReport:
 def import_excel(db: Session, file_bytes: bytes, default_category: str = "新需求") -> ImportReport:
     """解析 Excel 文件并全量导入（兼容入口 = parse_workbook + import_parsed）。"""
     return import_parsed(db, parse_workbook(file_bytes, default_category))
+
+
+def import_special(db: Session, parsed: ParsedWorkbook) -> ImportReport:
+    """把解析结果写入数据库（专项域全量重置，SPECIAL_PROJECT §五·B）。
+
+    - 删全部 `is_special=true` 项目（阶段/assignee 级联），按文件重建（is_special=True）
+    - 常规项目与人员 Resource 完全不受影响（Resource 全局复用）
+    - 阶段类型为文件原样存储（parse_workbook special 模式解析）
+    - 收尾建专项域 FS 串联链；报告复用 ImportReport 结构，并存为最近报告
+    """
+    report = parsed.report
+
+    # 文件级错误（无法读取/无数据 sheet）：不落库，直接返回
+    if not parsed.projects and report.errors:
+        _set_last_report(report)
+        return report
+
+    # 全量重置专项域：删全部 is_special=true 项目（DB 级联删阶段/assignee/rework_log）
+    db.query(Project).filter(Project.is_special.is_(True)).delete()
+    db.flush()
+
+    resource_cache: dict[str, Resource] = {}
+    resources_created = 0
+    # 项目编号续编起点：现有最大纯数字编号 + 1（常规项目可能占用 '1'..'N'，
+    # 直接用文件行号会撞唯一约束 project.code——与 import_parsed 同口径）
+    code_base = int(_next_project_code(db))
+
+    for i, project in enumerate(parsed.projects):
+        proj = Project(
+            code=str(code_base + i),
+            category=project.category,
+            name=project.name,
+            owner=project.owner,
+            market=project.market,
+            status=project.status,
+            plan_start=project.plan_start,
+            plan_end=project.plan_end,
+            remark=project.remark,
+            is_special=True,
+        )
+        db.add(proj)
+        db.flush()
+        # 项目负责人也作为资源
+        if project.owner:
+            before = len(resource_cache)
+            _get_or_create_resource(db, resource_cache, project.owner)
+            if len(resource_cache) > before:
+                resources_created += 1
+
+        for ph in project.phases:
+            phase = Phase(
+                project_id=proj.id,
+                phase_type=ph.phase_type,
+                name=ph.name,
+                sequence=ph.sequence,
+                plan_start=ph.plan_start,
+                plan_end=ph.plan_end,
+                actual_start=ph.actual_start,
+                actual_end=ph.actual_end,
+                status=ph.status,
+                progress=ph.progress,
+                rework_count=0,
+                remark=ph.remark,
+            )
+            db.add(phase)
+            db.flush()
+
+            # 拆分负责人，建/匹配 Resource 并关联（人员全局复用）
+            if ph.assignees:
+                assignee_resources = []
+                for pname in ph.assignees:
+                    before = len(resource_cache)
+                    res = _get_or_create_resource(db, resource_cache, pname)
+                    if len(resource_cache) > before:
+                        resources_created += 1
+                    assignee_resources.append(res)
+                phase.assignees = assignee_resources
+
+    # 收尾：专项域项目按 sequence 建 FS 串联依赖
+    _build_all_project_dependencies(db, special_only=True)
+
+    report.resources_created = resources_created
+    db.commit()
+
+    _set_last_report(report)
+    return report
 
 
 # ---------- 阶段三：增量合并导入（默认模式） ----------
@@ -960,13 +1082,19 @@ def import_merged(db: Session, parsed: ParsedWorkbook) -> ImportReport:
 
     for parsed_p in parsed.projects:
         # 比较键归一化（评审处置 #2）：全角/半角书写差异不影响同名命中
+        # 专项项目不参与合并匹配（§五·B）：与专项同名 → 视为新建常规项目
         existing = db.scalars(
-            select(Project).where(Project.name == parsed_p.name)
+            select(Project).where(
+                Project.name == parsed_p.name,
+                Project.is_special.is_(False),
+            )
         ).first()
         if existing is None:
             # 归一化后重查（项目名 NFKC 不同但语义相同 → 合并而非新增）
             existing = next(
-                (p for p in db.scalars(select(Project)).all()
+                (p for p in db.scalars(
+                    select(Project).where(Project.is_special.is_(False))
+                ).all()
                  if _normalize_name(p.name or "") == _normalize_name(parsed_p.name)),
                 None,
             )
@@ -1045,22 +1173,41 @@ def import_merged(db: Session, parsed: ParsedWorkbook) -> ImportReport:
 
 # ---------- 导入前差异报告（预览） ----------
 
-def build_preview(db: Session, parsed: ParsedWorkbook) -> ImportPreview:
+def build_preview(db: Session, parsed: ParsedWorkbook, special: bool = False) -> ImportPreview:
     """基于解析结果 + 当前库生成差异报告（只读统计，无任何副作用）。
 
     包含两类信息：
     - 全量替换视角：existing（将被清空）/ incoming / match（同名对比）
     - 增量合并视角：created/updated/kept 明细 + 新增阶段待关联依赖提示
+
+    special=True（专项导入预览）：existing/同名对比/合并明细全部按专项域口径
+    （常规项目不计入；Resource 不清零——专项导入不删 Resource，人员全局复用）。
     """
-    existing_projects = db.query(Project).count()
-    existing_phases = db.query(Phase).count()
-    existing_resources = db.query(Resource).count()
+    if special:
+        # 专项域口径（SPECIAL_PROJECT §五·B 专项预览）
+        existing_projects = db.query(Project).filter(Project.is_special.is_(True)).count()
+        existing_phases = (
+            db.query(Phase).join(Project).filter(Project.is_special.is_(True)).count()
+        )
+        existing_resources = 0  # 专项导入全量重置不删 Resource（人员全局复用）
+        existing_query = select(Project).where(Project.is_special.is_(True))
+    else:
+        # 常规域口径：专项项目不计入（将被清空）/同名对比/合并明细
+        existing_projects = db.query(Project).filter(Project.is_special.is_(False)).count()
+        existing_phases = (
+            db.query(Phase).join(Project).filter(Project.is_special.is_(False)).count()
+        )
+        # 常规导入实际只删"专项未引用的 Resource 行"——与 import_parsed 清理口径一致
+        existing_resources = (
+            db.query(Resource).filter(Resource.id.not_in(_special_referenced_resource_ids())).count()
+        )
+        existing_query = select(Project).where(Project.is_special.is_(False))
 
     incoming_projects = len(parsed.projects)
     incoming_phases = sum(len(p.phases) for p in parsed.projects)
 
     # 同名项目对比（防传错文件；比较键 NFKC 归一化，评审处置 #2）
-    existing_names_raw = set(db.scalars(select(Project.name)).all())
+    existing_names_raw = set(db.scalars(existing_query.with_only_columns(Project.name)).all())
     existing_names = {_normalize_name(n or "") for n in existing_names_raw}
     incoming_names = {_normalize_name(p.name) for p in parsed.projects if p.name}
     matched = len(incoming_names & existing_names)
@@ -1080,7 +1227,7 @@ def build_preview(db: Session, parsed: ParsedWorkbook) -> ImportPreview:
 
     # 增量合并明细（key 为归一化项目名，与 import_merged 命中口径一致）
     existing_proj_map = {
-        _normalize_name(p.name): p for p in db.scalars(select(Project)).all()
+        _normalize_name(p.name): p for p in db.scalars(existing_query).all()
     }
     created_projects = [
         _preview(p) for p in parsed.projects
@@ -1203,12 +1350,16 @@ def _build_sequence_dependencies(db: Session, phases: list[Phase]) -> None:
         db.add(Dependency(from_phase_id=frm.id, to_phase_id=to.id, type="FS", lag_days=0))
 
 
-def _build_all_project_dependencies(db: Session) -> None:
-    """对所有项目的阶段按 sequence 建 FS 串联依赖。
+def _build_all_project_dependencies(db: Session, special_only: bool = False) -> None:
+    """对所有项目（或仅专项项目）的阶段按 sequence 建 FS 串联依赖。
 
     导入流程的每个项目阶段建好后调用。
+    special_only=True：仅专项域项目（专项导入收尾用，不触碰常规项目已有依赖）。
     """
-    projects = list(db.scalars(select(Project)))
+    q = select(Project)
+    if special_only:
+        q = q.where(Project.is_special.is_(True))
+    projects = list(db.scalars(q))
     for project in projects:
         phases = list(db.scalars(
             select(Phase).where(Phase.project_id == project.id).order_by(Phase.sequence)

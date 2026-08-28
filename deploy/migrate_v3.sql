@@ -35,3 +35,11 @@ CREATE UNIQUE INDEX IF NOT EXISTS uq_override_resource_phase
     ON conflict_override (resource_id, phase_id);
 CREATE INDEX IF NOT EXISTS ix_conflict_override_resource_id
     ON conflict_override (resource_id);
+
+-- ============================================================
+-- SPECIAL_PROJECT：专项项目标记列（幂等加列）
+-- 专项项目独立监控对象：不占资源负载（热力/甘特/冲突）、不进普通列表与 Dashboard
+-- 注意：IF NOT EXISTS 为 PostgreSQL 语法（服务器执行）；本地库用应用层脚本迁移
+-- ============================================================
+ALTER TABLE project ADD COLUMN IF NOT EXISTS is_special BOOLEAN DEFAULT FALSE;
+CREATE INDEX IF NOT EXISTS ix_project_is_special ON project (is_special);

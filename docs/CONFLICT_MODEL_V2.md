@@ -1,6 +1,6 @@
 # 资源冲突模型重构 v2.1 — 按甘特条（阶段）消除 + 入口统一 + 报告转审核中心
 
-> **版本**: v2.1 | **日期**: 2026-08-28 | **状态**: 实施中（用户 2026-08-28 四项决策）
+> **版本**: v2.2 | **日期**: 2026-08-28 | **状态**: 已实施（`968af83`/`18e89fc`/`02a00b4` 本地已部署）（用户 2026-08-28 四项决策）
 > **背景**: 热力图 ⚠ 误伤（共担者连带）已修复；用户进一步明确消除语义与入口
 > **用户决策（2026-08-28）**:
 > ① 消除目标 = **阶段（甘特条）**，不是冲突对——"点击消除该甘特条的冲突即表示该甘特条所对应的阶段风险低、**不计入项目并行计算逻辑**"
@@ -25,13 +25,14 @@
 `backend/app/services/resource_conflicts.py`：
 - 检测时跳过 `phase.phase_type == 'P8'` 的阶段（不参与冲突对生成）
 - **热力图计数保留**：P8 阶段仍占格（忙碌度），仅 ⚠ 不标
+- **专项项目阶段同样排除**（`project.is_special=true` 不参与冲突检测——SPECIAL_PROJECT §二：专项项目是独立监控对象，不占用资源负载统计，三处口径统一）
 
 ### 2.2 人员并行视角判定（决策 ②）
 
 **口径统一**：热力图 ⚠ 与 T4 冲突报告**同规则**——某人某对阶段满足：
 1. 重叠 ≥ 10 天
 2. 重叠 ≥ 较短阶段工期 60%
-3. **该人员**在重叠窗口内同时活跃阶段数 **≥4**（`_MAX_PARALLEL=3`，活跃 = 计划窗口与重叠区间相交；P8 已排除、已完成/已搁置跳过、搁置项目跳过——沿用现有过滤）
+3. **该人员**在重叠窗口内同时活跃阶段数 **≥4**（`_MAX_PARALLEL=3`，活跃 = 计划窗口与重叠区间相交；P8 已排除、已完成/已搁置跳过、搁置项目跳过、**专项项目跳过**——沿用现有过滤，SPECIAL_PROJECT §二）
 
 **实现**：
 - `detect_conflicts` 保持 per-resource 结构不变（本就是按资源聚合）；**验证并行上限按资源正确生效**——张晓平案例预期：重叠窗口内活跃 2（486+503）≤3 → **不报**（若当前实现仍报 20 对含 486vs503，说明并行过滤存在实现偏差，实施时修复）
@@ -52,6 +53,7 @@
 | created_at | DATETIME | |
 
 **约束**：`UNIQUE(resource_id, phase_id)`；FK 级联删除。
+**迁移**：新表由 create_all 自动创建（本地已重建；服务器部署时执行 migrate_v3.sql 含建表 DDL，幂等）。
 
 **规则（用户 2026-08-28 最终语义）**：
 - 消除 = **管理者确认该并行不影响此人的实际工作负荷**（负载均衡说明）
@@ -70,18 +72,20 @@ DELETE /api/resources/conflicts/overrides/{override_id}  # 撤销（权限同 PO
 
 **热力图响应扩展**（评审处置 #2）：`cell_phases[].conflict` 之外增加 `conflict_detail` 对象（`phase_a_id`/`phase_b_id`、`partner_name`、`partner_phase_name`、`overlap_days`）——tooltip「与谁撞」与 Drawer 消除提交所需数据一次到位；无冲突时 null。
 
-### 2.4 前端入口（决策 ③：甘特 + 热力图 + 报告）
+### 2.4 前端入口（决策 ③ 最终语义：**消除入口唯一 = 资源负载甘特图**）
+
+> 用户 2026-08-28 最终确认：Dashboard / 热力图**只读**（不做消除接口）；冲突报告 + 已消除记录迁至审核中心「资源冲突」Tab（决策 ④）。本表为 v2.1 实施后的一致性描述（2026-08-28 评审处置 #1 对齐）。
 
 | 入口 | 交互 |
 |---|---|
-| **热力图 Drawer** | 冲突阶段行显示"⚠ 冲突"红字 + 「消除」按钮（**仅 admin/manager 显示**，评审处置 #6）→ 原因弹窗 → 提交后 ⚠ 消失、格子变普通色 |
-| **资源冲突报告**（T4 表格） | 每对冲突行加「消除」按钮 + 原因弹窗；页顶/页底"已消除记录"折叠区（可撤销） |
-| **甘特冲突条**（ResourceView，决策 ③） | 黄框冲突条**点击弹消除确认 Modal**（原因输入 + 「查看阶段」次级入口，决策 2；仅 admin/manager 见消除按钮）——与现有"点击条跳阶段编辑"区分：冲突条优先弹消除；非冲突条维持原行为 |
+| **甘特冲突条**（ResourceView，唯一消除入口） | 黄框冲突条**点击弹消除确认 Modal**（原因输入 + 「查看阶段」次级入口，决策 2；仅 admin/manager 见消除按钮）——与现有"点击条跳阶段编辑"区分：冲突条优先弹消除；非冲突条维持原行为 |
+| **热力图 Drawer**（只读） | 冲突阶段行显示"⚠ 冲突"红字 + 冲突详情（与谁撞）；**无消除按钮**（决策 ③） |
+| **资源冲突报告**（审核中心「资源冲突」Tab） | 只读报告表格（每对冲突：重叠天数/双方/消除入口提示）；**已消除记录**列表（可撤销） |
 | 热力图 tooltip | 冲突详情：「⚠ 与 张晓平·P5结构设计（乌兹别克…）重叠 24 天」——标明与谁撞 |
 
 **⚠ 显示语义更新**（与 T4 同口径后）：
 - 热力图 ⚠ = 该格含**该人员视角**冲突阶段（检测剩余对）
-- 消除后：该资源该对不再标 ⚠；热力图格值（忙碌度）不变
+- 消除后：该资源该对不再标 ⚠；热力图格值（忙碌度）不变（v2.2：被消除阶段仍占格、仍计 peak）
 
 ---
 
@@ -96,9 +100,11 @@ backend/tests/test_conflicts.py                  回归 + 新用例
 backend/tests/test_conflict_override.py（新）    消除/撤销/粒度用例
 backend/tests/test_heatmap.py                    许进权不再标 ⚠ 用例
 frontend/src/api/resources.ts                    +override API
-frontend/src/components/Resource/HeatmapView.tsx  ⚠ 详情 tooltip + Drawer 消除按钮/原因弹窗
+frontend/src/components/Resource/HeatmapView.tsx  ⚠ 详情 tooltip（只读，无消除按钮——决策 ③）
 frontend/src/components/Resource/ResourceView.tsx 冲突条点击弹消除 Modal
-frontend/src/pages/ResourcePage.tsx               冲突报告消除 + 已消除记录区
+frontend/src/pages/ReviewPage.tsx                 新增「资源冲突」Tab：冲突报告（只读）+ 已消除记录（可撤销，决策 ④）
+frontend/src/pages/ResourcePage.tsx               移除冲突报告/已消除记录区（迁审核中心）+ conflictVersion 同步
+frontend/src/pages/DashboardPage.tsx              移除消除按钮（只读）+ conflict-changed 同步刷新
 frontend/src/styles/resourceHeatmap.css           ⚠ 样式微调
 docs/RESOURCE_HEATMAP.md                          ⚠ 语义段落更新
 ```
@@ -115,8 +121,10 @@ docs/RESOURCE_HEATMAP.md                          ⚠ 语义段落更新
 | 6 | override 撤销后 | 恢复报告 |
 | 7 | override 原因必填 | 缺 reason → 422 |
 | 8 | a/b 顺序归一化 | (a,b) 与 (b,a) 视为同一对 |
-| 9 | 热力图 ⚠ | 消除后该资源格 ⚠ 消失、格值不变 |
+| 9 | 热力图 ⚠ | 消除后该资源格 ⚠ 消失、格值不变（v2.2：被消除阶段仍占格、仍计 peak） |
 | 10 | 权限 | 非 admin/manager 调用 override → 403 |
+| 11 | 重复消除同一阶段（评审处置 #6） | 409（UNIQUE(resource_id, phase_id)） |
+| 12 | 删除不存在的 override 记录（评审处置 #6） | 404 |
 
 ## 五、决策记录（用户已确认）
 

@@ -11,6 +11,7 @@ import {
   DownOutlined,
   AuditOutlined,
   CheckSquareOutlined,
+  StarOutlined,
   MoonOutlined,
   SunOutlined,
 } from '@ant-design/icons'
@@ -29,6 +30,7 @@ const ResourcePage = lazy(() => import('./pages/ResourcePage'))
 const UserManagePage = lazy(() => import('./pages/UserManagePage'))
 const ReviewPage = lazy(() => import('./pages/ReviewPage'))
 const MyTasksPage = lazy(() => import('./pages/MyTasksPage'))
+const SpecialProjectsPage = lazy(() => import('./pages/SpecialProjectsPage'))
 
 const { Header, Content } = Layout
 
@@ -109,6 +111,8 @@ export default function App() {
     ? 'review'
     : location.pathname.startsWith('/my-tasks')
     ? 'my-tasks'
+    : location.pathname.startsWith('/special-projects')
+    ? 'special-projects'
     : 'dashboard'
 
   if (loading) {
@@ -133,6 +137,7 @@ export default function App() {
       ? [
           { key: 'dashboard', icon: <DashboardOutlined />, label: '看板' },
           { key: 'projects', icon: <ProjectOutlined />, label: '项目列表' },
+          { key: 'special-projects', icon: <StarOutlined />, label: '专项项目' },
           { key: 'resources', icon: <TeamOutlined />, label: '资源负载' },
           { key: 'users', icon: <UserOutlined />, label: '用户管理' },
           { key: 'review', icon: <AuditOutlined />, label: '审核中心' },
@@ -140,6 +145,9 @@ export default function App() {
       : user.role === 'manager' || user.role === 'engineer'
       ? [
           { key: 'projects', icon: <ProjectOutlined />, label: '项目列表' },
+          ...(user.role === 'manager'
+            ? [{ key: 'special-projects', icon: <StarOutlined />, label: '专项项目' }]
+            : []),
           { key: 'my-tasks', icon: <CheckSquareOutlined />, label: '我的任务' },
           ...(user.role === 'manager'
             ? [
@@ -189,6 +197,7 @@ export default function App() {
               onClick={({ key }) => {
                 if (key === 'dashboard') navigate('/')
                 else if (key === 'projects') navigate('/projects')
+                else if (key === 'special-projects') navigate('/special-projects')
                 else if (key === 'resources') navigate('/resources')
                 else if (key === 'users') navigate('/users')
                 else if (key === 'review') navigate('/review')
@@ -228,6 +237,12 @@ export default function App() {
               } />
               <Route path="/projects" element={<ProjectListPage />} />
               <Route path="/projects/:id" element={<ProjectDetailPage />} />
+              {/* 专项项目：仅 admin/manager 可见（与审核中心同模式） */}
+              <Route path="/special-projects" element={
+                user.role === 'admin' || user.role === 'manager'
+                  ? <SpecialProjectsPage />
+                  : <Navigate to="/" replace />
+              } />
               <Route path="/resources" element={
                 user.role === 'manager' || user.role === 'engineer'
                   ? <Navigate to="/projects" replace />

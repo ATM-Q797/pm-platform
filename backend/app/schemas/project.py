@@ -26,6 +26,7 @@ class ProjectBase(BaseModel):
     plan_end: date | None = None
     template_id: int | None = None
     remark: str | None = None
+    is_special: bool = False  # 专项项目标记（SPECIAL_PROJECT §一）
     managed_by: int | None = None  # 项目负责人 user_id
 
 
@@ -46,6 +47,7 @@ class ProjectUpdate(BaseModel):
     plan_end: date | None = None
     template_id: int | None = None
     remark: str | None = None
+    is_special: bool | None = None  # 专项项目标记（SPECIAL_PROJECT §一）
     managed_by: int | None = None  # 项目负责人 user_id
 
     @field_validator("status")
@@ -95,6 +97,7 @@ class GanttTask(BaseModel):
     type: str  # "project" | "task"
     open: bool = True
     rework_count: int | None = None
+    remark: str | None = None  # 阶段备注（甘特悬浮显示，SPECIAL_PROJECT §五）
 
 
 class GanttLink(BaseModel):
@@ -131,6 +134,7 @@ class WorkloadItem(BaseModel):
     plan_end: str | None
     status: str | None = None  # 阶段状态，用于甘特条着色
     period: list[str | None]  # [plan_start, plan_end]（兼容旧格式）
+    remark: str | None = None  # 阶段备注（资源甘特悬浮显示，SPECIAL_PROJECT §五）
 
 
 class ResourceWorkload(BaseModel):

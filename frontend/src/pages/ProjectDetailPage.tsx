@@ -1,6 +1,6 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { Card, Descriptions, Tag, Button, Space, Segmented, Spin, message, Input, Switch } from 'antd'
+import { Card, Descriptions, Tag, Button, Space, Segmented, Spin, message, Input, Switch, Result } from 'antd'
 import { ArrowLeftOutlined, PlusOutlined, StarFilled, StarOutlined } from '@ant-design/icons'
 import { getProject, updateProject, setFavorite, getCriticalPath } from '../api/projects'
 import { getMe } from '../api/auth'
@@ -100,11 +100,30 @@ export default function ProjectDetailPage() {
     return <Card>项目不存在</Card>
   }
 
+  // 专项项目隔离（SPECIAL_PROJECT §4.2）：非 admin/manager 访问专项详情 → 403 提示
+  // （后端已 403，此处提供友好提示）
+  if (project.is_special && userRole !== 'admin' && userRole !== 'manager') {
+    return (
+      <Card>
+        <Result
+          status="403"
+          title="无权访问"
+          subTitle="专项项目仅管理员或项目负责人可访问"
+          extra={
+            <Button type="primary" onClick={() => navigate('/projects')}>
+              返回项目列表
+            </Button>
+          }
+        />
+      </Card>
+    )
+  }
+
   return (
     <div>
       <Space style={{ marginBottom: 16 }}>
-        <Button icon={<ArrowLeftOutlined />} onClick={() => navigate('/projects')}>
-          返回列表
+        <Button icon={<ArrowLeftOutlined />} onClick={() => navigate(project.is_special ? '/special-projects' : '/projects')}>
+          返回{project.is_special ? '专项列表' : '列表'}
         </Button>
       </Space>
 
@@ -253,6 +272,7 @@ export default function ProjectDetailPage() {
         defaultSequence={(project?.phases?.length ? Math.max(...project.phases.map(p => p.sequence)) + 1 : 1)}
         userRole={userRole}
         readonly={userRole === 'viewer'}
+        specialProject={!!project.is_special}
         onClose={() => setEditingPhase(undefined)}
         onSaved={handlePhaseSaved}
       />

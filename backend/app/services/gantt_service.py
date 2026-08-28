@@ -66,6 +66,7 @@ def build_gantt(db: Session, project_id: int) -> GanttData | None:
                 type="task",
                 open=True,
                 rework_count=ph.rework_count,
+                remark=ph.remark,  # 甘特悬浮显示备注（SPECIAL_PROJECT §五）
             )
         )
 

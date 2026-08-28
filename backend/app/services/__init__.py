@@ -7,6 +7,7 @@ from app.services.excel_importer import (
     import_excel,
     import_merged,
     import_parsed,
+    import_special,
     parse_workbook,
 )
 
@@ -16,6 +17,7 @@ __all__ = [
     "import_excel",
     "import_merged",
     "import_parsed",
+    "import_special",
     "parse_workbook",
     "build_preview",
     "get_last_report",

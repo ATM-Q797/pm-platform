@@ -10,7 +10,12 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
-from app.core.deps import get_current_user, require_role, check_project_access
+from app.core.deps import (
+    check_special_project_access,
+    get_current_user,
+    require_role,
+    check_project_access,
+)
 from app.database import get_db
 from app.models import Dependency, Phase, Project, User, UserFavorite, phase_assignee
 from app.routers.audit import log_operation
@@ -82,6 +87,8 @@ def list_projects(
         stmt = stmt.where(Project.category == category)
     if market:
         stmt = stmt.where(Project.market == market)
+    # 专项项目仅专项页可见（SPECIAL_PROJECT §4.3）：普通列表统一排除
+    stmt = stmt.where(Project.is_special.is_(False))
     stmt = stmt.order_by(Project.id)
 
     # 关注标记 + 置顶排序（关注的项目优先，组内按 id）
@@ -93,6 +100,21 @@ def list_projects(
         item.is_favorite = item.id in favorite_ids
     projects.sort(key=lambda x: (not x.is_favorite, x.id))
     return projects
+
+
+@router.get("/special", response_model=list[ProjectRead])
+def list_special_projects(
+    db: Session = Depends(get_db),
+    user: User = Depends(require_role("admin", "manager")),
+):
+    """专项项目列表（SPECIAL_PROJECT §4.3）：仅 is_special=true，仅 admin/manager。
+
+    专项项目独立监控对象，只在本接口可见（普通列表 / Dashboard 统计统一排除）。
+    注意：静态路径必须注册在 /{project_id} 动态路由之前（FastAPI 按声明顺序匹配）。
+    """
+    return list(db.scalars(
+        select(Project).where(Project.is_special.is_(True)).order_by(Project.id)
+    ))
 
 
 # ---------- 关注项目（置顶） ----------
@@ -179,6 +201,8 @@ def get_project(
     project = db.get(Project, project_id)
     if project is None:
         raise HTTPException(404, "项目不存在")
+    # 专项项目隔离（SPECIAL_PROJECT §4.2）：详情仅 admin/manager
+    check_special_project_access(project, user)
     # 附加依赖列表
     deps = db.execute(
         select(Dependency).join(Phase, Dependency.from_phase_id == Phase.id).where(Phase.project_id == project_id)
@@ -195,8 +219,15 @@ def update_project(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    # 检查项目存在 + 操作权限
-    project = check_project_access(project_id, user, db)
+    # 检查项目存在 + 操作权限（专项项目隔离，评审处置 #10：项目级写接口仅 admin/manager，
+    # 防止非 admin 通过更新接口取消开关/绕过隔离；普通项目维持现有负责人模式）
+    project = db.get(Project, project_id)
+    if project is None:
+        raise HTTPException(404, "项目不存在")
+    if project.is_special:
+        check_special_project_access(project, user)
+    else:
+        check_project_access(project_id, user, db)
     data = payload.model_dump(exclude_unset=True)
     if "code" in data and data["code"] != project.code:
         dup = db.scalars(select(Project).where(Project.code == data["code"])).first()
@@ -223,7 +254,14 @@ def delete_project(
     - admin：直接物理删除
     - manager：不能直接删，提示走删除申请流程（POST /api/projects/{id}/delete-request）
     """
-    project = check_project_access(project_id, user, db)
+    # 专项项目隔离（评审处置 #10）：删除专项项目仅 admin/manager；manager 仍走申请流程
+    project = db.get(Project, project_id)
+    if project is None:
+        raise HTTPException(404, "项目不存在")
+    if project.is_special:
+        check_special_project_access(project, user)
+    else:
+        check_project_access(project_id, user, db)
     if user.role == "manager":
         raise HTTPException(
             status.HTTP_403_FORBIDDEN,
@@ -243,6 +281,11 @@ def get_project_gantt(
     user: User = Depends(get_current_user),
 ):
     """获取项目甘特图数据（dhtmlxGantt 格式）。需登录。"""
+    project = db.get(Project, project_id)
+    if project is None:
+        raise HTTPException(404, "项目不存在")
+    # 专项项目隔离（SPECIAL_PROJECT §4.2）：甘特仅 admin/manager
+    check_special_project_access(project, user)
     data = build_gantt(db, project_id)
     if data is None:
         raise HTTPException(404, "项目不存在")
@@ -256,6 +299,11 @@ def get_project_critical_path(
     user: User = Depends(get_current_user),
 ):
     """计算项目关键路径：关键阶段 id 列表 + 总工期 + 路径阶段名。"""
+    project = db.get(Project, project_id)
+    if project is None:
+        raise HTTPException(404, "项目不存在")
+    # 专项项目隔离：关键路径属详情页数据，同样仅 admin/manager
+    check_special_project_access(project, user)
     result = compute_critical_path(db, project_id)
     if result is None:
         raise HTTPException(404, "项目不存在")
@@ -270,8 +318,14 @@ def apply_template_to_project(
     user: User = Depends(get_current_user),
 ):
     """从模板创建阶段 + 依赖。"""
-    # 检查项目存在 + 操作权限
-    check_project_access(project_id, user, db)
+    # 检查项目存在 + 操作权限（专项项目隔离：创建阶段类操作仅 admin/manager）
+    project = db.get(Project, project_id)
+    if project is None:
+        raise HTTPException(404, "项目不存在")
+    if project.is_special:
+        check_special_project_access(project, user)
+    else:
+        check_project_access(project_id, user, db)
     try:
         apply_template(db, project_id, template_id)
     except ValueError as e:

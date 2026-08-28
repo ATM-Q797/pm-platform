@@ -47,6 +47,9 @@ def active_heatmap_phases(resource: Resource) -> list[Phase]:
             continue
         if ph.project is not None and ph.project.status in _SHELVED_PROJECT_STATUSES:
             continue
+        # 专项项目：独立监控对象，不占资源负载（SPECIAL_PROJECT §二）
+        if ph.project is not None and ph.project.is_special:
+            continue
         # P8 交付：资源负载不计入（用户 2026-08-28：占空间且不计入负载，无存在必要）
         if (ph.phase_type or "").upper() == "P8":
             continue
