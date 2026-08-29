@@ -42,6 +42,7 @@ export default function ResourceView({ scale = 'week', onPhaseClick, conflictVer
   const pairMapRef = useRef(new Map<string, OverrideTarget>())
   // "resourceId:phaseId" → 冲突描述（局部更新用，消除后不重建甘特——用户 2026-08-28）
   const conflictMapRef = useRef(new Map<string, string>())
+  const countsRef = useRef(new Map<number, number>())
   const viewPhaseRef = useRef<number | null>(null)
   const conflictVersionFirstRun = useRef(true)
 
@@ -284,13 +285,14 @@ export default function ResourceView({ scale = 'week', onPhaseClick, conflictVer
             }
           }
         }
-        // 人员行：⚠️N 角标
+        // 人员行：⚠️N 角标（写入 countsRef 供 batchUpdate 内统一应用）
         const counts = new Map<number, number>()
         for (const t of g.getAllTask()) {
           if (Number(t.id) > 0 && t.resource_id != null && t.conflict_info) {
             counts.set(t.resource_id, (counts.get(t.resource_id) || 0) + 1)
           }
         }
+        countsRef.current = counts
         for (const t of g.getAllTask()) {
           if (Number(t.id) < 0) {
             const n = counts.get(-Number(t.id)) || 0
@@ -301,9 +303,22 @@ export default function ResourceView({ scale = 'week', onPhaseClick, conflictVer
             }
           }
         }
-        // smart_rendering 虚拟渲染下 refreshTask 只写数据层不重绘可视条（消除后黄框滞留屏幕、
-        // 刷新才消失的根因）——统一 g.render() 强制重绘，滚动/展开状态保留（数据未 clearAll）
-        g.render()
+        // smart_rendering 虚拟渲染下,对既有任务对象就地改字段 + refreshTask/render 存在
+        // 脏区不重绘的暗坑(消除后黄框滞留屏幕的根因)。改用官方批处理 API batchUpdate:
+        // 它在批内重建内部索引并对可视区做确定性全量重绘,滚动位置由 dhtmlx 自行恢复。
+        g.batchUpdate(() => {
+          for (const t of g.getTaskByIndex(0, g.getTaskCount() - 1) || []) {
+            if (t == null) continue
+            const key = `${t.resource_id}:${t.phase_id}`
+            const info = t.id > 0 && t.resource_id != null ? conflictMap.get(key) : undefined
+            if (t.conflict_info !== info) t.conflict_info = info
+            if (Number(t.id) < 0) {
+              const n = countsRef.current.get(-Number(t.id)) || 0
+              const base = String(t.text).replace(/\s*⚠️\d*$/, '')
+              t.text = n > 0 ? `${base} ⚠️${n}` : base
+            }
+          }
+        })
       })
       .catch(() => {})
     return () => { cancelled = true }
