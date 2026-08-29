@@ -77,7 +77,7 @@ export default function ConflictOverrideModal({
       confirmLoading={submitting}
       onOk={handleSubmit}
       onCancel={onClose}
-      destroyOnClose
+      destroyOnHidden
       width={460}
     >
       <Spin spinning={submitting}>

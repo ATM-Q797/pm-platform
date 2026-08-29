@@ -70,7 +70,7 @@ export default function ProjectEditModal({ project, open, onClose, onSaved }: {
       confirmLoading={saving}
       width={640}
       okText="保存"
-      destroyOnClose
+      destroyOnHidden
     >
       <Form form={form} layout="vertical" style={{ marginTop: 16, paddingRight: 8 }} preserve={false}>
         <Form.Item name="name" label="项目名称" rules={[{ required: true }]}>

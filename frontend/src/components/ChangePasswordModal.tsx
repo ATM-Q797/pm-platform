@@ -35,7 +35,7 @@ export default function ChangePasswordModal({ open, forceChange, onCancel, onSuc
       open={open}
       onCancel={forceChange ? undefined : onCancel}
       closable={!forceChange}
-      maskClosable={!forceChange}
+      mask={{ closable: !forceChange }}
       keyboard={!forceChange}
       onOk={handleSubmit}
       okText="确认修改"

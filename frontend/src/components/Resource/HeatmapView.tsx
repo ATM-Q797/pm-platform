@@ -172,7 +172,7 @@ export default function HeatmapView({ conflictVersion = 0 }: {
       <Drawer
         open={drawer !== null}
         onClose={() => setDrawer(null)}
-        width={420}
+        styles={{ wrapper: { width: 420 } }}
         title={
           drawer && data
             ? `${drawer.person.name} · ${periodTitle(drawerCol, data.granularity)}活跃阶段`

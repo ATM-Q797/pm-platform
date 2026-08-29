@@ -336,8 +336,8 @@ export default function PhaseEditor({ phaseId, projectId, defaultSequence, reado
       }
       open={isOpen}
       onClose={onClose}
-      width={420}
-      destroyOnClose
+      styles={{ wrapper: { width: 420 } }}
+      destroyOnHidden
       footer={
         readonly ? (
           <Button onClick={onClose}>关闭</Button>
