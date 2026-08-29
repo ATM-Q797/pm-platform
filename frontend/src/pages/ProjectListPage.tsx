@@ -2,9 +2,9 @@ import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Table, Card, Select, Input, Button, Space, Tag, Upload, Modal, Form, DatePicker, message, Spin, Popconfirm, Radio } from 'antd'
 import { DownloadOutlined, ReloadOutlined, UploadOutlined, PlusOutlined, EditOutlined, DeleteOutlined, StarFilled, StarOutlined } from '@ant-design/icons'
-import dayjs from 'dayjs'
 import type { ColumnsType } from 'antd/es/table'
-import { listProjects, createProject, updateProject, deleteProject, applyTemplate, setFavorite } from '../api/projects'
+import { listProjects, createProject, deleteProject, applyTemplate, setFavorite } from '../api/projects'
+import ProjectEditModal from '../components/ProjectEditModal'
 import { listTemplates } from '../api/templates'
 import { listUsers } from '../api/users'
 import { requestDeleteProject } from '../api/audit'
@@ -44,7 +44,6 @@ export default function ProjectListPage() {
   const [importing, setImporting] = useState(false)
   const [importMode, setImportMode] = useState<'merge' | 'replace'>('merge')
   const [form] = Form.useForm()
-  const [editForm] = Form.useForm()
 
   const load = async () => {
     setLoading(true)
@@ -253,43 +252,10 @@ export default function ProjectListPage() {
 
   const handleEdit = (project: Project) => {
     setEditing(project)
-    editForm.setFieldsValue({
-      category: project.category,
-      name: project.name,
-      owner: project.owner,
-      market: project.market,
-      status: project.status,
-      priority: project.priority,
-      plan_start: project.plan_start ? dayjs(project.plan_start) : null,
-      plan_end: project.plan_end ? dayjs(project.plan_end) : null,
-      remark: project.remark,
-    })
     setEditOpen(true)
   }
 
-  const handleEditSubmit = async () => {
-    if (!editing) return
-    try {
-      const values = await editForm.validateFields()
-      await updateProject(editing.id, {
-        category: values.category,
-        name: values.name,
-        owner: values.owner,
-        market: values.market,
-        status: values.status,
-        priority: values.priority,
-        plan_start: values.plan_start?.format('YYYY-MM-DD') || null,
-        plan_end: values.plan_end?.format('YYYY-MM-DD') || null,
-        remark: values.remark,
-      })
-      message.success('项目信息已更新')
-      setEditOpen(false)
-      load()
-    } catch (e) {
-      if ((e as any).errorFields) return
-      message.error((e as Error).message)
-    }
-  }
+  // 保存逻辑在共享组件 ProjectEditModal 内(handleOk),保存成功后回调 load() 刷新列表
 
   const handleDelete = async (project: Project) => {
     if (myRole === 'admin') {
@@ -542,63 +508,13 @@ export default function ProjectListPage() {
         </Form>
       </Modal>
 
-      {/* 编辑项目 */}
-      <Modal
-        title="编辑项目"
+      {/* 编辑项目（共享组件,与详情页同一弹窗） */}
+      <ProjectEditModal
+        project={editing}
         open={editOpen}
-        onOk={handleEditSubmit}
-        onCancel={() => { setEditOpen(false); setEditing(null) }}
-        width={520}
-        okText="保存"
-      >
-        <Form form={editForm} layout="vertical" style={{ marginTop: 16 }} preserve={false}>
-          <Form.Item name="name" label="项目名称" rules={[{ required: true }]}>
-            <Input placeholder="项目全称" />
-          </Form.Item>
-          <Space style={{ display: 'flex' }}>
-            <Form.Item name="category" label="类目" style={{ flex: 1 }}>
-              <Select options={[
-                { value: '新需求', label: '新需求' },
-                { value: '量产', label: '量产' },
-                { value: '定制', label: '定制' },
-                { value: '改造', label: '改造' },
-              ]} />
-            </Form.Item>
-            <Form.Item name="market" label="市场" style={{ flex: 1 }}>
-              <Select options={MARKET_OPTION_ITEMS} />
-            </Form.Item>
-          </Space>
-          <Form.Item name="owner" label="项目负责人" rules={[{ required: true }]}>
-            <Input />
-          </Form.Item>
-          <Form.Item name="status" label="状态">
-            <Select options={[
-              { value: '未开始', label: '未开始' },
-              { value: '进行中', label: '进行中' },
-              { value: '已完成', label: '已完成' },
-              { value: '搁置', label: '搁置' },
-            ]} />
-          </Form.Item>
-          <Form.Item name="priority" label="优先级">
-            <Select allowClear options={[
-              { value: '高', label: '高' },
-              { value: '中', label: '中' },
-              { value: '低', label: '低' },
-            ]} />
-          </Form.Item>
-          <Space style={{ display: 'flex' }}>
-            <Form.Item name="plan_start" label="计划开始">
-              <DatePicker style={{ width: 200 }} />
-            </Form.Item>
-            <Form.Item name="plan_end" label="计划结束">
-              <DatePicker style={{ width: 200 }} />
-            </Form.Item>
-          </Space>
-          <Form.Item name="remark" label="备注">
-            <Input.TextArea rows={2} />
-          </Form.Item>
-        </Form>
-      </Modal>
+        onClose={() => { setEditOpen(false); setEditing(null) }}
+        onSaved={load}
+      />
 
       {/* 删除申请（manager） */}
       <Modal
