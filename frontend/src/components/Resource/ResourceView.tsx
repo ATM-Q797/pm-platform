@@ -238,7 +238,7 @@ export default function ResourceView({ scale = 'week', onPhaseClick, conflictVer
   }, [reloadFlag])
 
   // 冲突变化（本页消除 / 审核中心撤销 / 其他视图）→ 就地更新冲突标记：
-  // 重拉 /conflicts（no-store 保证新鲜，2026-08-30）→ batchUpdate 内更新黄框与人员角标。
+  // 重拉 /conflicts（no-store 保证新鲜，2026-08-30）→ eachTask 遍历更新黄框与人员角标。
   // 无 clearAll/parse——零闪屏，点击消除后标记原地消失（用户要求）。
   // 注：此前就地更新"无效"实为 HTTP 缓存返回旧数据（标记未变→无可更新），非渲染层问题。
   useEffect(() => {
@@ -274,32 +274,33 @@ export default function ResourceView({ scale = 'week', onPhaseClick, conflictVer
           }
         }
         conflictMapRef.current = conflictMap
-        // 批内两遍扫描:先更新阶段条 conflict_info 并统计角标,再改人员行文本;
-        // batchUpdate 结束时确定性重绘可视区(smart_rendering 安全)
-        g.batchUpdate(() => {
-          const counts = new Map<number, number>()
-          const touched: any[] = []
-          const total = g.getTaskCount()
-          for (let i = 0; i < total; i++) {
-            const id = g.getTaskByIndex(i)
-            const t = id != null ? g.getTask(id) : null
-            if (!t) continue
-            touched.push(t)
-            if (Number(t.id) > 0 && t.resource_id != null) {
-              const info = conflictMap.get(`${t.resource_id}:${t.phase_id}`)
-              if (t.conflict_info !== info) t.conflict_info = info
-              if (t.conflict_info) counts.set(t.resource_id, (counts.get(t.resource_id) || 0) + 1)
-            }
+        // 就地更新(eachTask 遍历——getTaskByIndex 返回的是任务对象,
+        // 再传给 getTask 会报 "task not found id = [object Object]")
+        const counts = new Map<number, number>()
+        const touched: any[] = []
+        g.eachTask((t: any) => {
+          if (!t) return
+          if (Number(t.id) > 0 && t.resource_id != null) {
+            const info = conflictMap.get(`${t.resource_id}:${t.phase_id}`)
+            if (t.conflict_info !== info) t.conflict_info = info
           }
-          for (const t of touched) {
-            if (Number(t.id) < 0) {
-              const n = counts.get(-Number(t.id)) || 0
-              const base = String(t.text).replace(/\s*⚠️\d*$/, '')
-              const text = n > 0 ? `${base} ⚠️${n}` : base
-              if (t.text !== text) t.text = text
-            }
-          }
+          touched.push(t)
         })
+        for (const t of touched) {
+          if (Number(t.id) > 0 && t.conflict_info && t.resource_id != null) {
+            counts.set(t.resource_id, (counts.get(t.resource_id) || 0) + 1)
+          }
+        }
+        for (const t of touched) {
+          if (Number(t.id) < 0) {
+            const n = counts.get(-Number(t.id)) || 0
+            const base = String(t.text).replace(/\s*⚠️\d*$/, '')
+            const text = n > 0 ? `${base} ⚠️${n}` : base
+            if (t.text !== text) t.text = text
+          }
+        }
+        // 就地更新后强制重绘一次(smart_rendering 可视区刷新)
+        g.render()
       })
       .catch(() => {})
   }, [conflictVersion])
