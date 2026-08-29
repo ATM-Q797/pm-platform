@@ -1,12 +1,13 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { Card, Descriptions, Tag, Button, Space, Segmented, Spin, message, Input, Switch, Result } from 'antd'
-import { ArrowLeftOutlined, PlusOutlined, StarFilled, StarOutlined } from '@ant-design/icons'
+import { ArrowLeftOutlined, PlusOutlined, StarFilled, StarOutlined, EditOutlined } from '@ant-design/icons'
 import { getProject, updateProject, setFavorite, getCriticalPath } from '../api/projects'
 import { getMe } from '../api/auth'
 import type { ProjectDetail } from '../types'
 import GanttChart from '../components/Gantt/GanttChart'
 import PhaseEditor from '../components/PhaseEditor/PhaseEditor'
+import ProjectEditModal from '../components/ProjectEditModal'
 
 const STATUS_COLOR: Record<string, string> = {
   进行中: 'processing',
@@ -34,6 +35,8 @@ export default function ProjectDetailPage() {
   const [criticalDuration, setCriticalDuration] = useState<number | null>(null)
   const [criticalPathNames, setCriticalPathNames] = useState<string[]>([])
   const [userRole, setUserRole] = useState<string>('viewer')
+  // 顶部"编辑"弹窗(与项目列表共享同一 ProjectEditModal,免回列表改主状态)
+  const [editOpen, setEditOpen] = useState(false)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -167,6 +170,9 @@ export default function ProjectDetailPage() {
                 >
                   {favorited ? <StarFilled /> : <StarOutlined />}
                 </a>
+                <Button size="small" type="link" icon={<EditOutlined />} onClick={() => setEditOpen(true)}>
+                  编辑
+                </Button>
                 <Button size="small" type="link" onClick={() => { setTempName(project.name); setEditingName(true) }}>
                   改名
                 </Button>
@@ -281,6 +287,16 @@ export default function ProjectDetailPage() {
         onClose={() => setEditingPhase(undefined)}
         onSaved={handlePhaseSaved}
       />
+
+      {/* 项目编辑弹窗(与列表页共享;保存后刷新详情 + 甘特) */}
+      {project && (
+        <ProjectEditModal
+          project={{ ...project, is_special: project.is_special } as ProjectDetail}
+          open={editOpen}
+          onClose={() => setEditOpen(false)}
+          onSaved={() => { setGanttKey((k) => k + 1); load() }}
+        />
+      )}
     </div>
   )
 }
