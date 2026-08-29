@@ -77,7 +77,7 @@ export default function ProjectEditModal({ project, open, onClose, onSaved }: {
           <Input placeholder="项目全称" />
         </Form.Item>
         <Input.Group compact style={{ display: 'flex' }}>
-          <Form.Item name="category" label="类目" style={{ flex: 1 }}>
+          <Form.Item name="category" label="类目" style={{ width: '45%', marginRight: '5%' }}>
             <Select options={[
               { value: '新需求', label: '新需求' },
               { value: '量产', label: '量产' },
@@ -85,28 +85,26 @@ export default function ProjectEditModal({ project, open, onClose, onSaved }: {
               { value: '改造', label: '改造' },
             ]} />
           </Form.Item>
-          <Form.Item name="market" label="市场" style={{ flex: 1 }}>
+          <Form.Item name="market" label="市场" style={{ width: '50%' }}>
             <Select options={MARKET_OPTION_ITEMS} />
           </Form.Item>
         </Input.Group>
         <Form.Item name="owner" label="项目负责人" rules={[{ required: true }]}>
           <Input />
         </Form.Item>
+        <Form.Item name="status" label="状态">
+          <Select options={[
+            { value: '未开始', label: '未开始' },
+            { value: '进行中', label: '进行中' },
+            { value: '已完成', label: '已完成' },
+            { value: '搁置', label: '搁置' },
+          ]} />
+        </Form.Item>
         <Input.Group compact style={{ display: 'flex' }}>
-          <Form.Item name="status" label="状态" style={{ flex: 1 }}>
-            <Select options={[
-              { value: '未开始', label: '未开始' },
-              { value: '进行中', label: '进行中' },
-              { value: '已完成', label: '已完成' },
-              { value: '搁置', label: '搁置' },
-            ]} />
-          </Form.Item>
-        </Input.Group>
-        <Input.Group compact style={{ display: 'flex' }}>
-          <Form.Item name="plan_start" label="计划开始" style={{ flex: 1 }}>
+          <Form.Item name="plan_start" label="计划开始" style={{ width: '45%', marginRight: '5%' }}>
             <DatePicker style={{ width: '100%' }} />
           </Form.Item>
-          <Form.Item name="plan_end" label="计划结束" style={{ flex: 1 }}>
+          <Form.Item name="plan_end" label="计划结束" style={{ width: '50%' }}>
             <DatePicker style={{ width: '100%' }} />
           </Form.Item>
         </Input.Group>
