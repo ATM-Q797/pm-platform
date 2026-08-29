@@ -116,7 +116,7 @@ export default function ProjectDetailPage() {
         <Descriptions
           size="small"
           column={{ xs: 1, sm: 2, md: 3, lg: 4 }}
-          labelStyle={{ width: 92, flexShrink: 0 }}
+          labelStyle={{ width: 110, flexShrink: 0, whiteSpace: 'nowrap' }}
           title={
             <Space wrap>
               <span style={{ fontSize: 16, fontWeight: 600 }}>
