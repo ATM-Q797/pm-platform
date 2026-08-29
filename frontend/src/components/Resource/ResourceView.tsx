@@ -42,7 +42,6 @@ export default function ResourceView({ scale = 'week', onPhaseClick, conflictVer
   const pairMapRef = useRef(new Map<string, OverrideTarget>())
   // "resourceId:phaseId" → 冲突描述（局部更新用，消除后不重建甘特——用户 2026-08-28）
   const conflictMapRef = useRef(new Map<string, string>())
-  const countsRef = useRef(new Map<number, number>())
   const viewPhaseRef = useRef<number | null>(null)
   const conflictVersionFirstRun = useRef(true)
 
@@ -285,14 +284,13 @@ export default function ResourceView({ scale = 'week', onPhaseClick, conflictVer
             }
           }
         }
-        // 人员行：⚠️N 角标（写入 countsRef 供 batchUpdate 内统一应用）
+        // 人员行：⚠️N 角标
         const counts = new Map<number, number>()
         for (const t of g.getAllTask()) {
           if (Number(t.id) > 0 && t.resource_id != null && t.conflict_info) {
             counts.set(t.resource_id, (counts.get(t.resource_id) || 0) + 1)
           }
         }
-        countsRef.current = counts
         for (const t of g.getAllTask()) {
           if (Number(t.id) < 0) {
             const n = counts.get(-Number(t.id)) || 0
@@ -303,22 +301,28 @@ export default function ResourceView({ scale = 'week', onPhaseClick, conflictVer
             }
           }
         }
-        // smart_rendering 虚拟渲染下,对既有任务对象就地改字段 + refreshTask/render 存在
-        // 脏区不重绘的暗坑(消除后黄框滞留屏幕的根因)。改用官方批处理 API batchUpdate:
-        // 它在批内重建内部索引并对可视区做确定性全量重绘,滚动位置由 dhtmlx 自行恢复。
+        // smart_rendering 虚拟渲染下,对既有任务对象就地改字段 + refreshTask 存在脏区风险;
+        // 用官方批处理 batchUpdate 包裹(批结束确定性重绘)。注意:getTaskByIndex(from,to)
+        // 返回的是 **id 数组**,须再用 getTask(id) 取任务对象(此前误当对象遍历导致零更新)。
         g.batchUpdate(() => {
-          for (const t of g.getTaskByIndex(0, g.getTaskCount() - 1) || []) {
-            if (t == null) continue
-            const key = `${t.resource_id}:${t.phase_id}`
-            const info = t.id > 0 && t.resource_id != null ? conflictMap.get(key) : undefined
-            if (t.conflict_info !== info) t.conflict_info = info
-            if (Number(t.id) < 0) {
-              const n = countsRef.current.get(-Number(t.id)) || 0
+          const total = g.getTaskCount()
+          for (let i = 0; i < total; i++) {
+            const id = g.getTaskByIndex(i)
+            const t = id != null ? g.getTask(id) : null
+            if (!t) continue
+            if (Number(t.id) > 0 && t.resource_id != null) {
+              const info = conflictMap.get(`${t.resource_id}:${t.phase_id}`)
+              if (t.conflict_info !== info) t.conflict_info = info
+            } else if (Number(t.id) < 0) {
+              const n = counts.get(-Number(t.id)) || 0
               const base = String(t.text).replace(/\s*⚠️\d*$/, '')
-              t.text = n > 0 ? `${base} ⚠️${n}` : base
+              const text = n > 0 ? `${base} ⚠️${n}` : base
+              if (t.text !== text) t.text = text
             }
           }
         })
+        // 兜底:batchUpdate 后再强制一次重绘,确保 smart_rendering 可视区刷新
+        g.render()
       })
       .catch(() => {})
     return () => { cancelled = true }
