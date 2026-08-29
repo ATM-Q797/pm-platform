@@ -281,7 +281,6 @@ export default function ResourceView({ scale = 'week', onPhaseClick, conflictVer
             const info = conflictMap.get(`${t.resource_id}:${t.phase_id}`)
             if (t.conflict_info !== info) {
               t.conflict_info = info
-              g.refreshTask(t.id)
             }
           }
         }
@@ -299,10 +298,12 @@ export default function ResourceView({ scale = 'week', onPhaseClick, conflictVer
             const text = n > 0 ? `${base} ⚠️${n}` : base
             if (t.text !== text) {
               t.text = text
-              g.refreshTask(t.id)
             }
           }
         }
+        // smart_rendering 虚拟渲染下 refreshTask 只写数据层不重绘可视条（消除后黄框滞留屏幕、
+        // 刷新才消失的根因）——统一 g.render() 强制重绘，滚动/展开状态保留（数据未 clearAll）
+        g.render()
       })
       .catch(() => {})
     return () => { cancelled = true }
