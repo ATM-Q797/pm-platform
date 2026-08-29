@@ -68,11 +68,11 @@ export default function ProjectEditModal({ project, open, onClose, onSaved }: {
       onCancel={onClose}
       afterOpenChange={(o) => o && handleValues()}
       confirmLoading={saving}
-      width={520}
+      width={640}
       okText="保存"
       destroyOnClose
     >
-      <Form form={form} layout="vertical" style={{ marginTop: 16 }} preserve={false}>
+      <Form form={form} layout="vertical" style={{ marginTop: 16, paddingRight: 8 }} preserve={false}>
         <Form.Item name="name" label="项目名称" rules={[{ required: true }]}>
           <Input placeholder="项目全称" />
         </Form.Item>
