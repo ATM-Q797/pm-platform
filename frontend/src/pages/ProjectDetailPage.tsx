@@ -1,8 +1,8 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { Card, Descriptions, Tag, Button, Space, Segmented, Spin, message, Input, Switch, Result } from 'antd'
+import { Card, Descriptions, Tag, Button, Space, Segmented, Spin, message, Switch, Result } from 'antd'
 import { ArrowLeftOutlined, PlusOutlined, StarFilled, StarOutlined, EditOutlined } from '@ant-design/icons'
-import { getProject, updateProject, setFavorite, getCriticalPath } from '../api/projects'
+import { getProject, setFavorite, getCriticalPath } from '../api/projects'
 import { getMe } from '../api/auth'
 import type { ProjectDetail } from '../types'
 import GanttChart from '../components/Gantt/GanttChart'
@@ -23,8 +23,6 @@ export default function ProjectDetailPage() {
   const [project, setProject] = useState<ProjectDetail | null>(null)
   const [loading, setLoading] = useState(true)
   const [editingPhase, setEditingPhase] = useState<number | null | undefined>(undefined)
-  const [editingName, setEditingName] = useState(false)
-  const [tempName, setTempName] = useState('')
   // 用于强制刷新甘特图组件（数据变更后重新加载）
   const [ganttKey, setGanttKey] = useState(0)
   const [favorited, setFavorited] = useState(false)
@@ -79,21 +77,6 @@ export default function ProjectDetailPage() {
     load()
   }
 
-  const handleRename = async () => {
-    if (!project || !tempName.trim()) {
-      setEditingName(false)
-      return
-    }
-    try {
-      await updateProject(project.id, { name: tempName.trim() })
-      message.success('已更新名称')
-      load()
-    } catch (e) {
-      message.error((e as Error).message)
-    }
-    setEditingName(false)
-  }
-
   if (loading && !project) {
     return <Spin size="large" style={{ display: 'block', margin: '100px auto' }} />
   }
@@ -135,49 +118,29 @@ export default function ProjectDetailPage() {
           column={{ xs: 1, sm: 2, md: 3, lg: 4 }}
           labelStyle={{ width: 92, flexShrink: 0 }}
           title={
-            editingName ? (
-              <Space>
-                <Input
-                  value={tempName}
-                  onChange={(e) => setTempName(e.target.value)}
-                  style={{ width: 400 }}
-                  autoFocus
-                />
-                <Button size="small" type="primary" onClick={handleRename}>
-                  确定
-                </Button>
-                <Button size="small" onClick={() => setEditingName(false)}>
-                  取消
-                </Button>
-              </Space>
-            ) : (
-              <Space wrap>
-                <span style={{ fontSize: 16, fontWeight: 600 }}>
-                  #{project.code} {project.name}
-                </span>
-                <Tag color={STATUS_COLOR[project.status] || 'default'}>{project.status}</Tag>
-                <a
-                  onClick={() => {
-                    const target = !favorited
-                    setFavorited(target)
-                    setFavorite(project.id, target).catch((e) => {
-                      setFavorited(!target)
-                      message.error('操作失败：' + (e as Error).message)
-                    })
-                  }}
-                  style={{ fontSize: 18, color: favorited ? '#fadb14' : '#d9d9d9' }}
-                  title={favorited ? '取消关注' : '关注（置顶）'}
-                >
-                  {favorited ? <StarFilled /> : <StarOutlined />}
-                </a>
-                <Button size="small" type="link" icon={<EditOutlined />} onClick={() => setEditOpen(true)}>
-                  编辑
-                </Button>
-                <Button size="small" type="link" onClick={() => { setTempName(project.name); setEditingName(true) }}>
-                  改名
-                </Button>
-              </Space>
-            )
+            <Space wrap>
+              <span style={{ fontSize: 16, fontWeight: 600 }}>
+                #{project.code} {project.name}
+              </span>
+              <Tag color={STATUS_COLOR[project.status] || 'default'}>{project.status}</Tag>
+              <a
+                onClick={() => {
+                  const target = !favorited
+                  setFavorited(target)
+                  setFavorite(project.id, target).catch((e) => {
+                    setFavorited(!target)
+                    message.error('操作失败：' + (e as Error).message)
+                  })
+                }}
+                style={{ fontSize: 18, color: favorited ? '#fadb14' : '#d9d9d9' }}
+                title={favorited ? '取消关注' : '关注（置顶）'}
+              >
+                {favorited ? <StarFilled /> : <StarOutlined />}
+              </a>
+              <Button size="small" type="link" icon={<EditOutlined />} onClick={() => setEditOpen(true)}>
+                编辑
+              </Button>
+            </Space>
           }
         >
           <Descriptions.Item label="状态">
