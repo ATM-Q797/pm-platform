@@ -68,6 +68,21 @@ app.add_middleware(
     allow_headers=["*"],
 )
 
+
+# ---------------------------------------------------------------------------
+# 禁缓存中间件（消除冲突后黄框滞留排查结论，2026-08-30）：
+# GET /api/* 响应不带 Cache-Control 时，Chrome 走启发式缓存——消除冲突后前端重拉
+# /conflicts 命中旧响应，界面看不到变化（刷新页面才绕过缓存）。API 数据一律 no-store;
+# 前端静态资源不受影响（vite/nginx 自行管理）。
+# ---------------------------------------------------------------------------
+@app.middleware("http")
+async def _no_cache_for_api(request, call_next):
+    response = await call_next(request)
+    if request.url.path.startswith("/api"):
+        response.headers["Cache-Control"] = "no-store, no-cache, must-revalidate, max-age=0"
+    return response
+
+
 for r in (auth, users, audit, projects, phases, dependencies, resources, templates, imports, exports, dashboard):
     app.include_router(r.router)
 
