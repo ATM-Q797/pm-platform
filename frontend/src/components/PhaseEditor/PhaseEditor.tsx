@@ -337,6 +337,7 @@ export default function PhaseEditor({ phaseId, projectId, defaultSequence, reado
       open={isOpen}
       onClose={onClose}
       styles={{ wrapper: { width: 420 } }}
+      forceRender
       destroyOnHidden
       footer={
         readonly ? (
