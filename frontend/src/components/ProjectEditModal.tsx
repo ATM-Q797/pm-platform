@@ -78,15 +78,25 @@ export default function ProjectEditModal({ project, open, onClose, onSaved }: {
         </Form.Item>
         <Input.Group compact style={{ display: 'flex' }}>
           <Form.Item name="category" label="类目" style={{ flex: 1 }}>
-            <Select options={[
-              { value: '新需求', label: '新需求' },
-              { value: '量产', label: '量产' },
-              { value: '定制', label: '定制' },
-              { value: '改造', label: '改造' },
-            ]} />
+            <Select
+              placeholder="选择类目"
+              popupMatchSelectWidth={false}
+              getPopupContainer={(trigger) => trigger.parentElement || document.body}
+              options={[
+                { value: '新需求', label: '新需求' },
+                { value: '量产', label: '量产' },
+                { value: '定制', label: '定制' },
+                { value: '改造', label: '改造' },
+              ]}
+            />
           </Form.Item>
           <Form.Item name="market" label="市场" style={{ flex: 1 }}>
-            <Select options={MARKET_OPTION_ITEMS} />
+            <Select
+              placeholder="选择市场"
+              popupMatchSelectWidth={false}
+              getPopupContainer={(trigger) => trigger.parentElement || document.body}
+              options={MARKET_OPTION_ITEMS}
+            />
           </Form.Item>
         </Input.Group>
         <Form.Item name="owner" label="项目负责人" rules={[{ required: true }]}>
