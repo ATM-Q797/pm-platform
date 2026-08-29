@@ -230,7 +230,7 @@ export default function DashboardPage() {
       {/* 明细抽屉 */}
       <Drawer
         title={drawerKey ? drawerTitle[drawerKey] : ''}
-        width={640}
+        styles={{ wrapper: { width: 640 } }}
         open={drawerKey !== null}
         onClose={() => setDrawerKey(null)}
       >
