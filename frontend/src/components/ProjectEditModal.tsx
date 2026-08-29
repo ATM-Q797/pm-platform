@@ -7,7 +7,7 @@ import type { Project } from '../types'
 
 /**
  * 项目编辑弹窗(共享组件)——常规项目列表与项目详情页共用,字段与保存逻辑一致:
- * 名称/类目/市场/负责人/状态/优先级/计划起止/备注(PUT /api/projects/{id} 部分更新)。
+ * 名称/类目/市场/负责人/状态/计划起止/备注(PUT /api/projects/{id} 部分更新;无优先级)。
  */
 export default function ProjectEditModal({ project, open, onClose, onSaved }: {
   project: Project | null
@@ -27,7 +27,6 @@ export default function ProjectEditModal({ project, open, onClose, onSaved }: {
         owner: project.owner,
         market: project.market,
         status: project.status,
-        priority: project.priority,
         plan_start: project.plan_start ? dayjs(project.plan_start) : null,
         plan_end: project.plan_end ? dayjs(project.plan_end) : null,
         remark: project.remark,
@@ -46,7 +45,6 @@ export default function ProjectEditModal({ project, open, onClose, onSaved }: {
         owner: values.owner,
         market: values.market,
         status: values.status,
-        priority: values.priority,
         plan_start: values.plan_start?.format('YYYY-MM-DD') || null,
         plan_end: values.plan_end?.format('YYYY-MM-DD') || null,
         remark: values.remark,
@@ -101,13 +99,6 @@ export default function ProjectEditModal({ project, open, onClose, onSaved }: {
               { value: '进行中', label: '进行中' },
               { value: '已完成', label: '已完成' },
               { value: '搁置', label: '搁置' },
-            ]} />
-          </Form.Item>
-          <Form.Item name="priority" label="优先级" style={{ flex: 1 }}>
-            <Select allowClear options={[
-              { value: '高', label: '高' },
-              { value: '中', label: '中' },
-              { value: '低', label: '低' },
             ]} />
           </Form.Item>
         </Input.Group>
