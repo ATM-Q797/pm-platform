@@ -44,7 +44,8 @@ interface Props {
 const STATUS_OPTIONS = ['未开始', '进行中', '已完成', '延期', '已搁置'].map((s) => ({ value: s, label: s }))
 
 // 标准阶段类型（PHASE_TYPES_V2 §一：P1-P9 + P71/P72 子编号），含默认显示名称；
-// 历史数据旧值（P6 样机打样/P7 联调测试/P8 交付）编辑时无匹配 → 回退显示原值文本
+// 历史数据旧值兼容见 LEGACY_TYPE_OPTIONS / toDisplayLabel / isLegacyType（决策 ③ 不迁移：
+// 旧 P6=样机打样、旧 P7=联调测试、旧 P8=交付——显示不能错挂新语义，保存不能触发改名）
 const PHASE_TYPE_OPTIONS = [
   { value: 'P1', label: '需求评估', name: '需求评估' },
   { value: 'P2', label: '配置评估', name: '配置评估' },
@@ -57,6 +58,27 @@ const PHASE_TYPE_OPTIONS = [
   { value: 'P8', label: '联调测试', name: '联调测试' },
   { value: 'P9', label: '交付', name: '交付' },
 ]
+
+// 旧编号兼容选项（历史数据原语义显示；与新值并存时用户可辨，不再错显"线缆设计"/裸 P7）
+const LEGACY_TYPE_OPTIONS = [
+  { value: 'P6', label: '样机打样（旧·原P6）', name: '样机打样' },
+  { value: 'P7', label: '联调测试（旧·原P7）', name: '联调测试' },
+  { value: 'P8', label: '交付（旧·原P8）', name: '交付' },
+]
+
+/** 阶段类型存储值 → 显示 label（甘特条/摘要等纯文本场景用；旧值走旧义，未知原样回显） */
+export function toDisplayLabel(phaseType: string | undefined): string | undefined {
+  if (!phaseType) return undefined
+  const legacy = LEGACY_TYPE_OPTIONS.find((o) => o.value === phaseType)
+  if (legacy) return legacy.label
+  const std = PHASE_TYPE_OPTIONS.find((o) => o.value === phaseType)
+  return std ? std.label : phaseType
+}
+
+/** 阶段是否仍持有旧编号类型（保存时不改名，保持历史原样） */
+function isLegacyType(phaseType: string): boolean {
+  return LEGACY_TYPE_OPTIONS.some((o) => o.value === phaseType)
+}
 
 export default function PhaseEditor({ phaseId, projectId, defaultSequence, readonly, userRole, hideExtra, specialProject, onClose, onSaved }: Props) {
   const isCreate = phaseId === null
@@ -179,7 +201,8 @@ export default function PhaseEditor({ phaseId, projectId, defaultSequence, reado
         const typeName = PHASE_TYPE_OPTIONS.find((o) => o.value === values.phase_type)?.name
         const payload: Record<string, any> = {}
         if (values.phase_type !== undefined) payload.phase_type = values.phase_type
-        if (typeName) payload.name = typeName
+        // 旧编号阶段（决策 ③）：类型未动（仍是旧值）→ 不改名，保持历史名称原样
+        if (typeName && !isLegacyType(values.phase_type)) payload.name = typeName
         if (values.status !== undefined) payload.status = values.status
         if (values.progress !== undefined) payload.progress = values.progress
         if (values.plan_start !== undefined) payload.plan_start = values.plan_start?.format('YYYY-MM-DD') || null
@@ -345,10 +368,15 @@ export default function PhaseEditor({ phaseId, projectId, defaultSequence, reado
               allowClear
             />
           ) : (
-            // 普通项目：维持 P1-P9 标准类型下拉（含 P71/P72 子编号，SPECIAL_PROJECT 决策 ②）
+            // 普通项目：P1-P9 标准类型下拉；当前值若为旧编号，动态并入旧义选项显示
+            // （决策 ③：旧 P6 显示"样机打样（旧·原P6）"而非错显"线缆设计"）
             <Select
               placeholder="请选择标准阶段类型"
-              options={PHASE_TYPE_OPTIONS}
+              options={(() => {
+                const current = form.getFieldValue('phase_type')
+                const legacy = LEGACY_TYPE_OPTIONS.find((o) => o.value === current)
+                return legacy ? [...PHASE_TYPE_OPTIONS, legacy] : PHASE_TYPE_OPTIONS
+              })()}
             />
           )}
         </Form.Item>
