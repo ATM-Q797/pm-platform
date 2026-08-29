@@ -151,7 +151,7 @@ export default function ProjectDetailPage() {
           </Descriptions.Item>
           <Descriptions.Item label="类目">{project.category}</Descriptions.Item>
           <Descriptions.Item label="负责人">{project.owner}</Descriptions.Item>
-          <Descriptions.Item label="计划周期">
+          <Descriptions.Item label="计划周期" span={2}>
             {project.plan_start || '?'} ~ {project.plan_end || '?'}
           </Descriptions.Item>
           <Descriptions.Item label="关键路径工期">
@@ -161,6 +161,15 @@ export default function ProjectDetailPage() {
               <span style={{ color: 'var(--text-tertiary)' }}>—</span>
             )}
           </Descriptions.Item>
+          <Descriptions.Item label="阶段数">{project.phases?.length || 0}</Descriptions.Item>
+          <Descriptions.Item label="依赖数">{project.dependencies?.length || 0}</Descriptions.Item>
+          {project.priority && (
+            <Descriptions.Item label="优先级">
+              <Tag color={project.priority === '高' ? 'red' : project.priority === '中' ? 'orange' : 'default'}>
+                {project.priority}
+              </Tag>
+            </Descriptions.Item>
+          )}
           <Descriptions.Item label="关键路径" span={4}>
             {criticalPathNames.length > 0 ? (
               <span style={{ display: 'inline-flex', flexWrap: 'wrap', gap: 4, alignItems: 'center' }}>
@@ -175,15 +184,6 @@ export default function ProjectDetailPage() {
               <span style={{ color: 'var(--text-tertiary)' }}>（无有效日期阶段，无法计算）</span>
             )}
           </Descriptions.Item>
-          <Descriptions.Item label="阶段数">{project.phases?.length || 0}</Descriptions.Item>
-          <Descriptions.Item label="依赖数">{project.dependencies?.length || 0}</Descriptions.Item>
-          {project.priority && (
-            <Descriptions.Item label="优先级">
-              <Tag color={project.priority === '高' ? 'red' : project.priority === '中' ? 'orange' : 'default'}>
-                {project.priority}
-              </Tag>
-            </Descriptions.Item>
-          )}
         </Descriptions>
       </Card>
 
