@@ -45,6 +45,96 @@ export default function ResourceView({ scale = 'week', onPhaseClick, conflictVer
   const viewPhaseRef = useRef<number | null>(null)
   const conflictVersionFirstRun = useRef(true)
 
+  // 重建甘特数据(消除冲突/撤销后与初始加载同路径:clearAll+parse,渲染确定性有保证);
+  // 重建前记录滚动位置与人员行展开态,重建后恢复(用户 2026-08-28 的"不闪屏"诉求以
+  // 状态恢复实现——就地更新在 smart_rendering 下已证实不可靠)
+  const rebuildTasks = async () => {
+    const g = ganttRef.current
+    if (!g || !g.getTask) return
+    const [allWorkloads, conflicts] = await Promise.all([
+      getAllWorkloads(),
+      getResourceConflicts(),
+    ])
+    const conflictMap = new Map<string, string>()
+    for (const rc of conflicts) {
+      for (const c of rc.conflicts) {
+        const desc = `与 ${c.project_b_name}·${c.phase_b_name} 重叠 ${c.overlap_days} 天`
+        conflictMap.set(`${rc.resource_id}:${c.phase_a_id}`, [conflictMap.get(`${rc.resource_id}:${c.phase_a_id}`), desc].filter(Boolean).join('；'))
+        const descB = `与 ${c.project_a_name}·${c.phase_a_name} 重叠 ${c.overlap_days} 天`
+        conflictMap.set(`${rc.resource_id}:${c.phase_b_id}`, [conflictMap.get(`${rc.resource_id}:${c.phase_b_id}`), descB].filter(Boolean).join('；'))
+        if (!pairMapRef.current.has(`${rc.resource_id}:${c.phase_a_id}`)) {
+          pairMapRef.current.set(`${rc.resource_id}:${c.phase_a_id}`, {
+            resourceId: rc.resource_id, resourceName: rc.resource_name,
+            phaseId: c.phase_a_id, summary: `${c.project_a_name}·${c.phase_a_name}`,
+          })
+        }
+        if (!pairMapRef.current.has(`${rc.resource_id}:${c.phase_b_id}`)) {
+          pairMapRef.current.set(`${rc.resource_id}:${c.phase_b_id}`, {
+            resourceId: rc.resource_id, resourceName: rc.resource_name,
+            phaseId: c.phase_b_id, summary: `${c.project_b_name}·${c.phase_b_name}`,
+          })
+        }
+      }
+    }
+    conflictMapRef.current = conflictMap
+    // 保存视图状态:垂直滚动 + 人员行展开态
+    const scrollState = g.getScrollState()
+    const openRows = g.getTaskByIndex(0, g.getTaskCount() - 1)
+      .map((id: any) => g.getTask(id))
+      .filter((t: any) => t && Number(t.id) < 0 && t.open)
+      .map((t: any) => t.id)
+    const withWork = allWorkloads.filter((w: any) => w.workloads.length > 0)
+    const tasks: any[] = []
+    const today = new Date()
+    for (const wl of withWork) {
+      const personRowId = -wl.resource.id
+      const dates = wl.workloads
+        .flatMap((w: any) => [w.plan_start, w.plan_end])
+        .filter((d: any): d is string => !!d)
+        .map((d: any) => new Date(d))
+      const minDate = dates.length ? new Date(Math.min(...dates.map((d: any) => d.getTime()))) : today
+      const maxDate = dates.length ? new Date(Math.max(...dates.map((d: any) => d.getTime()))) : today
+      const conflictCount = wl.workloads.filter((w: any) => conflictMap.has(`${wl.resource.id}:${w.phase_id}`)).length
+      tasks.push({
+        id: personRowId,
+        text: `${wl.resource.name}${wl.resource.role ? '（' + wl.resource.role + '）' : ''}${conflictCount > 0 ? ` ⚠️${conflictCount}` : ''}`,
+        start_date: fmt(minDate),
+        duration: Math.max(1, Math.ceil((maxDate.getTime() - minDate.getTime()) / 86400000)),
+        progress: 0,
+        parent: 0,
+        type: 'project',
+        open: openRows.includes(personRowId),
+      })
+      for (const w of wl.workloads) {
+        const start = w.plan_start ? new Date(w.plan_start) : today
+        const end = w.plan_end ? new Date(w.plan_end) : today
+        tasks.push({
+          id: wl.resource.id * 100000 + w.phase_id,
+          text: `${w.project_name} · ${w.phase_name}`,
+          start_date: fmt(start),
+          duration: Math.max(1, Math.ceil((end.getTime() - start.getTime()) / 86400000)),
+          progress: w.status === '已完成' ? 1 : w.status === '进行中' ? 0.5 : 0,
+          parent: personRowId,
+          type: 'task',
+          open: true,
+          status: w.status,
+          project_name: w.project_name,
+          resource_id: wl.resource.id,
+          phase_id: w.phase_id,
+          conflict_info: conflictMap.get(`${wl.resource.id}:${w.phase_id}`),
+          remark: w.remark || '',
+        })
+      }
+    }
+    g.clearAll()
+    g.parse({ data: tasks, links: [] })
+    g.render()
+    if (scrollState) g.scrollTo(scrollState.x, scrollState.y)
+    if (containerRef.current) drawTodayMarker(g, containerRef.current)
+  }
+
+
+
   useEffect(() => {
     getMe()
       .then((u) => { canOverrideRef.current = u.role === 'admin' || u.role === 'manager' })
@@ -237,95 +327,16 @@ export default function ResourceView({ scale = 'week', onPhaseClick, conflictVer
     // reloadFlag：强制重建（初始加载）；消除冲突后走下方局部更新，不重建（用户 2026-08-28）
   }, [reloadFlag])
 
-  // 冲突变化（本页消除 / 审核中心撤销 / 其他视图）→ 局部更新冲突标记：
-  // 重拉 /conflicts → 只刷新受影响的任务条与人员行角标，保留滚动位置与展开状态
+  // 冲突变化（本页消除 / 审核中心撤销 / 其他视图）→ 重建甘特数据：
+  // 与初始加载同一条 clearAll+parse 路径（渲染确定性有保证）；重建前后恢复滚动与展开态，
+  // 不产生闪屏。smart_rendering 下的就地更新+refreshTask/render 均被证实不可靠（多次实测）。
   useEffect(() => {
     if (conflictVersionFirstRun.current) {
       conflictVersionFirstRun.current = false
       return
     }
-    let cancelled = false
-    getResourceConflicts()
-      .then((conflicts) => {
-        if (cancelled) return
-        const g = ganttRef.current
-        if (!g || !g.getTask) return
-        // 重建冲突映射（pairMap 供点击消除定位；conflictMap 供黄框标记）
-        const conflictMap = conflictMapRef.current
-        conflictMap.clear()
-        const pairMap = pairMapRef.current
-        pairMap.clear()
-        for (const rc of conflicts) {
-          for (const c of rc.conflicts) {
-            const desc = `与 ${c.project_b_name}·${c.phase_b_name} 重叠 ${c.overlap_days} 天`
-            conflictMap.set(`${rc.resource_id}:${c.phase_a_id}`, [conflictMap.get(`${rc.resource_id}:${c.phase_a_id}`), desc].filter(Boolean).join('；'))
-            const descB = `与 ${c.project_a_name}·${c.phase_a_name} 重叠 ${c.overlap_days} 天`
-            conflictMap.set(`${rc.resource_id}:${c.phase_b_id}`, [conflictMap.get(`${rc.resource_id}:${c.phase_b_id}`), descB].filter(Boolean).join('；'))
-            if (!pairMap.has(`${rc.resource_id}:${c.phase_a_id}`)) {
-              pairMap.set(`${rc.resource_id}:${c.phase_a_id}`, {
-                resourceId: rc.resource_id, resourceName: rc.resource_name,
-                phaseId: c.phase_a_id, summary: `${c.project_a_name}·${c.phase_a_name}`,
-              })
-            }
-            if (!pairMap.has(`${rc.resource_id}:${c.phase_b_id}`)) {
-              pairMap.set(`${rc.resource_id}:${c.phase_b_id}`, {
-                resourceId: rc.resource_id, resourceName: rc.resource_name,
-                phaseId: c.phase_b_id, summary: `${c.project_b_name}·${c.phase_b_name}`,
-              })
-            }
-          }
-        }
-        // 阶段行：更新 conflict_info（黄框/tooltip）
-        for (const t of g.getAllTask()) {
-          if (Number(t.id) > 0 && t.resource_id != null) {
-            const info = conflictMap.get(`${t.resource_id}:${t.phase_id}`)
-            if (t.conflict_info !== info) {
-              t.conflict_info = info
-            }
-          }
-        }
-        // 人员行：⚠️N 角标
-        const counts = new Map<number, number>()
-        for (const t of g.getAllTask()) {
-          if (Number(t.id) > 0 && t.resource_id != null && t.conflict_info) {
-            counts.set(t.resource_id, (counts.get(t.resource_id) || 0) + 1)
-          }
-        }
-        for (const t of g.getAllTask()) {
-          if (Number(t.id) < 0) {
-            const n = counts.get(-Number(t.id)) || 0
-            const base = String(t.text).replace(/\s*⚠️\d*$/, '')
-            const text = n > 0 ? `${base} ⚠️${n}` : base
-            if (t.text !== text) {
-              t.text = text
-            }
-          }
-        }
-        // smart_rendering 虚拟渲染下,对既有任务对象就地改字段 + refreshTask 存在脏区风险;
-        // 用官方批处理 batchUpdate 包裹(批结束确定性重绘)。注意:getTaskByIndex(from,to)
-        // 返回的是 **id 数组**,须再用 getTask(id) 取任务对象(此前误当对象遍历导致零更新)。
-        g.batchUpdate(() => {
-          const total = g.getTaskCount()
-          for (let i = 0; i < total; i++) {
-            const id = g.getTaskByIndex(i)
-            const t = id != null ? g.getTask(id) : null
-            if (!t) continue
-            if (Number(t.id) > 0 && t.resource_id != null) {
-              const info = conflictMap.get(`${t.resource_id}:${t.phase_id}`)
-              if (t.conflict_info !== info) t.conflict_info = info
-            } else if (Number(t.id) < 0) {
-              const n = counts.get(-Number(t.id)) || 0
-              const base = String(t.text).replace(/\s*⚠️\d*$/, '')
-              const text = n > 0 ? `${base} ⚠️${n}` : base
-              if (t.text !== text) t.text = text
-            }
-          }
-        })
-        // 兜底:batchUpdate 后再强制一次重绘,确保 smart_rendering 可视区刷新
-        g.render()
-      })
-      .catch(() => {})
-    return () => { cancelled = true }
+    rebuildTasks().catch(() => {})
+    // rebuildTasks 随最新 conflictMap/pairMap 更新两个 ref,供点击消除与提示使用
   }, [conflictVersion])
 
   // 尺度切换
