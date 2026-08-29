@@ -77,12 +77,13 @@ export default function ResourceView({ scale = 'week', onPhaseClick, conflictVer
       }
     }
     conflictMapRef.current = conflictMap
-    // 保存视图状态:垂直滚动 + 人员行展开态
+    // 保存视图状态:垂直滚动 + 人员行展开态(eachTask 遍历,勿用 getTaskByIndex——
+    // 其返回值随重载/区间参数语义不稳,曾致 null.map / not a function 崩溃)
     const scrollState = g.getScrollState()
-    const openRows = g.getTaskByIndex(0, g.getTaskCount() - 1)
-      .map((id: any) => g.getTask(id))
-      .filter((t: any) => t && Number(t.id) < 0 && t.open)
-      .map((t: any) => t.id)
+    const openRows: number[] = []
+    g.eachTask((t: any) => {
+      if (t && Number(t.id) < 0 && t.open) openRows.push(t.id)
+    })
     const withWork = allWorkloads.filter((w: any) => w.workloads.length > 0)
     const tasks: any[] = []
     const today = new Date()
@@ -335,7 +336,10 @@ export default function ResourceView({ scale = 'week', onPhaseClick, conflictVer
       conflictVersionFirstRun.current = false
       return
     }
-    rebuildTasks().catch(() => {})
+    console.log('[冲突同步] conflictVersion 变化 → 重建甘特数据', conflictVersion)
+    rebuildTasks()
+      .then(() => console.log('[冲突同步] 重建完成'))
+      .catch((e) => console.error('[冲突同步] 重建失败', e))
     // rebuildTasks 随最新 conflictMap/pairMap 更新两个 ref,供点击消除与提示使用
   }, [conflictVersion])
 
