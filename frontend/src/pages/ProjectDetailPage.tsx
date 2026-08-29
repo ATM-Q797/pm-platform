@@ -151,14 +151,14 @@ export default function ProjectDetailPage() {
           </Descriptions.Item>
           <Descriptions.Item label="类目">{project.category}</Descriptions.Item>
           <Descriptions.Item label="负责人">{project.owner}</Descriptions.Item>
-          <Descriptions.Item label="计划周期" span={2}>
+          <Descriptions.Item label="计划周期">
             {project.plan_start || '?'} ~ {project.plan_end || '?'}
           </Descriptions.Item>
           <Descriptions.Item label="关键路径工期">
             {criticalDuration !== null ? (
-              <span style={{ color: '#ff4d4f', fontWeight: 600 }}>{criticalDuration} 天</span>
+              <span style={{ color: '#ff4d4f', fontWeight: 600, whiteSpace: 'nowrap' }}>{criticalDuration} 天</span>
             ) : (
-              <span style={{ color: 'var(--text-tertiary)' }}>—</span>
+              <span style={{ color: 'var(--text-tertiary)', whiteSpace: 'nowrap' }}>—</span>
             )}
           </Descriptions.Item>
           <Descriptions.Item label="阶段数">{project.phases?.length || 0}</Descriptions.Item>
