@@ -147,10 +147,6 @@ export default function HeatmapView({ conflictVersion = 0 }: {
             </div>
           </div>
 
-          <div className="hm-hint" style={{ padding: '6px 8px 0' }}>
-            负载：任意同一时刻的最大同时并行数
-          </div>
-
           {/* 空闲区（可折叠，设计 §3.2） */}
           {data.idle_people.length > 0 && (
             <div className="hm-idle">
@@ -169,6 +165,10 @@ export default function HeatmapView({ conflictVersion = 0 }: {
               )}
             </div>
           )}
+
+          <div className="hm-hint" style={{ padding: '6px 8px 0' }}>
+            负载：任意同一时刻的最大同时并行数
+          </div>
         </>
       )}
 
