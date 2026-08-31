@@ -181,6 +181,7 @@
   box-shadow: var(--card-shadow) !important;
   max-width: 320px;
   white-space: pre-wrap !important; /* 保留备注换行（覆盖 dhtmlx 默认 nowrap） */
+  overflow-wrap: break-word; /* 超长备注（如 500 字无空格）自动断行，不超出 320px（GANTT_REMARK_TOOLTIP 验收 8b，处置 #6） */
   border-radius: 8px !important;
   line-height: 1.6;
 }

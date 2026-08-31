@@ -1,3 +1,6 @@
+// 平移中抑制浮窗（GANTT_REMARK_TOOLTIP v1.5 处置）：panUtils 不 import 本文件，无循环依赖
+import { isPanning } from './panUtils'
+
 // dhtmlxGantt 配置：列定义、状态着色、scale、返工标记
 // 注意：gantt 实例由 GanttChart 动态 import 后传入，本文件不在顶层 import dhtmlx-gantt，
 // 避免模块求值阶段触发 dhtmlx-gantt 加载导致白屏。
@@ -117,21 +120,22 @@ export function applyGanttConfig(gantt: GanttInstance) {
     return classes.join(' ')
   }
 
-  // tooltip 插件（GANTT_REMARK_TOOLTIP §2.3）。必须在赋 tooltip_timeout 之前激活——
-  // 插件激活时会写入默认值 30ms；延迟值在 gantt.init() 时才按当时 config 捕获。
-  // plugins() 内部有注册表守卫，重复调用幂等（GanttChart 与 ResourceView 共用全局实例均安全）
+  // tooltip 插件（GANTT_REMARK_TOOLTIP §2.3）。顺序：先激活 tooltip 插件再设置超时值
+  // （50ms，v1.3 用户要求）；plugins() 幂等，两视图重复调用安全（GanttChart 与 ResourceView 共用全局实例）
   gantt.plugins({ tooltip: true })
-  gantt.config.tooltip_timeout = 1000 // 悬停 1 秒后显示
+  gantt.config.tooltip_timeout = 50 // 悬停 50ms 即显示（GANTT_REMARK_TOOLTIP v1.4 验收 1）
 
   // tooltip：仅阶段行（type=task）且备注有效时显示转义后的备注原文（GANTT_REMARK_TOOLTIP §2.3）。
   // 返回 false → 不显示浮窗。项目行永不显示；纯空白备注不显示；
   // 资源负载视图的 task 带 resource_id（ResourceView 注入）→ 不显示（用户决策③：浮窗仅项目甘特图）。
-  // 依赖连线拖拽中 dhtmlx 内部已拦截 onBeforeTooltip；滚动/平移时 onGanttScroll 自动隐藏浮窗。
+  // 拖拽平移中（panUtils.isPanning）→ 不显示（v1.5 处置：平移中 dx≤3px 不滚动，onGanttScroll 隐藏不可靠）；
+  // 依赖连线拖拽中 dhtmlx 内部已拦截 onBeforeTooltip。
   gantt.templates.tooltip_text = function (_start: any, _end: any, task: any) {
+    if (isPanning()) return false // 拖拽平移中抑制浮窗（GANTT_REMARK_TOOLTIP v1.5 处置，验收 9b）
     if (task.type !== 'task') return false
     if (task.resource_id != null) return false
     if (typeof task.remark !== 'string' || task.remark.trim() === '') return false
-    return escapeHtml(task.remark.trim())
+    return escapeHtml(task.remark) // 原文不 trim：保留首尾空白/换行（GANTT_REMARK_TOOLTIP 验收 3e，处置 #3）
   }
 
   gantt.templates.task_row_class = function (_start: any, _end: any, task: any) {

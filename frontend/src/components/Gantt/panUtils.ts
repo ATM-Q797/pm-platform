@@ -7,7 +7,17 @@
  */
 let _panCleanup: (() => void) | null = null
 
+// 模块级平移标志（GANTT_REMARK_TOOLTIP v1.5 处置）：拖拽平移期间据此抑制浮窗（验收 9b）。
+// 生命周期：mousedown 进入平移置 true；mouseup / 鼠标离开容器 / cleanupPan 置 false（mouseup/leave 必清除）。
+let _panning = false
+
+/** 只读访问：是否正在拖拽平移。ganttConfig 的 tooltip_text 开头检查，平移期间不显示浮窗。 */
+export function isPanning(): boolean {
+  return _panning
+}
+
 export function cleanupPan() {
+  _panning = false
   if (_panCleanup) {
     _panCleanup()
     _panCleanup = null
@@ -37,6 +47,7 @@ export function setupPan(gantt: any, container: HTMLElement) {
       return
     }
     panning = true
+    _panning = true
     panMoved = false
     panStartX = e.clientX
     const st = gantt.getScrollState()
@@ -57,18 +68,26 @@ export function setupPan(gantt: any, container: HTMLElement) {
   const onMouseUp = (e: MouseEvent) => {
     if (!panning) return
     panning = false
+    _panning = false
     dataArea.style.cursor = 'grab'
     // 拖动平移后阻止紧随的 click（避免误触发点击）
     if (panMoved) e.stopPropagation()
   }
 
+  // 鼠标离开数据区：清除平移标志（配合 tooltip 抑制；平移本体仍由 window 监听继续/收尾）
+  const onMouseLeave = () => {
+    _panning = false
+  }
+
   dataArea.addEventListener('mousedown', onMouseDown, true) // capture 阶段，先于 dhtmlx 捕获
+  dataArea.addEventListener('mouseleave', onMouseLeave)
   window.addEventListener('mousemove', onMouseMove)
   window.addEventListener('mouseup', onMouseUp)
   dataArea.style.cursor = 'grab'
 
   _panCleanup = () => {
     dataArea.removeEventListener('mousedown', onMouseDown, true)
+    dataArea.removeEventListener('mouseleave', onMouseLeave)
     window.removeEventListener('mousemove', onMouseMove)
     window.removeEventListener('mouseup', onMouseUp)
     dataArea.style.cursor = ''
