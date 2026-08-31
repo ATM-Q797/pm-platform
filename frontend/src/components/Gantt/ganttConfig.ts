@@ -42,6 +42,16 @@ function dayNumFormat(date: Date): string {
   return String(date.getDate())
 }
 
+// HTML 转义：备注原文按字面显示，不解析为标签（GANTT_REMARK_TOOLTIP §2.4，不引入第三方库）
+function escapeHtml(text: string): string {
+  return text
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#39;')
+}
+
 export function applyGanttConfig(gantt: GanttInstance) {
   // 基础配置
   gantt.config.date_format = '%Y-%m-%d'
@@ -99,7 +109,7 @@ export function applyGanttConfig(gantt: GanttInstance) {
       if (criticalHighlightIds?.has(task.id)) {
         classes.push('gantt-task-critical')
       }
-      // 资源冲突（资源视图）：黄色边框 + ⚠ 角标，tooltip 显示冲突详情
+      // 资源冲突（资源视图）：黄色边框 + ⚠ 角标（浮窗已改为仅显示备注，冲突详情见条上角标与消除弹窗）
       if (task.conflict_info) {
         classes.push('gantt-task-conflict')
       }
@@ -107,16 +117,21 @@ export function applyGanttConfig(gantt: GanttInstance) {
     return classes.join(' ')
   }
 
-  // tooltip：冲突阶段显示冲突详情，否则显示默认信息；阶段备注非空时追加 📝 备注（SPECIAL_PROJECT §五，全局生效）
+  // tooltip 插件（GANTT_REMARK_TOOLTIP §2.3）。必须在赋 tooltip_timeout 之前激活——
+  // 插件激活时会写入默认值 30ms；延迟值在 gantt.init() 时才按当时 config 捕获。
+  // plugins() 内部有注册表守卫，重复调用幂等（GanttChart 与 ResourceView 共用全局实例均安全）
+  gantt.plugins({ tooltip: true })
+  gantt.config.tooltip_timeout = 1000 // 悬停 1 秒后显示
+
+  // tooltip：仅阶段行（type=task）且备注有效时显示转义后的备注原文（GANTT_REMARK_TOOLTIP §2.3）。
+  // 返回 false → 不显示浮窗。项目行永不显示；纯空白备注不显示；
+  // 资源负载视图的 task 带 resource_id（ResourceView 注入）→ 不显示（用户决策③：浮窗仅项目甘特图）。
+  // 依赖连线拖拽中 dhtmlx 内部已拦截 onBeforeTooltip；滚动/平移时 onGanttScroll 自动隐藏浮窗。
   gantt.templates.tooltip_text = function (_start: any, _end: any, task: any) {
-    let html = `<b>${task.text}</b>`
-    if (task.conflict_info) {
-      html += `<br/><span style="color:#d48806">⚠️ ${task.conflict_info}</span>`
-    }
-    if (task.remark) {
-      html += `<br/>📝 备注：${task.remark}`
-    }
-    return html
+    if (task.type !== 'task') return false
+    if (task.resource_id != null) return false
+    if (typeof task.remark !== 'string' || task.remark.trim() === '') return false
+    return escapeHtml(task.remark.trim())
   }
 
   gantt.templates.task_row_class = function (_start: any, _end: any, task: any) {
