@@ -173,12 +173,16 @@
   filter: drop-shadow(0 1px 1px rgba(0, 0, 0, 0.2));
 }
 
-/* 甘特 tooltip（dhtmlx 默认白底，深色模式需覆盖） */
+/* 甘特 tooltip（备注浮窗，GANTT_REMARK_TOOLTIP §2.3；颜色走主题变量适配深浅模式） */
 .gantt_tooltip {
   background: var(--gantt-tooltip-bg) !important;
   color: var(--gantt-tooltip-text) !important;
   border-color: var(--border-light) !important;
   box-shadow: var(--card-shadow) !important;
+  max-width: 320px;
+  white-space: pre-wrap !important; /* 保留备注换行（覆盖 dhtmlx 默认 nowrap） */
+  border-radius: 8px !important;
+  line-height: 1.6;
 }
 
 /* ---------- 深色模式：dhtmlx 内部元素覆盖 ---------- */
