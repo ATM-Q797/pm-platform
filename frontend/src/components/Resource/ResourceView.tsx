@@ -171,9 +171,12 @@ export default function ResourceView({ scale = 'week', onPhaseClick, conflictVer
               open: true,
               status: w.status, // 供 task_class 着色
               project_name: w.project_name,
+              // 不变式：resource_id 同时是 tooltip 浮窗的资源视图隔离标记——ganttConfig.ts 的 tooltip_text
+              // 用 `task.resource_id != null` 拦截资源视图（项目甘特 task 无此字段）；删除/改名此注入
+              // 会导致资源视图悬停冒出备注浮窗（GANTT_REMARK_TOOLTIP 验收 6 回归，处置 #2）
               resource_id: wl.resource.id, // 冲突条消除定位用（resource × 阶段对）
               phase_id: w.phase_id, // 真实阶段 id，点击时取这个
-              conflict_info: conflictInfo, // 冲突描述（有值 → 黄色标记 + tooltip）
+              conflict_info: conflictInfo, // 冲突描述（有值 → 黄色标记 + 消除弹窗）
               remark: w.remark || '', // 甘特悬浮显示备注（SPECIAL_PROJECT §五）
             })
           }
