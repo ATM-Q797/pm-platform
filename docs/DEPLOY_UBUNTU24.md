@@ -121,7 +121,7 @@ POSTGRES_PASSWORD=改成你自己的强密码
 # 2. JWT 密钥（至少 32 字符随机串）— 生成方式：
 #    openssl rand -hex 32   （服务器上执行，复制结果粘贴到这里）
 JWT_SECRET_KEY=
-
+2249f7290267ced7830dab88aee808fc082d3932deed5e4889829d76be8dfd4f
 # 3. CORS 白名单：填同事访问用的地址（IP 或域名）
 CORS_ORIGINS=http://192.168.1.100
 ```
