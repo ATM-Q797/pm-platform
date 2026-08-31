@@ -25,9 +25,26 @@ echo "=================================================="
 [ -f "$CODE_ZIP" ] || { echo "[错误] 未找到代码包: $CODE_ZIP（请先 scp 上传）"; exit 1; }
 [ -d "$DIST_DIR" ] || { echo "[错误] 未找到前端产物: $DIST_DIR（请先 scp 上传）"; exit 1; }
 
+# scp -r 嵌套防御：目标目录已存在时 dist 会被复制成 dist/dist/ 子目录
+if [ -d "$DIST_DIR/dist" ]; then
+    # 完整性：index.html + assets 目录均需存在（防止 scp 中断时误切换残缺前端）——代码评审 🟡#1
+    if [ -f "$DIST_DIR/dist/index.html" ] && [ -n "$(ls -A "$DIST_DIR/dist/assets" 2>/dev/null)" ]; then
+        echo "    检测到嵌套目录，改用 $DIST_DIR/dist"
+        DIST_DIR="$DIST_DIR/dist"
+    else
+        echo "    [警告] 检测到嵌套目录但内容不完整（缺 index.html 或 assets），仍使用 $DIST_DIR 平铺文件"
+    fi
+fi
+
+# 最终源目录硬校验：不完整则明确失败退出，绝不带残缺源进入 cp（代码评审 🟡#2）
+if [ ! -f "$DIST_DIR/index.html" ]; then
+    echo "[错误] 前端产物不完整（$DIST_DIR 缺 index.html），请重新上传 dist 后再更新"
+    exit 1
+fi
+
 # 1. 备份当前版本（回滚保障）
 mkdir -p "$BACKUP_DIR"
-cp -f "$CODE_ZIP" "$BACKUP_DIR/code-prev-$(date +%F-%H%M).zip"
+cp -f "$CODE_ZIP" "$BACKUP_DIR/code-prev-$(date +%F-%H%M%S).zip"
 rm -rf "${FRONT_DIR}.bak"
 cp -r "$FRONT_DIR" "${FRONT_DIR}.bak"
 echo "[1/4] 已备份当前版本 → $BACKUP_DIR / ${FRONT_DIR}.bak"

@@ -67,11 +67,13 @@ npm run build
 
 ```powershell
 scp C:\pm-platform.zip root@10.53.9.38:/opt/            # 后端代码（git archive 打包）
-scp -r C:\pm-platform.zip 2>nul   # 忽略
 scp -r frontend\dist root@10.53.9.38:/tmp/pm-dist       # 前端产物
 # wheel 目录上传
 scp -r C:\wheels root@10.53.9.38:/tmp/pm-wheels
 ```
+
+> ⚠️ 若 `/tmp/pm-dist` 已存在，`scp -r` 会把 dist 复制成 `/tmp/pm-dist/dist/` 子目录（嵌套陷阱）。
+> 上传前先在服务器执行 `rm -rf /tmp/pm-dist` 删除旧目录；`deploy/update.sh` 已内置嵌套自动识别（v1.1+）。
 
 > 上传多个文件可用一条 scp：`scp C:\pm-platform.zip root@IP:/opt/` + `scp -r frontend\dist C:\wheels root@IP:/tmp/`（scp 多源到目录）
 
@@ -232,6 +234,8 @@ cd frontend && npm run build
 scp C:\pm-platform.zip root@10.53.9.38:/opt/
 scp -r frontend\dist root@10.53.9.38:/tmp/pm-dist
 ```
+
+> ⚠️ 若 `/tmp/pm-dist` 已存在，`scp -r` 会嵌套成 `/tmp/pm-dist/dist/`。上传前先在服务器执行 `rm -rf /tmp/pm-dist`（`update.sh` 已内置嵌套自动识别 v1.1+，双保险）。
 
 ### 4.2 服务器：一条命令完成更新（约 1 分钟）
 
