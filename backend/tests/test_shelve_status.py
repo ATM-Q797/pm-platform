@@ -261,6 +261,9 @@ def test_frontend_status_color_single_key():
 def test_frontend_filter_and_edit_options_single_key():
     """列表页筛选条与编辑弹窗 options 仅含主选项 '搁置'（旧值兼容已移除）。"""
     text = (FRONTEND_DIR / "pages" / "ProjectListPage.tsx").read_text(encoding="utf-8")
-    # 筛选条 + 编辑弹窗各出现一次「搁置」主选项；不再有「已搁置」兼容选项
-    assert text.count("{ value: '搁置', label: '搁置' }") == 2
+    modal = (FRONTEND_DIR / "components" / "ProjectEditModal.tsx").read_text(encoding="utf-8")
+    # 筛选条（列表页 1 处）+ 编辑弹窗（共享组件 1 处）；不再有「已搁置」兼容选项
+    assert text.count("{ value: '搁置', label: '搁置' }") == 1
+    assert modal.count("{ value: '搁置', label: '搁置' }") == 1
     assert text.count("{ value: '已搁置'") == 0
+    assert modal.count("{ value: '已搁置'") == 0

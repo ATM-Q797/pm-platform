@@ -13,7 +13,9 @@ const FIXED_WEEKS = 12
 
 /** 格子颜色分级（设计 §一：活跃数 → 深浅双主题） */
 function cellLevelClass(count: number, conflict: boolean): string {
-  const level = count >= 3 ? 'lv3' : count === 2 ? 'lv2' : count === 1 ? 'lv1' : 'empty'
+  // 5 级梯度：1 淡 → 5 红（2026-09-02：原 3 级过粗，≥3 即红无层次）
+  const level =
+    count >= 5 ? 'lv5' : count === 4 ? 'lv4' : count === 3 ? 'lv3' : count === 2 ? 'lv2' : count === 1 ? 'lv1' : 'empty'
   return `hm-cell ${level}${conflict ? ' has-conflict' : ''}`
 }
 

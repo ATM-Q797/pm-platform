@@ -155,6 +155,8 @@
 .hm-cell.lv1 { background: var(--hm-lv1); }
 .hm-cell.lv2 { background: var(--hm-lv2); }
 .hm-cell.lv3 { background: var(--hm-lv3); }
+.hm-cell.lv4 { background: var(--hm-lv4); }
+.hm-cell.lv5 { background: var(--hm-lv5); }
 
 .hm-cell.lv1,
 .hm-cell.lv2,
@@ -165,7 +167,9 @@
 
 .hm-cell.lv1:hover,
 .hm-cell.lv2:hover,
-.hm-cell.lv3:hover {
+.hm-cell.lv3:hover,
+.hm-cell.lv4:hover,
+.hm-cell.lv5:hover {
   transform: scale(1.08);
 }
 
@@ -215,7 +219,7 @@
 }
 
 .hm-load-cell .hm-peak.high {
-  color: var(--hm-lv3);
+  color: var(--hm-lv5);
 }
 
 .hm-load-cell .hm-active-total {
@@ -386,12 +390,16 @@
   /* 1 / 2 / 3+ 活跃数（浅色：#0369a1 系） */
   --hm-lv1: rgba(3, 105, 161, 0.18);
   --hm-lv2: rgba(3, 105, 161, 0.40);
-  --hm-lv3: #e11d48;
+  --hm-lv3: rgba(3, 105, 161, 0.62);
+  --hm-lv4: rgba(225, 29, 72, 0.55);
+  --hm-lv5: #e11d48;
 }
 
 [data-theme='dark'] {
   /* 1 / 2 / 3+ 活跃数（深色：#00d4ff 系） */
   --hm-lv1: rgba(0, 212, 255, 0.25);
   --hm-lv2: rgba(0, 212, 255, 0.55);
-  --hm-lv3: #ff4d6d;
+  --hm-lv3: rgba(0, 212, 255, 0.80);
+  --hm-lv4: rgba(255, 77, 109, 0.55);
+  --hm-lv5: #ff4d6d;
 }

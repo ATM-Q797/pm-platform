@@ -198,13 +198,13 @@ def build_heatmap(db: Session, weeks: int = 12, granularity: str = "week") -> di
         # 月视图 = 今天所在月起 + 3 个整月（自然月对齐，右端 = 第 3 个月月末）。
         # （历史注：裁决 A 原为右端=今天，2026-08-29 用户需求改为含未来 8 周/3 个月）
         if granularity == "month":
+            # 月视图起点 = 今天所在月首（不经过周对齐——否则月初后半月会多出上一月桶）
             month_anchor = _month_start(today)
+            window_start = month_anchor
             window_end = _month_end(_month_start(month_anchor + timedelta(days=92)))
         else:
             window_end = today + timedelta(weeks=8)
-        window_start = _week_start(today - timedelta(weeks=weeks - 1))
-        if granularity == "month":
-            window_start = _month_start(window_start)
+            window_start = _week_start(today - timedelta(weeks=weeks - 1))
     else:
         # 0=全部：右端 = max(today, 最晚计划)——未来计划负载必须可见（含未来）；
         # 起点 = 全部人员有效阶段的最早日期（无任何数据 → 仅本周）
