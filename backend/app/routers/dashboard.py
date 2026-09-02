@@ -130,7 +130,7 @@ def get_dashboard_stats(db: Session = Depends(get_db)):
     delayed_phase_rows = db.scalars(
         select(Phase).join(Project, Phase.project_id == Project.id).where(
             Phase.plan_end < today,
-            Phase.status.in_(_ACTIVE_STATUSES),
+            ~Phase.status.in_(("已完成", "已搁置")),  # 含"延期"状态——与 due_phases 同口径
             Project.status.not_in(_SHELVED_PROJECT_STATUSES),
             Project.is_special.is_(False),
         )

@@ -284,7 +284,7 @@ function PersonRow({
         onMouseEnter={() => onHover(true)}
         onMouseLeave={() => onHover(false)}
       >
-        <span className={`hm-peak${person.peak_parallel >= 3 ? ' high' : ''}`}>{person.peak_parallel}并行</span>
+        <span className={`hm-peak${person.peak_parallel >= 4 ? ' high' : ''}`}>{person.peak_parallel}并行</span>
       </div>
     </>
   )

@@ -160,7 +160,9 @@
 
 .hm-cell.lv1,
 .hm-cell.lv2,
-.hm-cell.lv3 {
+.hm-cell.lv3,
+.hm-cell.lv4,
+.hm-cell.lv5 {
   cursor: pointer;
   transition: transform 0.08s ease;
 }
@@ -173,7 +175,7 @@
   transform: scale(1.08);
 }
 
-/* ⚠ 角标 = 该格含 detect_conflicts 真实冲突（与红色=≥3 高负载独立） */
+/* ⚠ 角标 = 该格含 detect_conflicts 真实冲突（与红色=高负载独立，红从 4 起） */
 .hm-cell .hm-conflict-badge {
   position: absolute;
   top: -1px;
@@ -222,10 +224,6 @@
   color: var(--hm-lv5);
 }
 
-.hm-load-cell .hm-active-total {
-  font-size: 11px;
-  color: var(--text-tertiary);
-}
 
 /* 空闲区折叠 */
 .hm-idle {
@@ -387,7 +385,7 @@
 
 /* ---------- 颜色分级变量（设计 §一 双主题色板） ---------- */
 :root {
-  /* 1 / 2 / 3+ 活跃数（浅色：#0369a1 系） */
+  /* 1~5 级活跃数（浅色：#0369a1 系，4 起转红） */
   --hm-lv1: rgba(3, 105, 161, 0.18);
   --hm-lv2: rgba(3, 105, 161, 0.40);
   --hm-lv3: rgba(3, 105, 161, 0.62);
@@ -396,7 +394,7 @@
 }
 
 [data-theme='dark'] {
-  /* 1 / 2 / 3+ 活跃数（深色：#00d4ff 系） */
+  /* 1~5 级活跃数（深色：#00d4ff 系，4 起转红） */
   --hm-lv1: rgba(0, 212, 255, 0.25);
   --hm-lv2: rgba(0, 212, 255, 0.55);
   --hm-lv3: rgba(0, 212, 255, 0.80);
