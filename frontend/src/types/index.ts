@@ -272,6 +272,7 @@ export interface DelayedProject {
   status: string
   plan_end: string | null
   overdue_days: number
+  due_phases: string[] // 该项目内已逾期的活跃阶段名（看板今日聚焦展示）
 }
 
 export interface ReworkPhase {

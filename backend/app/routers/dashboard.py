@@ -64,6 +64,21 @@ def get_dashboard_stats(db: Session = Depends(get_db)):
             Project.is_special.is_(False),
         )
     ).all()
+    # 各延期项目名下已逾期的活跃阶段（今日聚焦展示：项目 → 对应阶段列）
+    overdue_phase_rows = db.execute(
+        select(Phase.project_id, Phase.name)
+        .join(Project, Phase.project_id == Project.id)
+        .where(
+            Phase.project_id.in_([p.id for p in delayed]),
+            Phase.plan_end < today,
+            ~Phase.status.in_(("已完成", "已搁置")),
+        )
+        .order_by(Phase.plan_end)
+    ).all()
+    overdue_phases_map: dict[int, list[str]] = {}
+    for pid, name in overdue_phase_rows:
+        overdue_phases_map.setdefault(pid, []).append(name)
+
     delayed_projects = sorted(
         [
             DelayedProject(
@@ -75,6 +90,7 @@ def get_dashboard_stats(db: Session = Depends(get_db)):
                 status=p.status,
                 plan_end=p.plan_end.isoformat() if p.plan_end else None,
                 overdue_days=(today - p.plan_end).days if p.plan_end else 0,
+                due_phases=overdue_phases_map.get(p.id, []),
             )
             for p in delayed
         ],

@@ -20,6 +20,7 @@ class DelayedProject(BaseModel):
     status: str
     plan_end: str | None  # YYYY-MM-DD
     overdue_days: int  # 逾期天数（今天 - plan_end）
+    due_phases: list[str] = []  # 该项目内已逾期的活跃阶段名（看板今日聚焦展示）
 
 
 class ReworkPhase(BaseModel):

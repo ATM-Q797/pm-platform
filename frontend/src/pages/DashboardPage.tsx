@@ -186,6 +186,13 @@ export default function DashboardPage() {
                           <Tag color="blue" style={{ marginLeft: 8, fontSize: 11 }}>{d.market}</Tag>
                         </span>
                       }
+                      description={
+                        d.due_phases?.length > 0 ? (
+                          <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>
+                            阶段：{d.due_phases.join('、')}
+                          </span>
+                        ) : undefined
+                      }
                     />
                     <Tag color="error">逾期 {d.overdue_days} 天</Tag>
                   </List.Item>
