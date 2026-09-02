@@ -114,8 +114,8 @@ def _peak_parallel(intervals: list[tuple[date, date]]) -> int:
     """扫描线：窗口内任意时刻的最大同时活跃数。
 
     闭区间端点：start 记 +1、end 记 -1 且 end 事件先处理——
-    背靠背（前一 end == 后一 start）不并行，但同日交叠（end_a == start_b 前后两段
-    均覆盖当日）算并行，与热力格"周期相交即活跃"的口径一致。
+    背靠背（前一 end == 后一 start）不并行。注意与热力格口径的既定偏差：
+    格按"周期与桶相交"计数（背靠背同桶会显示 2），峰值按端点事件（记 1）。
     """
     events: list[tuple[date, int]] = []
     for s, e in intervals:
