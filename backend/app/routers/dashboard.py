@@ -56,15 +56,14 @@ def get_dashboard_stats(db: Session = Depends(get_db)):
     ).all()
     phase_status = [StatusCount(status=s, count=c) for s, c in phase_status_rows]
 
-    # 延期项目（阶段锚定，方案 A，2026-09-03 用户确认）：
-    # 项目 plan_end < 今天 且 有名下"已逾期活跃阶段"（plan_end < 今天 且 未完成）才算延期——
-    # 仅项目 plan_end 过期而各阶段全部按期完成/下一阶段排期在未来 = 计划整体后移，不算逾期
-    # （例：阿联酋BAM-301 三阶段按期完成、P5 排期 10 月，项目 plan_end 7-17 过期但非逾期执行）
+    # 延期项目（阶段锚定，方案 A 修正版，2026-09-03）：
+    # 判定唯一依据 = 名下存在"已逾期活跃阶段"（阶段 plan_end < 今天 且 状态未完成/未搁置）。
+    # 项目整体 plan_end 不参与判定——既非必要条件（埃塞AWASH:整体期限 9/30 未到但 3 个阶段
+    # 已逾期,须报）,也不充分（阿联酋BAM-301:整体期限已过但阶段全按期完成/排期未来,不报）。
     overdue_phase_rows = db.execute(
         select(Phase.project_id, Phase.name, Phase.plan_end)
         .join(Project, Phase.project_id == Project.id)
         .where(
-            Project.plan_end < today,
             Project.status.in_(_ACTIVE_STATUSES),
             Project.is_special.is_(False),
             Phase.plan_end < today,
