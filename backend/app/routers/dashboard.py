@@ -56,28 +56,32 @@ def get_dashboard_stats(db: Session = Depends(get_db)):
     ).all()
     phase_status = [StatusCount(status=s, count=c) for s, c in phase_status_rows]
 
-    # 延期项目：plan_end < 今天，且状态为 未开始/进行中（未完成、未搁置）；排除专项
-    delayed = db.scalars(
-        select(Project).where(
+    # 延期项目（阶段锚定，方案 A，2026-09-03 用户确认）：
+    # 项目 plan_end < 今天 且 有名下"已逾期活跃阶段"（plan_end < 今天 且 未完成）才算延期——
+    # 仅项目 plan_end 过期而各阶段全部按期完成/下一阶段排期在未来 = 计划整体后移，不算逾期
+    # （例：阿联酋BAM-301 三阶段按期完成、P5 排期 10 月，项目 plan_end 7-17 过期但非逾期执行）
+    overdue_phase_rows = db.execute(
+        select(Phase.project_id, Phase.name, Phase.plan_end)
+        .join(Project, Phase.project_id == Project.id)
+        .where(
             Project.plan_end < today,
             Project.status.in_(_ACTIVE_STATUSES),
             Project.is_special.is_(False),
-        )
-    ).all()
-    # 各延期项目名下已逾期的活跃阶段（今日聚焦展示：项目 → 对应阶段列）
-    overdue_phase_rows = db.execute(
-        select(Phase.project_id, Phase.name)
-        .join(Project, Phase.project_id == Project.id)
-        .where(
-            Phase.project_id.in_([p.id for p in delayed]),
             Phase.plan_end < today,
             ~Phase.status.in_(("已完成", "已搁置")),
         )
         .order_by(Phase.plan_end)
     ).all()
     overdue_phases_map: dict[int, list[str]] = {}
-    for pid, name in overdue_phase_rows:
+    overdue_anchor_map: dict[int, date] = {}  # 项目 → 最近一个已逾期阶段的 plan_end（逾期天数锚点）
+    for pid, name, pend in overdue_phase_rows:
         overdue_phases_map.setdefault(pid, []).append(name)
+        if pid not in overdue_anchor_map or pend < overdue_anchor_map[pid]:
+            overdue_anchor_map[pid] = pend  # 最久逾期的阶段为准
+
+    # 锚定项目集合（有逾期活跃阶段的项目 id）
+    delayed_ids = list(overdue_anchor_map.keys())
+    delayed = [p for p in db.scalars(select(Project).where(Project.id.in_(delayed_ids))).all()]
 
     delayed_projects = sorted(
         [
@@ -89,7 +93,7 @@ def get_dashboard_stats(db: Session = Depends(get_db)):
                 market=p.market,
                 status=p.status,
                 plan_end=p.plan_end.isoformat() if p.plan_end else None,
-                overdue_days=(today - p.plan_end).days if p.plan_end else 0,
+                overdue_days=(today - overdue_anchor_map[p.id]).days,
                 due_phases=overdue_phases_map.get(p.id, []),
             )
             for p in delayed
