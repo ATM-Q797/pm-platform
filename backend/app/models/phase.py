@@ -51,7 +51,7 @@ class Phase(Base):
     actual_end: Mapped[date | None] = mapped_column(Date)
     status: Mapped[str] = mapped_column(
         String, nullable=False, default="未开始", server_default="未开始", index=True
-    )  # 未开始/进行中/已完成/延期/已搁置
+    )  # 未开始/进行中/已完成/延期/搁置
     progress: Mapped[int] = mapped_column(Integer, default=0, server_default="0")  # 0-100
     rework_count: Mapped[int] = mapped_column(Integer, default=0, server_default="0")
     remark: Mapped[str | None] = mapped_column(String)

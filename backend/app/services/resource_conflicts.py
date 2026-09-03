@@ -10,7 +10,7 @@
 3. 重叠判定严格 `<`：max(start_a, start_b) < min(end_a, end_b)（背靠背不算）
 4. 同项目的两个阶段不算冲突（正常分工，不算资源冲突）
 5. plan_start/plan_end 任一为 null → 跳过
-6. 状态为 已完成/已搁置 → 跳过（阶段级；阶段级「已搁置」为阶段自身状态，与项目级无关，保留）
+6. 状态为 已完成/搁置 → 跳过（阶段级；2026-09-03 阶段级「已搁置」同步改名为「搁置」）
    所属项目状态为 搁置 → 跳过（项目级，PROJECT_SHELVE §2.3；旧值兼容已移除）
 7. 同一对阶段只报一次（i < j 遍历天然去重）
 8. **重叠深度阈值**（项目并行是常态，仅"深度重叠"才报警）：
@@ -31,7 +31,7 @@ from app.models import ConflictOverride, Resource
 from app.schemas import ConflictPair, ResourceConflict
 
 # 不参与冲突检测的状态（已结束/不活跃）
-_SKIP_STATUSES = ("已完成", "已搁置")
+_SKIP_STATUSES = ("已完成", "搁置")
 # 项目级搁置状态（PROJECT_SHELVE §2.3/决策 4；旧值「已搁置」兼容已移除——2026-08-28）
 _SHELVED_PROJECT_STATUSES = ("搁置",)
 # 不参与冲突检测的阶段类型（决策 ①：交付族三处全排除——甘特/热力图/冲突；PHASE_TYPES_V2 §四：

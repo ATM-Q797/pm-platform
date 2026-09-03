@@ -11,7 +11,7 @@ const STATUS_COLOR: Record<string, string> = {
   已完成: 'success',
   未开始: 'default',
   延期: 'error',
-  已搁置: 'warning',
+  搁置: 'warning',
 }
 
 interface TaskWithProject extends Phase {
@@ -57,7 +57,7 @@ export default function MyTasksPage() {
         }
       }
       // 按状态分组排序：进行中 > 未开始 > 已完成
-      const order = { '进行中': 0, '延期': 1, '未开始': 2, '已搁置': 3, '已完成': 4 }
+      const order = { '进行中': 0, '延期': 1, '未开始': 2, '搁置': 3, '已完成': 4 }
       myTasks.sort((a, b) => (order[a.status as keyof typeof order] ?? 9) - (order[b.status as keyof typeof order] ?? 9))
       setTasks(myTasks)
     } catch (e) {

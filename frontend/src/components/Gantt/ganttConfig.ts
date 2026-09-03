@@ -11,7 +11,7 @@ const STATUS_CLASS: Record<string, string> = {
   进行中: 'gantt-task-active',
   未开始: 'gantt-task-pending',
   延期: 'gantt-task-delayed',
-  已搁置: 'gantt-task-blocked',
+  搁置: 'gantt-task-blocked',
 }
 
 // 关键路径高亮：null = 关闭；Set<phase_id> = 高亮哪些阶段

@@ -3,7 +3,7 @@
 覆盖：
 - §2.1 项目更新接口：'搁置' 保存成功；旧值 '已搁置' 已不再接受（422，2026-08-28 兼容移除）；其他非法值 422
 - §2.2 看板：搁置项目的阶段不进入 delayed_phases / due_soon_phases
-- §2.3 冲突：搁置项目的阶段不产生冲突对；阶段级「已搁置」仍跳过（回归）
+- §2.3 冲突：搁置项目的阶段不产生冲突对；阶段级「搁置」仍跳过（回归）
 - §2.4 迁移：migrate_v3.sql 可执行，'已搁置' → '搁置'（幂等）
 - 前端双 key 契约：状态常量表同时含 '搁置' 与 '已搁置'（对源码做静态断言，tsc/build 兜底）
 """
@@ -184,7 +184,7 @@ def test_conflicts_active_project_still_reported(client, db_session):
 
 
 def test_conflicts_phase_level_shelved_still_skipped(client, db_session):
-    """回归：阶段级「已搁置」仍跳过（_SKIP_STATUSES 不变，PROJECT_SHELVE §2.3）。"""
+    """回归：阶段级「搁置」仍跳过（_SKIP_STATUSES 同步改名，PROJECT_SHELVE §2.3）。"""
     t = _today()
     r = Resource(name="阶段搁置人")
     db_session.add(r)
@@ -192,7 +192,7 @@ def test_conflicts_phase_level_shelved_still_skipped(client, db_session):
     p1 = _mk_project(db_session, "阶段搁置项目一", status="进行中")
     p2 = _mk_project(db_session, "阶段搁置项目二", status="进行中")
     a = _mk_phase(db_session, p1, "已完成阶段", t, t + timedelta(days=30), status="已完成")
-    b = _mk_phase(db_session, p2, "已搁置阶段", t, t + timedelta(days=30), status="已搁置")
+    b = _mk_phase(db_session, p2, "搁置阶段", t, t + timedelta(days=30), status="搁置")
     a.assignees = [r]
     b.assignees = [r]
     for i in range(2):
@@ -202,7 +202,7 @@ def test_conflicts_phase_level_shelved_still_skipped(client, db_session):
     db_session.commit()
 
     data = client.get("/api/resources/conflicts").json()
-    # 已完成/已搁置（阶段级）退出检测：剩 2 个活跃阶段 → 无冲突
+    # 已完成/搁置（阶段级）退出检测：剩 2 个活跃阶段 → 无冲突
     assert data == []
 
 

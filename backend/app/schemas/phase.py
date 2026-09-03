@@ -16,7 +16,7 @@ class PhaseBase(BaseModel):
     plan_end: date | None = None
     actual_start: date | None = None
     actual_end: date | None = None
-    status: str = "未开始"  # 未开始/进行中/已完成/延期/已搁置
+    status: str = "未开始"  # 未开始/进行中/已完成/延期/搁置（2026-09-03 阶段级旧值「已搁置」同步改名）
     progress: int = Field(default=0, ge=0, le=100)
     rework_count: int = 0
     remark: str | None = None
