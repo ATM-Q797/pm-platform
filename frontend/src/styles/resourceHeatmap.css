@@ -157,12 +157,22 @@
 .hm-cell.lv3 { background: var(--hm-lv3); }
 .hm-cell.lv4 { background: var(--hm-lv4); }
 .hm-cell.lv5 { background: var(--hm-lv5); }
+.hm-cell.lv6 { background: var(--hm-lv6); }
+.hm-cell.lv7 { background: var(--hm-lv7); }
+.hm-cell.lv8 { background: var(--hm-lv8); }
+.hm-cell.lv9 { background: var(--hm-lv9); }
+.hm-cell.lv10 { background: var(--hm-lv10); }
 
 .hm-cell.lv1,
 .hm-cell.lv2,
 .hm-cell.lv3,
 .hm-cell.lv4,
-.hm-cell.lv5 {
+.hm-cell.lv5,
+.hm-cell.lv6,
+.hm-cell.lv7,
+.hm-cell.lv8,
+.hm-cell.lv9,
+.hm-cell.lv10 {
   cursor: pointer;
   transition: transform 0.08s ease;
 }
@@ -171,7 +181,12 @@
 .hm-cell.lv2:hover,
 .hm-cell.lv3:hover,
 .hm-cell.lv4:hover,
-.hm-cell.lv5:hover {
+.hm-cell.lv5:hover,
+.hm-cell.lv6:hover,
+.hm-cell.lv7:hover,
+.hm-cell.lv8:hover,
+.hm-cell.lv9:hover,
+.hm-cell.lv10:hover {
   transform: scale(1.08);
 }
 
@@ -221,7 +236,7 @@
 }
 
 .hm-load-cell .hm-peak.high {
-  color: var(--hm-lv5);
+  color: var(--hm-lv10);
 }
 
 
@@ -385,19 +400,29 @@
 
 /* ---------- 颜色分级变量（设计 §一 双主题色板） ---------- */
 :root {
-  /* 1~5 级活跃数（浅色：#0369a1 系，4 起转红） */
-  --hm-lv1: rgba(3, 105, 161, 0.18);
-  --hm-lv2: rgba(3, 105, 161, 0.40);
-  --hm-lv3: rgba(3, 105, 161, 0.62);
-  --hm-lv4: rgba(225, 29, 72, 0.55);
-  --hm-lv5: #e11d48;
+  /* 1~10 级活跃数：青→绿→黄→红（4 起转绿，8 起转红） */
+  --hm-lv1: rgba(8, 145, 178, 0.30);   /* 青 */
+  --hm-lv2: rgba(34, 211, 238, 0.45);  /* 亮青 */
+  --hm-lv3: rgba(74, 222, 128, 0.45);  /* 浅绿 */
+  --hm-lv4: rgba(74, 222, 128, 0.65);  /* 绿 */
+  --hm-lv5: rgba(34, 197, 94, 0.75);   /* 深绿 */
+  --hm-lv6: rgba(250, 204, 21, 0.55);  /* 浅黄 */
+  --hm-lv7: rgba(250, 204, 21, 0.75);  /* 黄 */
+  --hm-lv8: rgba(251, 146, 60, 0.80);  /* 橙 */
+  --hm-lv9: rgba(239, 68, 68, 0.80);   /* 红 */
+  --hm-lv10: rgba(220, 38, 38, 0.95);  /* 深红 */
 }
 
 [data-theme='dark'] {
-  /* 1~5 级活跃数（深色：#00d4ff 系，4 起转红） */
-  --hm-lv1: rgba(0, 212, 255, 0.25);
-  --hm-lv2: rgba(0, 212, 255, 0.55);
-  --hm-lv3: rgba(0, 212, 255, 0.80);
-  --hm-lv4: rgba(255, 77, 109, 0.55);
-  --hm-lv5: #ff4d6d;
+  /* 1~10 级活跃数：青→绿→黄→红（4 起转绿，8 起转红） */
+  --hm-lv1: rgba(34, 211, 238, 0.35);  /* 青 */
+  --hm-lv2: rgba(34, 211, 238, 0.55);  /* 亮青 */
+  --hm-lv3: rgba(74, 222, 128, 0.50);  /* 浅绿 */
+  --hm-lv4: rgba(74, 222, 128, 0.70);  /* 绿 */
+  --hm-lv5: rgba(34, 197, 94, 0.80);   /* 深绿 */
+  --hm-lv6: rgba(250, 204, 21, 0.60);  /* 浅黄 */
+  --hm-lv7: rgba(250, 204, 21, 0.80);  /* 黄 */
+  --hm-lv8: rgba(251, 146, 60, 0.85);  /* 橙 */
+  --hm-lv9: rgba(239, 68, 68, 0.85);   /* 红 */
+  --hm-lv10: rgba(248, 113, 113, 0.95); /* 深红 */
 }

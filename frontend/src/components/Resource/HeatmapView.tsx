@@ -13,9 +13,19 @@ const FIXED_WEEKS = 12
 
 /** 格子颜色分级（设计 §一：活跃数 → 深浅双主题） */
 function cellLevelClass(count: number, conflict: boolean): string {
-  // 5 级梯度：1 淡 → 5 红（2026-09-02：原 3 级过粗，≥3 即红无层次）
+  // 10 级梯度：青 → 绿 → 黄 → 红（2026-09-03 用户需求；>10 封顶 lv10）
   const level =
-    count >= 5 ? 'lv5' : count === 4 ? 'lv4' : count === 3 ? 'lv3' : count === 2 ? 'lv2' : count === 1 ? 'lv1' : 'empty'
+    count >= 10 ? 'lv10'
+    : count === 9 ? 'lv9'
+    : count === 8 ? 'lv8'
+    : count === 7 ? 'lv7'
+    : count === 6 ? 'lv6'
+    : count === 5 ? 'lv5'
+    : count === 4 ? 'lv4'
+    : count === 3 ? 'lv3'
+    : count === 2 ? 'lv2'
+    : count === 1 ? 'lv1'
+    : 'empty'
   return `hm-cell ${level}${conflict ? ' has-conflict' : ''}`
 }
 
@@ -284,7 +294,7 @@ function PersonRow({
         onMouseEnter={() => onHover(true)}
         onMouseLeave={() => onHover(false)}
       >
-        <span className={`hm-peak${person.peak_parallel >= 4 ? ' high' : ''}`}>{person.peak_parallel}并行</span>
+        <span className={`hm-peak${person.peak_parallel >= 8 ? ' high' : ''}`}>{person.peak_parallel}并行</span>
       </div>
     </>
   )
