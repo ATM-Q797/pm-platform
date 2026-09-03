@@ -48,7 +48,7 @@ CENTER = Alignment(horizontal="center", vertical="center")
 CATEGORIES = '"新需求,量产,定制,改造"'
 MARKETS = '"拉美区,西欧区,东欧区,中东区,亚太区,土耳其区,非洲区,北美区,OEM业务部"'
 PHASE_TYPES = '"需求评估,配置评估,模块选型,工业设计,结构设计,线缆设计,样机打样,线缆打样,联调测试,交付"'
-PHASE_STATUSES = '"未开始,进行中,已完成,延期,已搁置"'
+PHASE_STATUSES = '"未开始,进行中,已完成,延期,搁置"'
 
 
 def style_sheet(ws, data_rows: int = 200) -> None:

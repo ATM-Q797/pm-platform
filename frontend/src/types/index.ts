@@ -64,7 +64,7 @@ export interface Phase {
   plan_end?: string | null
   actual_start?: string | null
   actual_end?: string | null
-  status: string // 未开始/进行中/已完成/延期/已搁置
+  status: string // 未开始/进行中/已完成/延期/搁置
   progress: number // 0-100
   rework_count: number
   remark?: string | null

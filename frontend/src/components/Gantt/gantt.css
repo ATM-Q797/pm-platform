@@ -47,7 +47,7 @@
   background-color: var(--gantt-delayed-progress);
 }
 
-/* 已搁置 - 深灰 */
+/* 搁置 - 深灰 */
 .gantt_task_line.gantt-task-blocked {
   background-color: var(--gantt-blocked);
   border-color: var(--gantt-blocked-border);

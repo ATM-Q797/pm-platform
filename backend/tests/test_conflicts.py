@@ -117,12 +117,12 @@ def test_missing_date_skipped(client, db_session):
 
 
 def test_done_and_blocked_skipped(client, db_session):
-    """已完成/已搁置阶段跳过。"""
+    """已完成/搁置阶段跳过。"""
     r = _mk_resource(db_session, "孙八")
     p1 = _mk_project(db_session, "项目甲")
     p2 = _mk_project(db_session, "项目乙")
     a = _mk_phase(db_session, p1, "结构设计", date(2026, 7, 1), date(2026, 7, 20), status="已完成")
-    b = _mk_phase(db_session, p2, "样机打样", date(2026, 7, 10), date(2026, 7, 30), status="已搁置")
+    b = _mk_phase(db_session, p2, "样机打样", date(2026, 7, 10), date(2026, 7, 30), status="搁置")
     a.assignees = [r]
     b.assignees = [r]
     db_session.commit()

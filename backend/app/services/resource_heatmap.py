@@ -3,7 +3,7 @@
 纯函数，不写库：人员 × 时间桶矩阵，格值 = 该人员该周期相交的活跃阶段数。
 
 规则要点（设计 v1.2 + 评审处置）：
-- 过滤：phase.status not in (已完成, 已搁置) 且 project.status != 搁置
+- 过滤：phase.status not in (已完成, 搁置) 且 project.status != 搁置
   （与 PROJECT_SHELVE §2.5 口径一致——搁置项目不占资源；旧值「已搁置」兼容已移除）
 - 无任何日期（无 plan 且无 actual）不占格；仅实际日期用 actual 计入；
   半开区间（只有开始或只有结束）不占格（评审处置 #5）
@@ -30,7 +30,7 @@ from app.models import Phase, Project, Resource
 from app.services.resource_conflicts import detect_conflicts
 
 # 阶段级跳过状态（与 resource_conflicts._SKIP_STATUSES 一致；独立定义避免隐式耦合）
-_SKIP_PHASE_STATUSES = ("已完成", "已搁置")
+_SKIP_PHASE_STATUSES = ("已完成", "搁置")
 # 项目级搁置状态（PROJECT_SHELVE 决策 #4；旧值「已搁置」兼容已移除——2026-08-28）
 _SHELVED_PROJECT_STATUSES = ("搁置",)
 

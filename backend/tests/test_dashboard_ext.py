@@ -31,12 +31,12 @@ def _mk_phase(db_session, project: Project, name: str, start: date, end: date,
 
 
 def test_delayed_phases_detected(client, db_session):
-    """阶段级延期：plan_end < 今天且未完成；已完成/已搁置不算。"""
+    """阶段级延期：plan_end < 今天且未完成；已完成/搁置不算。"""
     t = _today()
     p = _mk_project(db_session, "延期项目")
     late = _mk_phase(db_session, p, "已逾期", t - timedelta(days=10), t - timedelta(days=3))
     done = _mk_phase(db_session, p, "已完成逾期", t - timedelta(days=20), t - timedelta(days=10), status="已完成")
-    blocked = _mk_phase(db_session, p, "搁置逾期", t - timedelta(days=20), t - timedelta(days=10), status="已搁置")
+    blocked = _mk_phase(db_session, p, "搁置逾期", t - timedelta(days=20), t - timedelta(days=10), status="搁置")
     _mk_phase(db_session, p, "未到期", t + timedelta(days=5), t + timedelta(days=15))
     db_session.commit()
 

@@ -35,7 +35,7 @@ router = APIRouter(prefix="/api/resources", tags=["资源/人员"])
 def get_conflicts(db: Session = Depends(get_db)):
     """资源冲突检测：同一资源在重叠时间段被分配到不同项目的阶段。
 
-    规则：严格重叠（背靠背不算）、同项目不算、缺日期/已完成/已搁置跳过、
+    规则：严格重叠（背靠背不算）、同项目不算、缺日期/已完成/搁置跳过、
     P8 交付不参与、并行 ≤3 不报、已 override 的资源×阶段对排除
     （CONFLICT_MODEL_V2 v2）。返回按资源分组，冲突对按重叠天数降序。
     """
@@ -182,9 +182,9 @@ def _workload_visible(ph: Phase) -> bool:
 
     搁置项目的阶段不占资源负载；专项项目独立监控、不占资源负载（SPECIAL_PROJECT §二）；
     P8 交付占空间且不计入负载，资源负载视图无存在必要（甘特/热力图/冲突检测三处口径统一排除）。
-    阶段级已完成/已搁置跳过逻辑沿用 resource_conflicts._SKIP_STATUSES 口径。
+    阶段级已完成/搁置跳过逻辑沿用 resource_conflicts._SKIP_STATUSES 口径。
     """
-    if ph.status in ("已完成", "已搁置"):
+    if ph.status in ("已完成", "搁置"):
         return False
     if ph.project is not None and ph.project.status in _SHELVED_PROJECT_STATUSES:
         return False
@@ -209,7 +209,7 @@ def get_all_workloads(db: Session = Depends(get_db)):
 
     用于资源负载视图（每人一行甘特图），避免前端发 N 个请求。
     按人员 id 升序，每人的阶段按 plan_start 升序。
-    搁置项目（PROJECT_SHELVE §2.5）与已完成/已搁置阶段不占负载。
+    搁置项目（PROJECT_SHELVE §2.5）与已完成/搁置阶段不占负载。
     注意：此静态路径必须注册在 /{resource_id}/workload 之前。
     """
     resources = list(db.scalars(select(Resource).order_by(Resource.id)))
@@ -294,7 +294,7 @@ def delete_resource(
 
 @router.get("/{resource_id}/workload", response_model=ResourceWorkload)
 def get_workload(resource_id: int, db: Session = Depends(get_db)):
-    """某人负载：参与的所有项目/阶段（搁置项目/已完成/已搁置阶段除外，PROJECT_SHELVE §2.5）。"""
+    """某人负载：参与的所有项目/阶段（搁置项目/已完成/搁置阶段除外，PROJECT_SHELVE §2.5）。"""
     resource = db.get(Resource, resource_id)
     if resource is None:
         raise HTTPException(404, "人员不存在")

@@ -94,7 +94,7 @@ export default function ResourcePage() {
                 { color: 'var(--gantt-active)', label: '进行中' },
                 { color: 'var(--gantt-pending)', label: '未开始' },
                 { color: 'var(--gantt-delayed)', label: '延期' },
-                { color: 'var(--gantt-blocked)', label: '已搁置' },
+                { color: 'var(--gantt-blocked)', label: '搁置' },
                 { color: 'transparent', label: '黄色边框+⚠ = 资源冲突', border: '2px solid var(--gantt-conflict)', glow: 'var(--gantt-conflict)' },
               ].map((item) => (
                 <span key={item.label} style={{ display: 'inline-flex', alignItems: 'center', gap: 5, fontSize: 12, color: 'var(--text-secondary)' }}>

@@ -41,7 +41,7 @@ interface Props {
   onSaved: () => void
 }
 
-const STATUS_OPTIONS = ['未开始', '进行中', '已完成', '延期', '已搁置'].map((s) => ({ value: s, label: s }))
+const STATUS_OPTIONS = ['未开始', '进行中', '已完成', '延期', '搁置'].map((s) => ({ value: s, label: s }))
 
 // 标准阶段类型（PHASE_TYPES_V2 §一：P1-P9 + P71/P72 子编号），含默认显示名称；
 // 历史数据旧值兼容见 LEGACY_TYPE_OPTIONS / toDisplayLabel / isLegacyType（决策 ③ 不迁移：

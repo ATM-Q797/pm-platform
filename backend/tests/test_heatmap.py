@@ -125,12 +125,12 @@ def test_2_phase_spans_3_weeks(client, db_session):
 
 
 def test_3_done_and_phase_shelved_skipped(client, db_session):
-    """用例 3：阶段已完成/已搁置 → 不计入任何桶（进 idle）。"""
+    """用例 3：阶段已完成/搁置 → 不计入任何桶（进 idle）。"""
     t = _today()
     r = _mk_resource(db_session, "完结人")
     p = _mk_project(db_session, "完结项目")
     ph1 = _mk_phase(db_session, p, "已完成阶段", t, t + timedelta(days=7), status="已完成")
-    ph2 = _mk_phase(db_session, p, "已搁置阶段", t, t + timedelta(days=7), status="已搁置")
+    ph2 = _mk_phase(db_session, p, "搁置阶段", t, t + timedelta(days=7), status="搁置")
     ph1.assignees = [r]
     ph2.assignees = [r]
     db_session.commit()
@@ -514,13 +514,13 @@ def test_shelved_project_excluded_from_workload(client, db_session):
 
 
 def test_phase_status_still_filtered_in_workload(client, db_session):
-    """SHELVE 回归：阶段级 已完成/已搁置 维持原跳过（与搁置项目排除叠加）。"""
+    """SHELVE 回归：阶段级 已完成/搁置 维持原跳过（与搁置项目排除叠加）。"""
     t = _today()
     r = _mk_resource(db_session, "阶段状态人")
     p = _mk_project(db_session, "阶段状态项目")
     a = _mk_phase(db_session, p, "进行中阶段", t, t + timedelta(days=7))
     b = _mk_phase(db_session, p, "完成阶段", t, t + timedelta(days=7), status="已完成")
-    c = _mk_phase(db_session, p, "搁置阶段", t, t + timedelta(days=7), status="已搁置")
+    c = _mk_phase(db_session, p, "搁置阶段", t, t + timedelta(days=7), status="搁置")
     for ph in (a, b, c):
         ph.assignees = [r]
     db_session.commit()
