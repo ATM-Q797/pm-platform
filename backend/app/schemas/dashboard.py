@@ -19,7 +19,7 @@ class DelayedProject(BaseModel):
     market: str
     status: str
     plan_end: str | None  # YYYY-MM-DD
-    overdue_days: int  # 逾期天数（今天 - plan_end）
+    overdue_days: int  # 逾期天数（今天 - 最近一个已逾期阶段的 plan_end，方案 A 阶段锚定）
     due_phases: list[str] = []  # 该项目内已逾期的活跃阶段名（看板今日聚焦展示）
 
 

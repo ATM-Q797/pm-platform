@@ -118,12 +118,15 @@ def test_dashboard_due_soon_excludes_shelved_project(client, db_session):
 
 
 def test_dashboard_project_level_delay_unchanged(client, db_session):
-    """回归：项目级延期用 _ACTIVE_STATUSES（未开始/进行中），搁置项目本来就不报。"""
+    """方案 A（2026-09-03 阶段锚定）：仅项目 plan_end 过期不算延期——
+    须有名下已逾期活跃阶段；搁置项目仍然不报。"""
     t = _today()
     p_new = _mk_project(db_session, "搁置项目", status="搁置")
     p_ok = _mk_project(db_session, "活跃项目", status="进行中")
     for p in (p_new, p_ok):
         p.plan_end = t - timedelta(days=5)
+    # 活跃项目补一个已逾期的活跃阶段 → 才满足方案 A 的延期判定
+    _mk_phase(db_session, p_ok, "逾期阶段", t - timedelta(days=10), t - timedelta(days=4))
     db_session.commit()
 
     data = client.get("/api/dashboard/stats").json()
