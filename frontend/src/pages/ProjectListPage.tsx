@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { useNavigate, useSearchParams } from 'react-router-dom'
+import { useNavigate } from 'react-router-dom'
 import { Table, Card, Select, Input, Button, Space, Tag, Upload, Modal, Form, DatePicker, message, Spin, Popconfirm, Radio } from 'antd'
 import { DownloadOutlined, ReloadOutlined, UploadOutlined, PlusOutlined, EditOutlined, DeleteOutlined, StarFilled, StarOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
@@ -25,14 +25,8 @@ export default function ProjectListPage() {
   const navigate = useNavigate()
   const [projects, setProjects] = useState<Project[]>([])
   const [loading, setLoading] = useState(false)
-  // 筛选条件持久化到 URL query——离开页面再返回/刷新后不丢失（用户 2026-09-09：多重筛选条件丢失）
-  const [searchParams, setSearchParams] = useSearchParams()
-  const [filters, setFilters] = useState(() => ({
-    status: searchParams.get('status') || '',
-    market: searchParams.get('market') || '',
-    category: searchParams.get('category') || '',
-  }))
-  const [searchText, setSearchText] = useState(() => searchParams.get('q') || '') // 项目名称搜索（前端过滤）
+  const [filters, setFilters] = useState({ status: '', market: '', category: '' })
+  const [searchText, setSearchText] = useState('') // 项目名称搜索（前端过滤）
   // 创建项目
   const [createOpen, setCreateOpen] = useState(false)
   const [creating, setCreating] = useState(false)
@@ -89,16 +83,6 @@ export default function ProjectListPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filters])
 
-  // 筛选/搜索同步到 URL（replace 不产生历史堆栈）
-  useEffect(() => {
-    const params = new URLSearchParams()
-    if (filters.status) params.set('status', filters.status)
-    if (filters.market) params.set('market', filters.market)
-    if (filters.category) params.set('category', filters.category)
-    if (searchText) params.set('q', searchText)
-    setSearchParams(params, { replace: true })
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [filters, searchText])
 
   // 第一步：选择文件 → 只解析生成差异报告（不导入）
   const handleImport = async (file: File) => {
@@ -424,12 +408,12 @@ export default function ProjectListPage() {
           onChange={(e) => setSearchText(e.target.value)}
         />
         <Select
-          placeholder="状态筛选"
-          allowClear
-          style={{ width: 140 }}
-          value={filters.status || undefined}
-          onChange={(v) => setFilters({ ...filters, status: v || '' })}
+          placeholder="状态"
+          style={{ width: 120 }}
+          value={filters.status}
+          onChange={(v) => setFilters({ ...filters, status: v })}
           options={[
+            { value: '', label: '全部' },
             { value: '进行中', label: '进行中' },
             { value: '已完成', label: '已完成' },
             { value: '未开始', label: '未开始' },
@@ -437,20 +421,19 @@ export default function ProjectListPage() {
           ]}
         />
         <Select
-          placeholder="市场筛选"
-          allowClear
+          placeholder="市场"
           style={{ width: 120 }}
-          value={filters.market || undefined}
-          onChange={(v) => setFilters({ ...filters, market: v || '' })}
-          options={MARKET_OPTION_ITEMS}
+          value={filters.market}
+          onChange={(v) => setFilters({ ...filters, market: v })}
+          options={[{ value: '', label: '全部' }, ...MARKET_OPTION_ITEMS]}
         />
         <Select
-          placeholder="类目筛选"
-          allowClear
-          style={{ width: 140 }}
-          value={filters.category || undefined}
-          onChange={(v) => setFilters({ ...filters, category: v || '' })}
+          placeholder="类目"
+          style={{ width: 120 }}
+          value={filters.category}
+          onChange={(v) => setFilters({ ...filters, category: v })}
           options={[
+            { value: '', label: '全部' },
             { value: '新需求', label: '新需求' },
             { value: '量产', label: '量产' },
             { value: '定制', label: '定制' },
