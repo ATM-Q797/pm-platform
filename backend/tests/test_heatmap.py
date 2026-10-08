@@ -432,6 +432,7 @@ def test_10d_proofing_phases_shown_but_not_conflicting(client, db_session):
     entries = row["cell_phases"][_this_week_col(data)]
     # 打样仍在格内显示（占格、计入 peak——与 P8/P9 不占格不同）
     assert {e["phase_id"] for e in entries} == set(real_ids) | set(proof_ids)
+    assert row["peak_parallel"] == 6  # 打样照常计入 peak（4 个 P5 + 2 个打样同窗）
     by_id = {e["phase_id"]: e for e in entries}
     # 打样：不标 ⚠、无冲突详情
     assert all(by_id[i]["conflict"] is False and by_id[i]["conflict_details"] == []

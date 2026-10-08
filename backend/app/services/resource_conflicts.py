@@ -51,10 +51,10 @@ _MAX_PARALLEL = 3
 
 
 def _active_phases(resource: Resource) -> list:
-    """该资源名下可参与冲突检测的阶段（类型非 P8、有完整日期、状态活跃、项目未搁置/非专项）。"""
+    """该资源名下可参与冲突检测的阶段（类型不在排除族（P8/P9 交付 + P71/P72 打样）、有完整日期、状态活跃、项目未搁置/非专项）。"""
     return [
         ph for ph in resource.phases
-        if ph.phase_type not in _SKIP_PHASE_TYPES
+        if (ph.phase_type or "").upper() not in _SKIP_PHASE_TYPES  # 与热力/资源负载同口径（.upper() 归一）
         and ph.plan_start is not None and ph.plan_end is not None
         and ph.status not in _SKIP_STATUSES
         and not (ph.project is not None and ph.project.status in _SHELVED_PROJECT_STATUSES)

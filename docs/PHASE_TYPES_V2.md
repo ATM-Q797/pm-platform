@@ -58,7 +58,7 @@
 
 | 位置 | 现逻辑 | 改后 |
 |------|--------|------|
-| `resource_conflicts._SKIP_PHASE_TYPES` | `("P8",)` | `("P8", "P9")`（旧数据 P8 交付 + 新数据 P9 交付 + 新 P8 联调测试都排除） |
+| `resource_conflicts._SKIP_PHASE_TYPES` | `("P8",)` | `("P8", "P9", "P71", "P72")`（旧数据 P8 交付 + 新数据 P9 交付 + 新 P8 联调测试都排除；P71/P72 打样族为 2026-10-08 追加，仅冲突排除——见下注） |
 | `resource_heatmap.active_heatmap_phases` P8 排除 | `.upper()=="P8"`（f32717d 已实现） | `in ("P8","P9")` |
 | `resources._workload_visible` P8 排除 | `.upper()=="P8"`（f32717d 已实现） | `in ("P8","P9")` |
 
@@ -86,7 +86,7 @@ P6 线缆设计 | P71 样机打样 | P72 线缆打样 | P8 联调测试 | P9 交
 ```
 后端：
   backend/app/services/excel_importer.py   PHASE_NAME_TO_TYPE 重映射 + _PHASE_TYPE_ORDER 主/子编号（含旧 P7/P8 归一键）
-  backend/app/services/resource_conflicts.py _SKIP_PHASE_TYPES + "P9"
+  backend/app/services/resource_conflicts.py _SKIP_PHASE_TYPES + "P9"（+ "P71"/"P72" 打样族，2026-10-08 追加）
   backend/app/services/resource_heatmap.py  P8 排除 → P8/P9
   backend/app/routers/resources.py          P8 排除 → P8/P9
   backend/tests/test_import.py / test_parse_compat.py  映射重排用例更新

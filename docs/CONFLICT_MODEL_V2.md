@@ -96,7 +96,7 @@ DELETE /api/resources/conflicts/overrides/{override_id}  # 撤销（权限同 PO
 
 ```
 backend/app/models/conflict_override.py（新）    + models/__init__.py 注册
-backend/app/services/resource_conflicts.py       P8 排除 + override 排除 + 并行验证修复
+backend/app/services/resource_conflicts.py       P8 排除 + override 排除 + 并行验证修复 + P71/P72 打样排除（v2.3）
 backend/app/services/resource_heatmap.py         ⚠ 语义不变（自动跟随检测结果）+ tooltip 冲突详情数据
 backend/app/routers/resources.py                 +override 3 端点 + conflicts 响应带详情
 backend/tests/test_conflicts.py                  回归 + 新用例
@@ -138,7 +138,7 @@ docs/RESOURCE_HEATMAP.md                          ⚠ 语义段落更新
 | 1 | override 权限 | **admin 全部 + manager 仅自己负责项目的冲突对**（与项目编辑权限一致） |
 | 2 | 甘特冲突条点击 | 弹「消除冲突」Modal，**Modal 内提供「查看阶段」次级入口**（消除 + 详情两不误） |
 | 3 | 已消除记录可见性 | **仅 admin/manager 可见**（只读，防滥用；其他角色看不到消除痕迹） |
-| 4 | 打样族排除冲突（2026-10-08） | **P71 样机打样 / P72 线缆打样不计入冲突数**（外发工作、压力不大）——只退出冲突判定，热力图/资源甘特显示照旧；旧编号 `P6`（样机打样旧值）不动：现库无 P6 数据，且 `P6` 现义为「线缆设计」，整值排除会误伤（PHASE_TYPES_V2 §一） |
+| 4 | 打样族排除冲突（2026-10-08） | **P71 样机打样 / P72 线缆打样不计入冲突数**（外发工作、压力不大）——只退出冲突判定，热力图/资源甘特显示照旧；旧编号 `P6`（样机打样旧值）不动：在用 PG 库无 P6 数据（旧开发/历史库若留有 P6 行，该部分仍计入冲突——未纳入本次范围），且 `P6` 现义为「线缆设计」，整值排除会误伤（PHASE_TYPES_V2 §一） |
 
 ---
 
@@ -150,6 +150,8 @@ docs/RESOURCE_HEATMAP.md                          ⚠ 语义段落更新
 - [ ] P8/P9 不参与热力计数、不参与冲突（双兼容排除——PHASE_TYPES_V2 §四）
 - [ ] 消除后热力图 ⚠ 消失、冲突报告该对消失、甘特冲突条不再黄框；撤销恢复
 - [ ] 甘特冲突条点击弹消除 Modal，非冲突条行为不变
+
+> **v2.3 验收状态（2026-10-08）**：pytest 全绿（199 passed / 7 skipped，含打样族新增用例 + 变异校验）；本次仅后端改动（前端未动，tsc/build 沿用 v2.2 结论）。
 
 > 评审通过后由 eng-coder 实施。
 > **权威声明（评审处置 #4）**：本文档**取代并扩展** `PHASE6_DEV_PLAN.md` §T4（冲突检测规则）与 §T9（资源视图冲突标记）的对应描述——冲突规则以本文档为准，实施后如需更新 dev plan 再同步。
