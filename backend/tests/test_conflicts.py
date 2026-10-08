@@ -300,6 +300,37 @@ def test_p9_and_new_p8_excluded_from_conflict(client, db_session):
     assert data == []
 
 
+def test_p71_p72_excluded_from_conflict(client, db_session):
+    """用户 2026-10-08：打样族（P71 样机打样 / P72 线缆打样）属外发工作、压力不大
+    → 不计入冲突数。
+
+    两个面都要成立：① 打样阶段之间深度重叠不报对；② 打样不计入并行峰值
+    （不能把同窗的真实阶段顶过 _MAX_PARALLEL 而误报）。
+    """
+    r = _mk_resource(db_session, "打样排除人")
+    # ① 4 个打样阶段（P71×2 + P72×2）全不同项目、同窗深度重叠 → 若无排除为 C(4,2)=6 对
+    for i, pt in enumerate(("P71", "P72", "P71", "P72")):
+        p = _mk_project(db_session, f"打样项目{i + 1}")
+        ph = _mk_phase(db_session, p, f"打样阶段{i + 1}", date(2026, 7, 1), date(2026, 7, 31))
+        ph.phase_type = pt
+        ph.assignees = [r]
+    # ② 3 个真实阶段（P5）同窗：真实侧峰值 3 ≤ _MAX_PARALLEL → 不报；
+    #    若打样仍计入并行，再叠一个同窗样机打样会到峰值 4 → 误报 3 对
+    for i in range(3):
+        p = _mk_project(db_session, f"打样同窗真实项目{i + 1}")
+        ph = _mk_phase(db_session, p, f"结构设计{i + 1}", date(2026, 7, 1), date(2026, 7, 31))
+        ph.phase_type = "P5"
+        ph.assignees = [r]
+    p = _mk_project(db_session, "打样同窗样机项目")
+    ph = _mk_phase(db_session, p, "样机打样", date(2026, 7, 1), date(2026, 7, 31))
+    ph.phase_type = "P71"
+    ph.assignees = [r]
+    db_session.commit()
+
+    data = client.get("/api/resources/conflicts").json()
+    assert data == []
+
+
 def test_override_excluded_from_conflicts(client, db_session):
     """CONFLICT_MODEL_V2 §2.3：override 后该资源该对不再报（其余资源仍报）。"""
     from app.models import ConflictOverride

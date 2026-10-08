@@ -63,6 +63,7 @@
 | `resources._workload_visible` P8 排除 | `.upper()=="P8"`（f32717d 已实现） | `in ("P8","P9")` |
 
 > **评审 🔴#1 处置（文档对齐代码）**：CONFLICT_MODEL_V2 §2.1 旧文"P8 仍占格（仅 ⚠ 不标）"系 v2 时期残留——f32717d 起热力/甘特已排除 P8（三处全排除），本表与 CONFLICT_MODEL_V2 已同步为 P8/P9 双兼容。
+> **打样族（P71 样机打样 / P72 线缆打样，2026-10-08）**：排除范围与交付族不同——仅从冲突判定排除（不计入冲突数），**热力图/资源甘特照常占格显示**；规则见 CONFLICT_MODEL_V2 §2.1。
 
 ## 五、前端（`PhaseEditor.tsx` PHASE_TYPE_OPTIONS）
 

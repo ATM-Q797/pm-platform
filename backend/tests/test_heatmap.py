@@ -404,6 +404,42 @@ def test_10c_shared_pair_not_marked_for_light_parallel_person(client, db_session
     assert all(e["conflict_details"] == [] for e in light_entries)
 
 
+def test_10d_proofing_phases_shown_but_not_conflicting(client, db_session):
+    """用户 2026-10-08：打样族（P71/P72）不计入冲突数，但仍在热力图占格显示。
+
+    与 P8/P9 的“三处全排除”明确区分：打样只退出冲突判定，不退出负载显示。
+    """
+    t = _today()
+    r = _mk_resource(db_session, "打样占格人")
+    real_ids: list[int] = []
+    for i in range(4):  # 对照组：4 个真实阶段同窗深度重叠 → 仍报冲突
+        p = _mk_project(db_session, f"打样对照项目{i + 1}")
+        ph = _mk_phase(db_session, p, f"结构设计{i + 1}", t, t + timedelta(days=30))
+        ph.phase_type = "P5"
+        ph.assignees = [r]
+        real_ids.append(ph.id)
+    proof_ids: list[int] = []
+    for i, pt in enumerate(("P71", "P72")):  # 2 个打样阶段同窗
+        p = _mk_project(db_session, f"打样占格项目{i + 1}")
+        ph = _mk_phase(db_session, p, f"打样阶段{i + 1}", t, t + timedelta(days=30))
+        ph.phase_type = pt
+        ph.assignees = [r]
+        proof_ids.append(ph.id)
+    db_session.commit()
+
+    data = _hm(client)
+    row = next(p for p in data["people"] if p["name"] == "打样占格人")
+    entries = row["cell_phases"][_this_week_col(data)]
+    # 打样仍在格内显示（占格、计入 peak——与 P8/P9 不占格不同）
+    assert {e["phase_id"] for e in entries} == set(real_ids) | set(proof_ids)
+    by_id = {e["phase_id"]: e for e in entries}
+    # 打样：不标 ⚠、无冲突详情
+    assert all(by_id[i]["conflict"] is False and by_id[i]["conflict_details"] == []
+               for i in proof_ids)
+    # 对照：4 个真实阶段仍在冲突对里（排除未误伤）
+    assert all(by_id[i]["conflict"] is True for i in real_ids)
+
+
 def test_11_invalid_granularity_400(client, db_session):
     """用例 11：非法 granularity（如 'day'）→ 400。"""
     resp = client.get("/api/resources/heatmap", params={"granularity": "day"})
