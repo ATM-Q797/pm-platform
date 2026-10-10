@@ -59,12 +59,13 @@ cp -r "$DIST_DIR"/* "$FRONT_DIR"/
 chmod -R a+rX "$FRONT_DIR"
 echo "[3/4] 前端已更新"
 
-# 4. 重启后端 + 健康检查（重试式探测：gunicorn 全量就绪约 4s，单次 sleep 2 会误报——2026-10-10 实况）
+# 4. 重启后端 + 健康检查（重试式探测：gunicorn 全量就绪约 4s，单次 sleep 2 会误报——2026-10-10 实况；
+#    仅探活：/health 在 DB 降级时仍返 200，DB 状态看响应体 overall 字段）
 sudo systemctl restart pm-backend
 HEALTH_OK=0
 for i in 1 2 3 4 5 6 7 8 9 10; do
     sleep 1
-    if curl -sf http://127.0.0.1:8000/health > /dev/null; then
+    if curl -sf --connect-timeout 1 --max-time 2 http://127.0.0.1:8000/health > /dev/null; then
         HEALTH_OK=1
         echo "[4/4] 后端健康 ✅（第 ${i} 次探测通过）"
         break
@@ -86,3 +87,9 @@ echo ""
 echo "  数据库迁移：若本次发布说明要求迁移，执行:"
 echo "    bash $PROJECT_DIR/deploy/migrate.sh"
 echo "=================================================="
+
+# 出口判定：健康检查未通过 → 非零退出（失败提示与回滚指引均已在上方输出）
+if [ "$HEALTH_OK" != "1" ]; then
+    echo "⚠️ 后端健康检查未通过——请勿离场，按上方回滚/日志指引处理（退出码 1）"
+    exit 1
+fi

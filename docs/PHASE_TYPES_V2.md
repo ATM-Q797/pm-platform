@@ -79,6 +79,9 @@ P6 线缆设计 | P71 样机打样 | P72 线缆打样 | P8 联调测试 | P9 交
 
 - ❌ 历史数据不迁移（决策 ③）：旧阶段 `P5 结构设计`/`P6 样机打样`/`P7 联调测试`/`P8 交付` 原样保留
   - ✅ 例外（2026-10-10，生产库）：仅 2 条旧编号阶段经用户确认迁移——id=965 `P6 样机打样`→`P71`、id=966 `P7 联调测试`→`P8`（与新值口径对齐；详见 CONFLICT_MODEL_V2 §五决策 5）。其余历史行原样保留
+    - 迁移语句留档（幂等，重放命中 0 行；2026-10-10 服务器 docker-db-1@pm_platform 实施执行）：
+      `UPDATE phase SET phase_type = 'P71' WHERE id = 965 AND phase_type = 'P6' AND name = '样机打样';`
+      `UPDATE phase SET phase_type = 'P8' WHERE id = 966 AND phase_type = 'P7' AND name = '联调测试';`
 - ❌ 不批量拆旧阶段（原记录无独立线缆行，无法自动拆）
 - ❌ 专项自定义类型不受影响
 
