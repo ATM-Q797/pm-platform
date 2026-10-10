@@ -59,12 +59,19 @@ cp -r "$DIST_DIR"/* "$FRONT_DIR"/
 chmod -R a+rX "$FRONT_DIR"
 echo "[3/4] 前端已更新"
 
-# 4. 重启后端 + 健康检查
+# 4. 重启后端 + 健康检查（重试式探测：gunicorn 全量就绪约 4s，单次 sleep 2 会误报——2026-10-10 实况）
 sudo systemctl restart pm-backend
-sleep 2
-if curl -sf http://127.0.0.1:8000/health > /dev/null; then
-    echo "[4/4] 后端健康 ✅"
-else
+HEALTH_OK=0
+for i in 1 2 3 4 5 6 7 8 9 10; do
+    sleep 1
+    if curl -sf http://127.0.0.1:8000/health > /dev/null; then
+        HEALTH_OK=1
+        echo "[4/4] 后端健康 ✅（第 ${i} 次探测通过）"
+        break
+    fi
+    echo "    [4/4] 等待后端就绪…（${i}/10）"
+done
+if [ "$HEALTH_OK" != "1" ]; then
     echo "[4/4] 后端异常 ⚠️  查看: journalctl -u pm-backend -n 50"
 fi
 
