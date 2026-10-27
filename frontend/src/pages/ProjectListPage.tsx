@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Table, Card, Select, Input, Button, Space, Tag, Upload, Modal, Form, DatePicker, message, Spin, Popconfirm, Radio } from 'antd'
-import { DownloadOutlined, ReloadOutlined, UploadOutlined, PlusOutlined, EditOutlined, DeleteOutlined, StarFilled, StarOutlined } from '@ant-design/icons'
+import { DownloadOutlined, ReloadOutlined, UploadOutlined, PlusOutlined, EditOutlined, DeleteOutlined, StarFilled, StarOutlined, ClearOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import { listProjects, createProject, deleteProject, applyTemplate, setFavorite } from '../api/projects'
 import ProjectEditModal from '../components/ProjectEditModal'
@@ -474,7 +474,7 @@ export default function ProjectListPage() {
           ]}
         />
         {/* 重置筛选（用户 2026-10-27：置于筛选栏最右） */}
-        <Button icon={<ReloadOutlined />} onClick={resetFilters}>重置</Button>
+        <Button icon={<ClearOutlined />} onClick={resetFilters}>重置</Button>
       </Space>
       </div>
       <Spin spinning={loading}>
