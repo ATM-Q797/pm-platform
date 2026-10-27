@@ -51,6 +51,15 @@ export default function ProjectListPage() {
     setSearchTextState(v)
     try { sessionStorage.setItem(SEARCH_KEY, v) } catch { /* 同上 */ }
   }
+  // 重置筛选（用户 2026-10-27：筛选栏加“重置”按钮）——清空全部条件+搜索词，同步清 sessionStorage
+  const resetFilters = () => {
+    setFiltersState({ ..._DEFAULT_FILTERS })
+    setSearchTextState('')
+    try {
+      sessionStorage.removeItem(FILTERS_KEY)
+      sessionStorage.removeItem(SEARCH_KEY)
+    } catch { /* 同上：清不掉也不影响本次重置生效 */ }
+  }
   // 创建项目
   const [createOpen, setCreateOpen] = useState(false)
   const [creating, setCreating] = useState(false)
@@ -448,10 +457,10 @@ export default function ProjectListPage() {
           placeholder="市场"
           style={{ width: 120 }}
           value={filters.market}
-          onChange={(v) => updateFilters({ ...filters, market: v })}
-          options={[{ value: '', label: '全部' }, ...MARKET_OPTION_ITEMS]}
-        />
-        <Select
+           onChange={(v) => updateFilters({ ...filters, market: v })}
+           options={[{ value: '', label: '全部' }, ...MARKET_OPTION_ITEMS]}
+         />
+         <Select
           placeholder="类目"
           style={{ width: 120 }}
           value={filters.category}
@@ -464,6 +473,8 @@ export default function ProjectListPage() {
             { value: '改造', label: '改造' },
           ]}
         />
+        {/* 重置筛选（用户 2026-10-27：置于筛选栏最右） */}
+        <Button icon={<ReloadOutlined />} onClick={resetFilters}>重置</Button>
       </Space>
       </div>
       <Spin spinning={loading}>
