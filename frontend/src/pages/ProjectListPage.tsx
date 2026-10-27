@@ -45,7 +45,7 @@ export default function ProjectListPage() {
     try { sessionStorage.setItem(FILTERS_KEY, JSON.stringify(next)) } catch { /* 存储满/禁用时静默：筛选仍可用，仅不跨页保留 */ }
   }
   const [searchText, setSearchTextState] = useState(() => {
-    try { return sessionStorage.getItem(SEARCH_KEY) || '' } catch { return '' } // 读取与 _readFilters 同等兑底（评审 🔵#4 关联）
+    try { return sessionStorage.getItem(SEARCH_KEY) || '' } catch { return '' } // 读取与 _readFilters 同等兜底（评审 🔵#4 关联）
   }) // 项目名称搜索（前端过滤）
   const updateSearchText = (v: string) => {
     setSearchTextState(v)
