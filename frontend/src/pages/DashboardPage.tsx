@@ -1,6 +1,6 @@
-import { useEffect, useState } from 'react'
+import { useEffect, useState, lazy, Suspense } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Card, Col, Row, Tag, Empty, Spin, message, Drawer, List } from 'antd'
+import { Button, Card, Col, Row, Tag, Empty, Spin, message, Drawer, List } from 'antd'
 import {
   ProjectOutlined,
   ClockCircleOutlined,
@@ -9,10 +9,14 @@ import {
   ThunderboltOutlined,
   ToolOutlined,
   FireOutlined,
+  FundOutlined,
 } from '@ant-design/icons'
 import { getDashboardStats } from '../api/dashboard'
 import { getResourceConflicts } from '../api/resources'
 import type { DashboardStats, ResourceConflict } from '../types'
+
+// 项目分析弹窗懒加载（含 ECharts，避免影响看板首屏）
+const AnalysisModal = lazy(() => import('../components/Analysis/AnalysisModal'))
 
 // 明细抽屉类型
 type DrawerKey = 'delayed' | 'due' | 'conflict' | 'rework' | null
@@ -35,6 +39,8 @@ export default function DashboardPage() {
   const [drawerKey, setDrawerKey] = useState<DrawerKey>(null)
   const [conflicts, setConflicts] = useState<ResourceConflict[]>([])
   const [conflictsLoading, setConflictsLoading] = useState(false)
+  // 项目分析弹窗开关（裁定 ②：看板按钮 → 弹窗）
+  const [analysisOpen, setAnalysisOpen] = useState(false)
 
   useEffect(() => {
     // 甘特消除后同步刷新本抽屉（用户 2026-08-28 决策 ③：消除统一在甘特，其他视图只同步）
@@ -141,6 +147,15 @@ export default function DashboardPage() {
 
   return (
     <div>
+      {/* 头部操作区：项目分析入口（裁定 ②：不加页面，看板按钮 → 弹窗）
+          不用 ghost 变体：ghost 文字取主色，在渐变底上对比度不足（用户 2026-10-26：字看不清）——
+          实心主按钮文字为白色，对比稳定 */}
+      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
+        <Button type="primary" icon={<FundOutlined />} onClick={() => setAnalysisOpen(true)}>
+          项目分析
+        </Button>
+      </div>
+
       {/* 6 张统计卡片：2 行 × 3 列，行间大间距 */}
       <Row gutter={16} style={{ marginBottom: 32 }}>
         {renderCard('total', '项目总数', stats.total_projects, <ProjectOutlined />, () => navigate('/projects'))}
@@ -346,6 +361,17 @@ export default function DashboardPage() {
           />
         )}
       </Drawer>
+
+      {/* 项目分析弹窗（ECharts 懒加载分包，不进看板首屏） */}
+      {analysisOpen && (
+        <Suspense fallback={
+          <div style={{ display: 'flex', justifyContent: 'center', padding: 48 }}>
+            <Spin description="正在加载分析组件…" size="large" />
+          </div>
+        }>
+          <AnalysisModal open={analysisOpen} onClose={() => setAnalysisOpen(false)} />
+        </Suspense>
+      )}
     </div>
   )
 }

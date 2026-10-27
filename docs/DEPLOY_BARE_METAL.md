@@ -214,6 +214,31 @@ curl -s http://127.0.0.1:8000/health
 
 ---
 
+## 三.7 项目分析快照定时任务（PROJECT_ANALYSIS §3.4，一次性安装）
+
+每日 00:10 由宿主机 crontab 触发快照 CLI（幂等——当日已有即跳过；独立进程自建数据库连接，
+绕开 HTTP 鉴权与 gunicorn 多 worker 重复执行问题）：
+
+```bash
+# 安装（crontab -e 追加一行）
+10 0 * * * cd /opt/pm-platform/backend && ./venv/bin/python -m app.jobs.snapshot >> /opt/pm-platform/logs/snapshot.log 2>&1
+
+# 前置：日志目录存在
+mkdir -p /opt/pm-platform/logs
+
+# 数据库迁移（建 status_snapshots 表，幂等）：
+bash /opt/pm-platform/deploy/migrate.sh   # migrate_v2.py 应用层建表（含 create_all）
+# 或手工执行 SQL：deploy/migrate_v4.sql
+
+# 部署日手动触发首次快照作基线（CLI 或 admin 调 POST /api/analysis/snapshots/run 均可）：
+cd /opt/pm-platform/backend && ./venv/bin/python -m app.jobs.snapshot
+
+# 验证：
+cat /opt/pm-platform/logs/snapshot.log    # 应见 "[snapshot] <日期> created ..." 行
+```
+
+---
+
 ## 四、日常更新流程（一键脚本，约 4 分钟）
 
 > 更新脚本 `deploy/update.sh` 自动完成：备份当前版本 → 更新代码 → 更新前端（含权限修复）→ 重启后端 → 健康检查。

@@ -63,6 +63,12 @@ from app.schemas.user import (
     UserRead,
     UserUpdate,
 )
+from app.schemas.analysis import (
+    AnalysisTrend,
+    SnapshotRunResult,
+    TrendPoint,
+    WeeklyPoint,
+)
 from app.schemas.audit import (
     DeleteRequestCreate,
     DeleteRequestRead,
@@ -91,4 +97,5 @@ __all__ = [
     "UserCreate", "UserRead", "UserUpdate", "LoginRequest", "LoginResponse", "PasswordChange",
     "DeleteRequestCreate", "DeleteRequestRead", "DeleteReview", "OperationLogRead",
     "PhaseChangeRequestCreate", "PhaseChangeRequestRead", "PhaseChangeReview",
+    "AnalysisTrend", "SnapshotRunResult", "TrendPoint", "WeeklyPoint",
 ]

@@ -34,9 +34,11 @@ _SHELVED_PROJECT_STATUSES = ("搁置",)
 _DUE_SOON_DAYS = 7
 
 
-@router.get("/stats", response_model=DashboardStats)
-def get_dashboard_stats(db: Session = Depends(get_db)):
-    """首页看板聚合统计：项目/阶段状态分布、延期预警、返工统计。"""
+def build_dashboard_stats(db: Session) -> DashboardStats:
+    """看板统计主体（模块级纯函数）——与每日快照共用的口径单一来源（PROJECT_ANALYSIS §3.2）。
+
+    路由行为不变：get_dashboard_stats 仅委托本函数。
+    """
     today = date.today()
 
     # 项目状态分布（专项项目独立监控，不计入看板——SPECIAL_PROJECT §4.3）
@@ -196,3 +198,9 @@ def get_dashboard_stats(db: Session = Depends(get_db)):
         due_soon_count=len(due_soon_phases),
         conflict_count=conflict_count,
     )
+
+
+@router.get("/stats", response_model=DashboardStats)
+def get_dashboard_stats(db: Session = Depends(get_db)):
+    """首页看板聚合统计：项目/阶段状态分布、延期预警、返工统计。"""
+    return build_dashboard_stats(db)

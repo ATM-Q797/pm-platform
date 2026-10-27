@@ -9,8 +9,22 @@ import { listTemplates } from '../api/templates'
 import { listUsers } from '../api/users'
 import { requestDeleteProject } from '../api/audit'
 import { getMe } from '../api/auth'
-import { MARKET_OPTION_ITEMS, MARKET_OPTIONS } from '../types'
+import { MARKET_OPTION_ITEMS, MARKET_OPTIONS, PROJECT_LIST_FILTERS_KEY as FILTERS_KEY, PROJECT_LIST_SEARCH_KEY as SEARCH_KEY } from '../types'
 import type { ImportPreview, Project, ImportReport, Template, UserInfo } from '../types'
+
+// 列表筛选持久化（用户 2026-10-26：返回列表不重置、刷新才重置）：
+// sessionStorage 保存筛选，组件重挂时恢复；刷新页面由 App.tsx 统一清除（键名常量在 types/index.ts）。
+const _DEFAULT_FILTERS = { status: '', market: '', category: '' }
+const _readFilters = (): typeof _DEFAULT_FILTERS => {
+  try {
+    const raw = sessionStorage.getItem(FILTERS_KEY)
+    if (!raw) return { ..._DEFAULT_FILTERS }
+    const v = JSON.parse(raw)
+    return { status: v.status || '', market: v.market || '', category: v.category || '' }
+  } catch {
+    return { ..._DEFAULT_FILTERS }
+  }
+}
 
 // 状态 → Tag 颜色（PROJECT_SHELVE §2.1；旧值「已搁置」兼容已移除——2026-08-28）
 const STATUS_COLOR: Record<string, string> = {
@@ -25,8 +39,18 @@ export default function ProjectListPage() {
   const navigate = useNavigate()
   const [projects, setProjects] = useState<Project[]>([])
   const [loading, setLoading] = useState(false)
-  const [filters, setFilters] = useState({ status: '', market: '', category: '' })
-  const [searchText, setSearchText] = useState('') // 项目名称搜索（前端过滤）
+  const [filters, setFiltersState] = useState(_readFilters)
+  const updateFilters = (next: typeof _DEFAULT_FILTERS) => {
+    setFiltersState(next)
+    try { sessionStorage.setItem(FILTERS_KEY, JSON.stringify(next)) } catch { /* 存储满/禁用时静默：筛选仍可用，仅不跨页保留 */ }
+  }
+  const [searchText, setSearchTextState] = useState(() => {
+    try { return sessionStorage.getItem(SEARCH_KEY) || '' } catch { return '' } // 读取与 _readFilters 同等兑底（评审 🔵#4 关联）
+  }) // 项目名称搜索（前端过滤）
+  const updateSearchText = (v: string) => {
+    setSearchTextState(v)
+    try { sessionStorage.setItem(SEARCH_KEY, v) } catch { /* 同上 */ }
+  }
   // 创建项目
   const [createOpen, setCreateOpen] = useState(false)
   const [creating, setCreating] = useState(false)
@@ -405,13 +429,13 @@ export default function ProjectListPage() {
           allowClear
           style={{ width: 240 }}
           value={searchText}
-          onChange={(e) => setSearchText(e.target.value)}
+          onChange={(e) => updateSearchText(e.target.value)}
         />
         <Select
           placeholder="状态"
           style={{ width: 120 }}
           value={filters.status}
-          onChange={(v) => setFilters({ ...filters, status: v })}
+          onChange={(v) => updateFilters({ ...filters, status: v })}
           options={[
             { value: '', label: '全部' },
             { value: '进行中', label: '进行中' },
@@ -424,14 +448,14 @@ export default function ProjectListPage() {
           placeholder="市场"
           style={{ width: 120 }}
           value={filters.market}
-          onChange={(v) => setFilters({ ...filters, market: v })}
+          onChange={(v) => updateFilters({ ...filters, market: v })}
           options={[{ value: '', label: '全部' }, ...MARKET_OPTION_ITEMS]}
         />
         <Select
           placeholder="类目"
           style={{ width: 120 }}
           value={filters.category}
-          onChange={(v) => setFilters({ ...filters, category: v })}
+          onChange={(v) => updateFilters({ ...filters, category: v })}
           options={[
             { value: '', label: '全部' },
             { value: '新需求', label: '新需求' },

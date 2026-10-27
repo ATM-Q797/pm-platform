@@ -20,6 +20,7 @@ from app import models  # noqa: F401  (注册 ORM 模型)
 from app.core.logging import setup_logging
 from app.core.security import APP_ENV, SECRET_KEY, _DEV_FALLBACK_SECRET
 from app.routers import (
+    analysis,
     audit,
     auth,
     dashboard,
@@ -83,7 +84,7 @@ async def _no_cache_for_api(request, call_next):
     return response
 
 
-for r in (auth, users, audit, projects, phases, dependencies, resources, templates, imports, exports, dashboard):
+for r in (auth, users, audit, projects, phases, dependencies, resources, templates, imports, exports, dashboard, analysis):
     app.include_router(r.router)
 
 

@@ -19,6 +19,7 @@ import ErrorBoundary from './components/ErrorBoundary'
 import LoginPage from './pages/LoginPage'
 import ChangePasswordModal from './components/ChangePasswordModal'
 import DashboardPage from './pages/DashboardPage'
+import { PROJECT_LIST_FILTERS_KEY as FILTERS_KEY, PROJECT_LIST_SEARCH_KEY as SEARCH_KEY } from './types'
 import { getMe, logout } from './api/auth'
 import { useTheme } from './theme'
 import type { UserInfo } from './types'
@@ -56,6 +57,24 @@ export default function App() {
   const [loading, setLoading] = useState(true)
   const [pwdModalOpen, setPwdModalOpen] = useState(false)
   const [forcePwd, setForcePwd] = useState(false)
+
+  // 刷新页面即重置列表筛选（用户 2026-10-26：返回列表不重置、刷新才重置）。
+  // 列表筛选存 sessionStorage（ProjectListPage），刷新前在此统一清除——全站唯一入口，避免散落多处。
+  // pagehide 兼容移动端/bfcache（评审 🟡#2），beforeunload 双保险，去重后同效。
+  useEffect(() => {
+    const clearListFilters = () => {
+      try {
+        sessionStorage.removeItem(FILTERS_KEY)
+        sessionStorage.removeItem(SEARCH_KEY)
+      } catch { /* 无害：读不到就不清 */ }
+    }
+    window.addEventListener('pagehide', clearListFilters)
+    window.addEventListener('beforeunload', clearListFilters)
+    return () => {
+      window.removeEventListener('pagehide', clearListFilters)
+      window.removeEventListener('beforeunload', clearListFilters)
+    }
+  }, [])
 
   // 启动时检查登录状态
   useEffect(() => {

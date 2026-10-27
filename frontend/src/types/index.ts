@@ -5,6 +5,12 @@ export const MARKET_OPTIONS = [
   '拉美区', '西欧区', '东欧区', '中东区', '亚太区', '土耳其区', '非洲区', '北美区', 'OEM业务部', '海外通用',
 ]
 
+// 列表筛选持久化键名（用户 2026-10-26：返回列表不重置、刷新才重置）——
+// 单独放 types/index.ts：App.tsx 清理监听与 ProjectListPage 读写共用一份常量（评审 🟡#1），
+// 且避免 App 静态导入页面模块破坏 ProjectListPage 的懒加载分包。
+export const PROJECT_LIST_FILTERS_KEY = 'pm_project_list_filters'
+export const PROJECT_LIST_SEARCH_KEY = 'pm_project_list_search'
+
 export const MARKET_OPTION_ITEMS = MARKET_OPTIONS.map((m) => ({ value: m, label: m }))
 
 // ---------- 项目 ----------
@@ -346,6 +352,57 @@ export interface DashboardStats {
   due_soon_phases: DueSoonPhase[]
   due_soon_count: number
   conflict_count: number
+}
+
+// ---------- 项目分析（PROJECT_ANALYSIS §3.3） ----------
+// 快照存原子计数；比率/差分在前端按需计算
+
+export interface AnalysisMetrics {
+  projects_total?: number
+  projects_by_status?: Record<string, number>
+  delayed_projects?: number
+  delayed_phases?: number
+  delayed_days_p50?: number
+  delayed_days_p90?: number
+  due_soon_phases?: number
+  conflict_pairs?: number
+  active_people?: number
+  peak_parallel_top3_avg?: number
+  open_phases?: number
+  completed_phases_total?: number
+  shelved_total?: number
+  // ---- 项目级扩展（四板块重构，用户 2026-10-26：统计聚焦项目级）----
+  in_flight_projects?: number
+  due_soon_projects?: number
+  plan_days_too_long?: number
+  plan_days_too_short?: number
+  started_projects_total?: number
+  completed_projects_total?: number
+  projects_by_market?: Record<string, number>
+  projects_by_category?: Record<string, number>
+}
+
+export interface TrendPoint {
+  date: string // YYYY-MM-DD
+  metrics: AnalysisMetrics
+}
+
+export interface WeeklyPoint {
+  week_start: string // YYYY-MM-DD（周一锚点）
+  metrics: AnalysisMetrics
+  delta: Record<string, number> // 仅累计量键（项目级：started/completed_projects_total、shelved_total）；首周为 0
+}
+
+export interface AnalysisTrend {
+  days: number
+  daily: TrendPoint[]
+  weekly: WeeklyPoint[]
+}
+
+export interface SnapshotRunResult {
+  snapshot_date: string
+  created: boolean
+  metrics: AnalysisMetrics
 }
 
 // ---------- 用户与认证 ----------
