@@ -441,6 +441,19 @@ def _market_from_sheet(sheet_name: str) -> str:
     return "国内"
 
 
+# 说明类 sheet 的命名特征：这类 sheet 常内嵌示例表头，会被误判为数据页
+_INSTRUCTION_SHEET_KEYWORDS = (
+    "说明", "填写规则", "填写须知", "示例", "指引", "帮助",
+    "instructions", "instruction", "readme", "help", "guide",
+)
+
+
+def is_instruction_sheet(name: str) -> bool:
+    """sheet 名带说明/示例等词 → 非数据页，整页忽略（不逐行刷警告）。"""
+    low = str(name or "").strip().lower()
+    return any(k in low for k in _INSTRUCTION_SHEET_KEYWORDS)
+
+
 def detect_format(ws) -> str:
     """按表头识别格式：'new'（14列模板）| 'old'（8列历史）| 'unknown'。"""
     header = ""
@@ -556,9 +569,20 @@ def parse_workbook(file_bytes: bytes, default_category: str = "新需求", speci
         ))
         return ParsedWorkbook(projects, report)
 
-    # 选 sheet：识别出格式（new/old）的数据 sheet；'unknown'（如"填报说明"）跳过
-    target_sheets = [(name, detect_format(wb[name])) for name in wb.sheetnames]
-    target_sheets = [(n, f) for n, f in target_sheets if f != "unknown"]
+    # 选 sheet：先剔除说明类 sheet（「填报说明」常在中部带一段示例表头，
+    # 会被 detect_format 误判成数据页 → 示例行被当项目、说明文字被当垃圾行刷警告），
+    # 再按表头识别数据格式；'unknown' 同样跳过
+    target_sheets: list[tuple[str, str]] = []
+    for name in wb.sheetnames:
+        if is_instruction_sheet(name):
+            report.warnings.append(ImportWarning(
+                row=0, sheet=name, field="sheet",
+                message=f"工作表'{name}'按说明/示例页忽略，未导入任何数据",
+            ))
+            continue
+        fmt = detect_format(wb[name])
+        if fmt != "unknown":
+            target_sheets.append((name, fmt))
 
     if not target_sheets:
         report.errors.append(ImportError(
