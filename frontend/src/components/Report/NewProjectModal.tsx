@@ -25,7 +25,7 @@ interface PhaseRow {
   assignee_ids: number[]
 }
 
-/** 新建项目弹窗（§5.1）：编号可留空自动生成 + 三选一类目 + 阶段批量编辑表格。 */
+/** 新建项目弹窗（§5.1）：类目/名称/负责人/市场/状态 + 阶段批量编辑表格（项目编号已停用，后端自动生成）。 */
 export default function NewProjectModal({
   open,
   user,
