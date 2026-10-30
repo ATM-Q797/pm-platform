@@ -104,11 +104,26 @@ class ReportProjectDetail(BaseModel):
     is_mine: bool
     # 删除权限（用户 2026-10-29 需求 3）：仅项目负责人及管理员（is_project_owner 含 admin 短路）
     can_delete: bool = False
+    # 阶段增删权限（用户 2026-10-30 指令）：同一口径——项目负责人及管理员
+    can_manage_phases: bool = False
     editable: dict[str, bool]
     phases: list[ReportPhaseOut] = []
 
 
 # ---------- 阶段字段级更新 ----------
+
+class ReportPhaseCreate(BaseModel):
+    """填报页在已有项目下新增一行阶段（用户 2026-10-30 指令）。
+
+    after_phase_id：插到该阶段之后（与点击行的“+”对应）；None → 追加到项目末尾。
+    """
+
+    phase_type: str
+    after_phase_id: int | None = None
+    plan_start: date | None = None
+    plan_end: date | None = None
+    assignee_ids: list[int] = []
+
 
 class ReportPhasePatch(BaseModel):
     """阶段字段级更新（§六 PATCH：越权字段整请求 403 附字段名）。

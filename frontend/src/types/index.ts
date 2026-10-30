@@ -478,6 +478,8 @@ export interface ReportProjectDetail {
   is_mine: boolean
   // 删除权限（用户 2026-10-29 需求 3）：仅项目负责人及管理员
   can_delete: boolean
+  // 阶段增删权限（用户 2026-10-30 指令）：同一口径
+  can_manage_phases?: boolean
   editable: EditableMap
   phases: ReportPhaseRow[]
 }

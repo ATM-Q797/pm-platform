@@ -56,6 +56,20 @@ export async function createReportChangeRequest(payload: {
   return data
 }
 
+/** 新增一行阶段（用户 2026-10-30 指令）：插到 afterPhaseId 之后，null → 追加末尾 */
+export async function createReportPhase(
+  projectId: number,
+  payload: { phase_type: string; after_phase_id?: number | null },
+): Promise<ReportPhaseRow> {
+  const { data } = await client.post<ReportPhaseRow>(`/report/projects/${projectId}/phases`, payload)
+  return data
+}
+
+/** 删除一行阶段（用户 2026-10-30 指令）：服务端重排 sequence，不可恢复 */
+export async function deleteReportPhase(phaseId: number): Promise<void> {
+  await client.delete(`/report/phases/${phaseId}`)
+}
+
 /** 删除项目（用户 2026-10-29 需求 3）：仅项目负责人及管理员，不可恢复 */
 export async function deleteReportProject(projectId: number): Promise<void> {
   await client.delete(`/report/projects/${projectId}`)

@@ -2,6 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import {
   Button,
   DatePicker,
+  Dropdown,
   Input,
   InputNumber,
   Popconfirm,
@@ -13,11 +14,13 @@ import {
   Tooltip,
   message,
 } from 'antd'
-import { DeleteOutlined } from '@ant-design/icons'
+import { DeleteOutlined, MinusOutlined, PlusOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import dayjs, { type Dayjs } from 'dayjs'
 import type { ReportMeta, ReportPhaseRow, ReportProjectDetail } from '../../types'
 import {
+  createReportPhase,
+  deleteReportPhase,
   deleteReportProject,
   getReportMeta,
   getReportProject,
@@ -104,6 +107,31 @@ export default function PhaseDetailTable({
 
   if (!detail) {
     return <Table size="small" loading={loading} rowKey="id" columns={[]} dataSource={[]} />
+  }
+
+  // 新增阶段（用户 2026-10-30 指令）：插到当前行下方；阶段类型由下拉菜单选（与平台 10 类一致）
+  const handleAddPhase = async (row: ReportPhaseRow, phaseType: string) => {
+    try {
+      await createReportPhase(projectId, { phase_type: phaseType, after_phase_id: row.id })
+      message.success('已在下方新增一行阶段')
+      await load()
+      onChanged()
+    } catch (e) {
+      message.error((e as Error).message)
+    }
+  }
+
+  // 删除本行阶段（用户 2026-10-30 指令）：项目负责人 / 管理员；删除后服务端重排顺序
+  const handleRemovePhase = async (row: ReportPhaseRow) => {
+    try {
+      await deleteReportPhase(row.id)
+      message.success('阶段已删除')
+      await load()
+      onChanged()
+    } catch (e) {
+      message.error((e as Error).message)
+      load()
+    }
   }
 
   const pe = detail.editable
@@ -290,6 +318,43 @@ export default function PhaseDetailTable({
         ) : null,
     },
   ]
+
+  // 阶段增删列（用户 2026-10-30 指令）：仅项目负责人 / 管理员可见（后端同口径校验）
+  if (detail.can_manage_phases) {
+    columns.push({
+      title: '增删',
+      key: 'phase_ops',
+      width: 88,
+      align: 'center',
+      render: (_: unknown, r: ReportPhaseRow) => (
+        <Space size={2}>
+          <Dropdown
+            trigger={['click']}
+            menu={{
+              items: (meta?.phase_types ?? []).map((t) => ({ key: t.value, label: t.label })),
+              onClick: ({ key }) => handleAddPhase(r, key),
+            }}
+          >
+            <Tooltip title="在下方插入一行阶段">
+              <Button size="small" type="text" icon={<PlusOutlined />} />
+            </Tooltip>
+          </Dropdown>
+          <Popconfirm
+            title="删除本行阶段？"
+            description="不可恢复；前后顺序会自动重排。"
+            okText="删除"
+            okButtonProps={{ danger: true }}
+            cancelText="取消"
+            onConfirm={() => handleRemovePhase(r)}
+          >
+            <Tooltip title="删除本行阶段">
+              <Button size="small" type="text" danger icon={<MinusOutlined />} />
+            </Tooltip>
+          </Popconfirm>
+        </Space>
+      ),
+    })
+  }
 
   // 删除项目（用户 2026-10-29 需求 3）：仅项目负责人及管理员；不可恢复
   const handleDelete = async () => {

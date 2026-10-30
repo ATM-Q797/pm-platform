@@ -37,6 +37,7 @@ from app.schemas.report import (
     ReportChangeReview,
     ReportMeta,
     ReportPhaseOut,
+    ReportPhaseCreate,
     ReportPhasePatch,
     ReportProjectCreate,
     ReportProjectCreatePhase,
@@ -246,6 +247,8 @@ def get_report_project(
         managed_by_name=_managed_by_name(db, project),
         is_mine=is_owner,
         can_delete=svc.is_project_owner(project, user),
+        # 阶段增删与删除项目同口径：项目负责人 + 管理员（用户 2026-10-30 指令）
+        can_manage_phases=svc.is_project_owner(project, user),
         editable=project_editable,
         phases=phases_out,
     )
@@ -378,6 +381,110 @@ def patch_report_phase(
         can_request_change=svc.is_phase_assignee(phase, user),
         has_pending=pending is not None,
     )
+
+
+# ---------- 阶段增删（用户 2026-10-30 指令：已建项目也支持加/删阶段） ----------
+
+def _report_phase_out(db: Session, project: Project, phase: Phase, user: User) -> ReportPhaseOut:
+    """阶段出参（与 get_report_project 内同构：editable/可申请/待审状态）。"""
+    pending = svc.get_pending_request(db, phase.id)
+    return ReportPhaseOut(
+        id=phase.id,
+        phase_type=phase.phase_type,
+        name=phase.name,
+        sequence=phase.sequence,
+        plan_start=phase.plan_start,
+        plan_end=phase.plan_end,
+        actual_start=phase.actual_start,
+        actual_end=phase.actual_end,
+        status=phase.status,
+        progress=phase.progress,
+        remark=phase.remark,
+        assignees=phase.assignees,
+        assignee_ids=[r.id for r in phase.assignees],
+        editable=svc.phase_editable_map(project, phase, user),
+        can_request_change=svc.is_phase_assignee(phase, user),
+        has_pending=pending is not None,
+    )
+
+
+@router.post("/projects/{project_id}/phases", response_model=ReportPhaseOut,
+             status_code=status.HTTP_201_CREATED)
+def create_report_phase(
+    project_id: int,
+    payload: ReportPhaseCreate,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """在已有项目下新增一行阶段：插到 after_phase_id 之后（None → 追加末尾）。
+
+    权限与「删除项目」同口径：仅项目负责人（含姓名回退）与管理员（用户 2026-10-30 指令）。
+    """
+    project = _load_project(db, project_id)  # 不存在/专项 → 404（填报页只面向普通项目）
+    if not svc.is_project_owner(project, user):
+        raise HTTPException(403, "仅项目负责人可增删阶段")
+    if payload.phase_type not in _PHASE_TYPE_NAMES:
+        raise HTTPException(400, f"阶段类型非法（仅支持平台 10 类）：{payload.phase_type}")
+    if payload.plan_start and payload.plan_end and payload.plan_end < payload.plan_start:
+        raise HTTPException(400, "计划结束不得早于计划开始")
+
+    phases = list(db.scalars(
+        select(Phase).where(Phase.project_id == project_id).order_by(Phase.sequence, Phase.id)
+    ))
+    if payload.after_phase_id is not None:
+        anchor = next((p for p in phases if p.id == payload.after_phase_id), None)
+        if anchor is None:
+            raise HTTPException(400, "插入位置所在阶段不属于该项目")
+        new_seq = anchor.sequence + 1
+    else:
+        new_seq = (phases[-1].sequence + 1) if phases else 1
+    for ph in phases:  # 腾位：>= 新序号的整体后移 1，随后统一收口
+        if ph.sequence >= new_seq:
+            ph.sequence += 1
+
+    phase = Phase(
+        project_id=project_id,
+        phase_type=payload.phase_type,
+        name=_PHASE_TYPE_NAMES[payload.phase_type],
+        sequence=new_seq,
+        plan_start=payload.plan_start,
+        plan_end=payload.plan_end,
+        status="未开始",
+        progress=0,
+    )
+    db.add(phase)
+    db.flush()
+    if payload.assignee_ids:
+        svc.sync_phase_assignees(db, phase, payload.assignee_ids)
+
+    from app.routers.phases import _normalize_sequence  # 与平台阶段接口同一重排规则
+    _normalize_sequence(db, project_id)
+    log_operation(db, user, "create_phase", "phase", phase.id, phase.name,
+                  detail=f"填报页新增阶段（项目#{project_id}）")
+    db.commit()
+    db.refresh(phase)
+    return _report_phase_out(db, project, phase, user)
+
+
+@router.delete("/phases/{phase_id}", status_code=status.HTTP_204_NO_CONTENT)
+def delete_report_phase(
+    phase_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """删除一行阶段（含其依赖与负责人关联，FK CASCADE），删除后重排 sequence。"""
+    phase, project = _load_phase(db, phase_id)
+    if not svc.is_project_owner(project, user):
+        raise HTTPException(403, "仅项目负责人可增删阶段")
+    name, project_id = phase.name, phase.project_id
+    db.delete(phase)
+    db.flush()
+
+    from app.routers.phases import _normalize_sequence
+    _normalize_sequence(db, project_id)
+    log_operation(db, user, "delete_phase", "phase", phase_id, name,
+                  detail=f"填报页删除阶段（项目#{project_id}）")
+    db.commit()
 
 
 # ---------- 改期申请（§四） ----------
