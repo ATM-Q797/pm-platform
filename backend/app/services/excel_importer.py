@@ -44,6 +44,12 @@ from app.schemas.import_report import (
     PreviewProject,
     ProjectMatchInfo,
 )
+from app.services.project_code import (
+    next_project_code,
+    next_project_codes,
+    next_special_codes,
+    taken_codes,
+)
 
 # ---------- 新格式（14 列，项目填报模板）列索引 ----------
 _NEW_COL_CODE = 1
@@ -767,13 +773,13 @@ def import_parsed(db: Session, parsed: ParsedWorkbook) -> ImportReport:
 
     resource_cache: dict[str, Resource] = {}
     resources_created = 0
-    # 项目编号续编起点：现有最大纯数字编号 + 1（保留的专项项目可能占用 '1'..'N'，
-    # 直接用文件行号会撞唯一约束 project.code——实测 PG 复现）
-    code_base = int(_next_project_code(db))
+    # 项目编号：批量生成普通数字序列的连续编号（逐项跳过已被占用的值——
+    # 保留的专项项目可能占用过普通号段内的数字，直接按文件行号会撞唯一约束）
+    codes = next_project_codes(db, len(parsed.projects))
 
     for i, project in enumerate(parsed.projects):
         proj = Project(
-            code=str(code_base + i),
+            code=codes[i],
             category=project.category,
             name=project.name,
             owner=project.owner,
@@ -857,13 +863,13 @@ def import_special(db: Session, parsed: ParsedWorkbook) -> ImportReport:
 
     resource_cache: dict[str, Resource] = {}
     resources_created = 0
-    # 项目编号续编起点：现有最大纯数字编号 + 1（常规项目可能占用 '1'..'N'，
-    # 直接用文件行号会撞唯一约束 project.code——与 import_parsed 同口径）
-    code_base = int(_next_project_code(db))
+    # 项目编号：专项项目走独立 ZX 系列（专项单独核算、不占用项目编号——
+    # 用户 2026-10-30 规则），批量生成连续编号并跳过已被占用值
+    codes = next_special_codes(db, len(parsed.projects))
 
     for i, project in enumerate(parsed.projects):
         proj = Project(
-            code=str(code_base + i),
+            code=codes[i],
             category=project.category,
             name=project.name,
             owner=project.owner,
@@ -922,28 +928,9 @@ def import_special(db: Session, parsed: ParsedWorkbook) -> ImportReport:
     return report
 
 
-# ---------- 阶段三：增量合并导入（默认模式） ----------
+# 阶段三：增量合并导入（默认模式）
 
-# 纯数字编号正则（合并模式新项目自动编号用）
-_CODE_INT_RE = re.compile(r"^\d+$")
-
-
-def _next_project_code(db: Session) -> str:
-    """生成下一个普通项目编号：仅统计非专项项目的纯数字编号，最大值 + 1。
-
-    专项项目单独核算、不占用项目编号（用户 2026-10-30 规则）——与
-    routers/projects.py 同口径：专项走独立 ZX 系列，历史专项若占用数字编号则跳过，
-    避免 code 唯一约束冲突。
-    """
-    normal_codes = db.scalars(
-        select(Project.code).where(Project.is_special.is_(False))
-    ).all()
-    nums = [int(c) for c in normal_codes if c and _CODE_INT_RE.match(c)]
-    candidate = max(nums) + 1 if nums else 1
-    taken = set(db.scalars(select(Project.code)).all())
-    while str(candidate) in taken:
-        candidate += 1
-    return str(candidate)
+# 编号规则单一来源：app/services/project_code.py（普通数字序列 / 专项 ZX 独立序列）
 
 
 # 阶段类型自然顺序（PHASE_TYPES_V2 §三）：解析 P(主位)(子位)? → (主, 子) 元组比较，
@@ -1116,6 +1103,22 @@ def import_merged(db: Session, parsed: ParsedWorkbook) -> ImportReport:
     counters = {"phases_created": 0, "phases_updated": 0}
     pending_links: list[tuple[str, str]] = []
     created_projects: list[Project] = []  # 新建项目（收尾建 FS 链）
+    # 合并模式新建项目的编号游标：一次取起始号 + 一次已占用快照，
+    # 循环内自增并跳过占用值——避免每个新项目两趟全表扫描（评审 #13）
+    code_cursor: int | None = None
+    taken_codes_snapshot: set[str] = set()
+
+    def _take_next_code() -> str:
+        nonlocal code_cursor
+        if code_cursor is None:
+            code_cursor = int(next_project_code(db))
+            taken_codes_snapshot.update(taken_codes(db))
+        while str(code_cursor) in taken_codes_snapshot:
+            code_cursor += 1
+        code = str(code_cursor)
+        taken_codes_snapshot.add(code)
+        code_cursor += 1
+        return code
 
     for parsed_p in parsed.projects:
         # 比较键归一化（评审处置 #2）：全角/半角书写差异不影响同名命中
@@ -1141,7 +1144,7 @@ def import_merged(db: Session, parsed: ParsedWorkbook) -> ImportReport:
         else:
             # 新建项目：项目编号沿用系统自动编号（解析编号仅作行归类用，避免与现有项目冲突）
             proj = Project(
-                code=_next_project_code(db),
+                code=_take_next_code(),
                 category=parsed_p.category,
                 name=parsed_p.name,
                 owner=parsed_p.owner,

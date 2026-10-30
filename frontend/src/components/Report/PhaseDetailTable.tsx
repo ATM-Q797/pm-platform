@@ -456,6 +456,9 @@ function StatusSelect({ value, onChange }: { value: string; onChange: (v: string
   )
 }
 
+/** 负责人文本哨兵值：仅用于展示未关联账号的负责人姓名，不写库（用户 id 从 1 起，0 安全） */
+const OWNER_FALLBACK_VALUE = 0
+
 function OwnerSelect({
   value,
   users,
@@ -467,23 +470,25 @@ function OwnerSelect({
   onChange: (v: number) => void
   fallbackLabel?: string | null
 }) {
-  // 显示兜底（用户 2026-10-30 指令）：项目负责人已有值（owner 文本）时不得留空——
-  // managed_by 未关联账号（Excel 导入项目）→ 注入哨兵选项展示负责人姓名，
-  // 选中真实用户才触发 onChange（哨兵 0 不上报，避免写入非法 id）。
-  // 无匹配选项（负责人已停用等）时显示占位名，避免裸数字 id。
+  // 显示兜底（用户 2026-10-30 指令）：项目负责人已有值（owner 文本）时不得留空。
+  // 两种情形都回落显示人名：
+  //   ① managed_by 为空（Excel 导入项目未关联账号）→ 注入哨兵选项展示 owner 姓名；
+  //   ② managed_by 有值但账号不在可选列表（已停用/强制删除，meta.users 已过滤）
+  //      → 显示 fallbackLabel（后端 managed_by_name 已带「（已强制删除）」后缀），
+  //      避免露出「用户#id」。
+  // 选中真实用户才触发 onChange；哨兵 0 不上报，且在下拉中 disabled，避免误选无反应。
   const matched = users.find((u) => u.value === value)
   const label = (fallbackLabel || '').trim()
-  const useFallback = !matched && value == null && !!label
-  const options = useFallback
-    ? [{ value: OWNER_FALLBACK_VALUE, label }, ...users]
-    : matched || value == null
-      ? users
-      : [...users, { value: value as number, label: `用户#${value}` }]
+  const shownLabel = matched ? matched.label : (label || (value != null ? `用户#${value}` : ''))
+  const options = [
+    ...(label && !matched ? [{ value: OWNER_FALLBACK_VALUE, label: shownLabel, disabled: true }] : []),
+    ...users,
+  ]
   return (
     <Select
       size="small"
       style={{ width: 120 }}
-      value={useFallback ? OWNER_FALLBACK_VALUE : value ?? undefined}
+      value={!matched && label ? OWNER_FALLBACK_VALUE : value ?? undefined}
       placeholder="选负责人"
       onChange={(v: number) => {
         if (v !== OWNER_FALLBACK_VALUE) onChange(v)
@@ -494,9 +499,6 @@ function OwnerSelect({
     />
   )
 }
-
-/** 负责人文本哨兵值：仅用于展示未关联账号的负责人姓名，不写库（用户 id 从 1 起，0 安全） */
-const OWNER_FALLBACK_VALUE = 0
 
 function NameInput({
   value,

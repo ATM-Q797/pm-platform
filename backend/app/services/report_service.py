@@ -354,9 +354,9 @@ def is_project_manager(db: Session, user: User, project: Project) -> bool:
 
 
 def next_code(db: Session) -> str:
-    """编号预览：沿用纯数字自动递增（projects.py:37 _next_project_code 同口径）。"""
-    from app.routers.projects import _next_project_code
-    return _next_project_code(db)
+    """编号预览：普通项目数字序列下一个编号（与创建同源，见 services/project_code.py）。"""
+    from app.services.project_code import next_project_code
+    return next_project_code(db)
 
 
 def resolve_assignees(db: Session, assignee_ids: list[int]) -> list[Resource]:

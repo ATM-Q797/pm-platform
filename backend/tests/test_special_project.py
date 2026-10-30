@@ -629,8 +629,8 @@ def test_14_special_import_resets_special_domain(client, db_session):
     assert last["projects_imported"] == 1 and last["phases_imported"] == 2
 
 
-def test_14_special_import_renumbers_after_regular_codes(client, db_session):
-    """编号冲突回归：常规项目占用纯数字编号 '1' 时，专项导入续编不撞唯一约束。"""
+def test_14_special_import_uses_zx_series(client, db_session):
+    """专项导入取号：专项走独立 ZX 系列，不占用普通数字编号（用户 2026-10-30 规则）。"""
     np = _mk_project(db_session, "常规占号")
     np.code = "1"
     db_session.commit()
@@ -643,7 +643,51 @@ def test_14_special_import_renumbers_after_regular_codes(client, db_session):
 
     db_session.expire_all()
     sp = db_session.query(Project).filter(Project.name == "专项新项目").one()
-    assert sp.is_special is True and sp.code == "2"  # 续编：现有最大编号 + 1
+    assert sp.is_special is True
+    assert sp.code == "ZX001"  # 专项独立系列，不挤占普通数字编号
+
+    # 专项导入后普通项目下一编号不受影响（仍为常规 max+1）
+    reg = db_session.query(Project).filter(Project.is_special.is_(False)).one()
+    assert reg.code == "1"
+
+
+def test_14_special_numeric_code_legacy(client, db_session):
+    """历史专项占用了普通号段内的数字编号时，普通取号逐项跳过、专项取号走 ZX。
+
+    场景：常规 1/2 + 历史专项占 "3" → 下一普通 = 4（跳过 3），下一专项 = ZX001。
+    """
+    from app.services.project_code import next_project_code, next_special_code
+
+    a = _mk_project(db_session, "常规A"); a.code = "1"
+    b = _mk_project(db_session, "常规B"); b.code = "2"
+    legacy = _mk_project(db_session, "历史专项", is_special=True); legacy.code = "3"
+    db_session.commit()
+
+    assert next_project_code(db_session) == "4"   # 跳过被专项占用的 3
+    assert next_special_code(db_session) == "ZX001"
+
+    zx = _mk_project(db_session, "新专项", is_special=True); zx.code = "ZX001"
+    db_session.commit()
+    assert next_special_code(db_session) == "ZX002"
+    assert next_project_code(db_session) == "4"   # 新增专项不影响普通序列
+
+
+def test_14_special_create_api_uses_zx(client, db_session):
+    """POST /api/projects 带 is_special=true 时取 ZX 编号，普通创建仍走数字序列。"""
+
+    resp = client.post("/api/projects", json={
+        "category": "新需求", "name": "API专项", "owner": "张三",
+        "market": "拉美区", "status": "未开始", "is_special": True,
+    })
+    assert resp.status_code == 201, resp.text
+    assert resp.json()["code"] == "ZX001"
+
+    resp2 = client.post("/api/projects", json={
+        "category": "新需求", "name": "API常规", "owner": "张三",
+        "market": "拉美区", "status": "未开始",
+    })
+    assert resp2.status_code == 201, resp2.text
+    assert resp2.json()["code"] == "1"  # 普通序列从 1 起，未被专项挤占
 
 
 def test_14_special_import_permissions(client, db_session):
