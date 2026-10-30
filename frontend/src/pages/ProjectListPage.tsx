@@ -350,7 +350,12 @@ export default function ProjectListPage() {
       ),
     },
     { title: '序号', width: 70, align: 'center',
-      render: (_: unknown, _r: Project, index: number) => index + 1 },
+      // 序号 = 项目在全量有序列表中的位置（非当前页序号）：
+      // 项目列表页分页、填报页不分页，用全局位置才能两页一致（用户 2026-10-30 指令）
+      render: (_: unknown, r: Project, index: number) => {
+        const pos = projects.findIndex((p) => p.id === r.id)
+        return pos >= 0 ? pos + 1 : index + 1
+      } },
     {
       title: '项目名称',
       dataIndex: 'name',

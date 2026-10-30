@@ -89,7 +89,11 @@ export default function ReportPage({ user }: { user: UserInfo }) {
       title: '序号',
       width: 70,
       align: 'center',
-      render: (_: unknown, __: ReportProjectItem, index: number) => index + 1,
+      // 序号 = 项目在全量有序列表中的位置（与项目列表页同一口径，两页一致）
+      render: (_: unknown, row: ReportProjectItem, index: number) => {
+        const pos = projects.findIndex((p) => p.id === row.id)
+        return pos >= 0 ? pos + 1 : index + 1
+      },
     },
     {
       title: '项目名称',
@@ -231,7 +235,7 @@ export default function ReportPage({ user }: { user: UserInfo }) {
               <div>
                 <div style={{ marginBottom: 12, display: 'flex', justifyContent: 'space-between' }}>
                   <Text type="secondary">
-                    点项目行展开阶段明细；列表按创建日期排序。项目负责人可改项目级字段与阶段计划时间，
+                    点项目行展开阶段明细；列表按项目计划开始时间排序。项目负责人可改项目级字段与阶段计划时间，
                     阶段负责人可填实际进展。
                   </Text>
                   <div style={{ display: 'flex', gap: 8 }}>
@@ -282,7 +286,7 @@ export default function ReportPage({ user }: { user: UserInfo }) {
               <div>
                 <div style={{ marginBottom: 12 }}>
                   <Text type="secondary">
-                    我创建、负责或参与的项目（按创建日期排序）。点项目行展开阶段明细。
+                    我创建、负责或参与的项目（按项目计划开始时间排序）。点项目行展开阶段明细。
                   </Text>
                 </div>
                 <Table<ReportProjectItem>
