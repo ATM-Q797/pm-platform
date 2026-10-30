@@ -321,7 +321,26 @@ def list_operation_logs(
     user: User = Depends(require_role("admin")),
     limit: int = Query(50, ge=1, le=500),
 ):
-    """管理员查看操作日志（最近 N 条）。"""
-    return list(db.scalars(
+    """管理员查看操作日志（最近 N 条）。
+
+    墓碑用户（强制删除）操作人显示「（已强制删除）」后缀（评审 #1）：
+    历史行按 user_id 关联现值动态渲染——快照保留原文，读取侧补标记。
+    """
+    rows = db.scalars(
         select(OperationLog).order_by(OperationLog.id.desc()).limit(limit)
-    ))
+    ).all()
+    out: list[OperationLogRead] = []
+    name_cache: dict[int, str | None] = {}
+    for row in rows:
+        item = OperationLogRead.model_validate(row)
+        if row.user_id is not None:
+            if row.user_id not in name_cache:
+                u = db.get(User, row.user_id)
+                if u is not None and u.force_deleted_at is not None:
+                    name_cache[row.user_id] = f"{u.name}（已强制删除）"
+                else:
+                    name_cache[row.user_id] = u.name if u else None
+            if name_cache[row.user_id]:
+                item.user_name = name_cache[row.user_id]
+        out.append(item)
+    return out

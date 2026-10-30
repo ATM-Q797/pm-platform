@@ -27,12 +27,15 @@ class User(Base):
     password_hash: Mapped[str] = mapped_column(String, nullable=False)
     name: Mapped[str] = mapped_column(String, nullable=False)  # 显示名（真实姓名）
     role: Mapped[str] = mapped_column(String, nullable=False, default="engineer", server_default="engineer")
-    # admin/manager/engineer/viewer
+    # admin/manager/engineer/viewer/reporter（reporter=填报人，信息填报一期 §3.1）
     is_active: Mapped[bool] = mapped_column(Boolean, nullable=False, default=True, server_default="true")
     must_change_password: Mapped[bool] = mapped_column(
         Boolean, nullable=False, default=True, server_default="true"
     )  # 初始密码，首次登录强制改
     created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.current_timestamp())
+    # 强制删除墓碑（用户 2026-10-29 指令）：打标记非物理删除——操作日志/项目历史外键无损，
+    # 该用户从列表消失，日志/负责人显示“（已强制删除）”后缀
+    force_deleted_at: Mapped[datetime | None] = mapped_column(DateTime)
 
     # 关联的 resource（一一对应，可空——管理员可能不对应具体资源）
     resource_id: Mapped[int | None] = mapped_column(ForeignKey("resource.id"))

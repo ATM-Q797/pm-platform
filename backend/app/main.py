@@ -19,6 +19,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from app import models  # noqa: F401  (注册 ORM 模型)
 from app.core.logging import setup_logging
 from app.core.security import APP_ENV, SECRET_KEY, _DEV_FALLBACK_SECRET
+from app.models import User
 from app.routers import (
     analysis,
     audit,
@@ -29,6 +30,7 @@ from app.routers import (
     imports,
     phases,
     projects,
+    report,
     resources,
     templates,
     users,
@@ -84,8 +86,53 @@ async def _no_cache_for_api(request, call_next):
     return response
 
 
-for r in (auth, users, audit, projects, phases, dependencies, resources, templates, imports, exports, dashboard, analysis):
+for r in (auth, users, audit, projects, phases, dependencies, resources, templates, imports, exports, dashboard, analysis, report):
     app.include_router(r.router)
+
+
+# ---------------------------------------------------------------------------
+# reporter（填报人）API 封锁门（信息填报一期 §3.1）
+# 设计预期靠 require_role 白名单默认拒绝，实测既有接口多为仅登录（get_current_user）
+# 或无鉴权（resources/dashboard/templates 只读面），reporter 可穿透——故在应用层
+# 统一设门：reporter 登录态访问 /api/* 一律 403，白名单仅放行 /api/report/* 与
+# /api/auth/*（登录/登出/改密）。旧路由零改动；封锁面由 test_report_auth.py 矩阵核验。
+# ---------------------------------------------------------------------------
+_REPORT_ALLOWED_PREFIXES = ("/api/report", "/api/auth")
+
+
+@app.middleware("http")
+async def _reporter_lockdown(request, call_next):
+    path = request.url.path
+    if path.startswith("/api") and not any(path.startswith(p) for p in _REPORT_ALLOWED_PREFIXES):
+        # 仅查登录身份（token 在 Cookie），未登录交给原路由的鉴权逻辑
+        from app.core.security import COOKIE_NAME, decode_access_token
+        token = request.cookies.get(COOKIE_NAME)
+        payload = decode_access_token(token) if token else None
+        if payload is not None:
+            try:
+                sub = int(payload.get("sub"))
+            except (TypeError, ValueError):
+                sub = None
+            if sub is not None:
+                # 沿用请求级会话：优先测试 override 的 get_db，否则默认 SessionLocal
+                from app.database import SessionLocal, get_db
+                override = request.app.dependency_overrides.get(get_db)
+                db = override() if override else SessionLocal()
+                session = next(db) if override else db
+                try:
+                    user = session.get(User, sub)
+                    if user is not None and user.is_active and user.role == "reporter":
+                        from fastapi.responses import JSONResponse
+                        return JSONResponse(status_code=403, content={"detail": "填报人仅可访问信息填报接口"})
+                finally:
+                    if override:
+                        try:
+                            next(db)
+                        except StopIteration:
+                            pass
+                    else:
+                        session.close()
+    return await call_next(request)
 
 
 # ---------------------------------------------------------------------------

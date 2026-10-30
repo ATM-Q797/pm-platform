@@ -31,6 +31,11 @@ export async function deleteUser(id: number): Promise<void> {
   await client.delete(`/users/${id}`)
 }
 
+/** 强制删除（墓碑式）：打标记非物理删除——操作日志保留，用户从列表消失 */
+export async function forceDeleteUser(id: number): Promise<void> {
+  await client.post(`/users/${id}/force-delete`)
+}
+
 export async function resetPassword(id: number): Promise<void> {
   await client.post(`/users/${id}/reset-password`)
 }

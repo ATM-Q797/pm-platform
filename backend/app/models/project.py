@@ -23,7 +23,7 @@ class Project(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     code: Mapped[str] = mapped_column(String, nullable=False, unique=True, index=True)  # 项目编号
-    category: Mapped[str] = mapped_column(String, nullable=False, index=True)  # 新需求/量产/定制/改造
+    category: Mapped[str] = mapped_column(String, nullable=False, index=True)  # 新需求/量产升级/定制/改造
     name: Mapped[str] = mapped_column(String, nullable=False)
     owner: Mapped[str] = mapped_column(String, nullable=False)
     market: Mapped[str] = mapped_column(String, nullable=False, index=True)  # 国内/海外

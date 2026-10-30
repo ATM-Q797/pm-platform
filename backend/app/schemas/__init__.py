@@ -78,6 +78,18 @@ from app.schemas.audit import (
     PhaseChangeRequestRead,
     PhaseChangeReview,
 )
+from app.schemas.report import (
+    ReportChangeRequestCreate,
+    ReportChangeRequestItem,
+    ReportChangeReview,
+    ReportMeta,
+    ReportPhaseOut,
+    ReportPhasePatch,
+    ReportProjectCreate,
+    ReportProjectCreatePhase,
+    ReportProjectDetail,
+    ReportProjectItem,
+)
 
 __all__ = [
     "ResourceCreate", "ResourceRead", "ResourceUpdate",
@@ -97,5 +109,8 @@ __all__ = [
     "UserCreate", "UserRead", "UserUpdate", "LoginRequest", "LoginResponse", "PasswordChange",
     "DeleteRequestCreate", "DeleteRequestRead", "DeleteReview", "OperationLogRead",
     "PhaseChangeRequestCreate", "PhaseChangeRequestRead", "PhaseChangeReview",
+    "ReportChangeRequestCreate", "ReportChangeRequestItem", "ReportChangeReview",
+    "ReportMeta", "ReportPhaseOut", "ReportPhasePatch",
+    "ReportProjectCreate", "ReportProjectCreatePhase", "ReportProjectDetail", "ReportProjectItem",
     "AnalysisTrend", "SnapshotRunResult", "TrendPoint", "WeeklyPoint",
 ]

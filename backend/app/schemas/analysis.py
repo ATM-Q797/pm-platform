@@ -7,7 +7,7 @@ from pydantic import BaseModel
 
 
 class SnapshotRunResult(BaseModel):
-    """手动快照触发结果：created=false 表示当日已有（幂等跳过）。"""
+    """手动快照触发结果：created=false 表示当日已有（幂等跳过）；force=true 重采覆盖当日行，created=true 表示返回新采集数据（新建或覆盖）。"""
     snapshot_date: str  # YYYY-MM-DD
     created: bool
     metrics: dict[str, Any]

@@ -183,16 +183,24 @@ def collect_metrics(db: Session) -> dict:
     }
 
 
-def create_today_if_absent(db: Session) -> tuple[StatusSnapshot, bool]:
+def create_today_if_absent(db: Session, force: bool = False) -> tuple[StatusSnapshot, bool]:
     """幂等创建当日快照：当日已有 → 原样返回 (existing, False)；否则采集并建行 (row, True)。
+
+    force=True（用户 2026-10-29 指令：分析弹窗"数据刷新"按钮）：当日已有也重新采集覆盖，
+    让导入新项目表后可立即看到最新分析；快照历史仍保持每日一行（覆盖当日，不新增行）。
 
     并发兜底：两个 worker 同时越过存在性检查时，snapshot_date 唯一约束让
     第二个 commit 失败 → 回滚重查（多 worker 下重复触发不产生两行）。
     """
     today = date.today()
     existing = db.scalar(select(StatusSnapshot).where(StatusSnapshot.snapshot_date == today))
-    if existing is not None:
+    if existing is not None and not force:
         return existing, False
+    if existing is not None:
+        existing.metrics = collect_metrics(db)
+        db.commit()
+        db.refresh(existing)
+        return existing, True
     snapshot = StatusSnapshot(snapshot_date=today, metrics=collect_metrics(db))
     db.add(snapshot)
     try:

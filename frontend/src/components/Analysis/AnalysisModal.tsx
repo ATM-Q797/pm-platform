@@ -10,8 +10,8 @@
  */
 import { useEffect, useRef, useState } from 'react'
 import { Button, Empty, Modal, Segmented, Spin, Tabs, message } from 'antd'
-import { CloseOutlined, FundOutlined } from '@ant-design/icons'
-import { getAnalysisTrend } from '../../api/analysis'
+import { CloseOutlined, FundOutlined, SyncOutlined } from '@ant-design/icons'
+import { getAnalysisTrend, runSnapshot } from '../../api/analysis'
 import { useTheme } from '../../theme'
 import type { AnalysisMetrics, AnalysisTrend, TrendPoint, WeeklyPoint } from '../../types'
 import type { EChartsOption } from 'echarts'
@@ -209,6 +209,7 @@ export default function AnalysisModal({ open, onClose }: Props) {
   const [days, setDays] = useState<RangeDays>(30)
   const [trend, setTrend] = useState<AnalysisTrend | null>(null)
   const [loading, setLoading] = useState(false)
+  const [refreshing, setRefreshing] = useState(false)
 
   useEffect(() => {
     if (!open) return
@@ -423,7 +424,27 @@ const tabItems = [
         <div style={{ fontSize: 12, color: 'var(--text-secondary, #888)', margin: '2px 0 10px' }}>
           专项项目不纳入统计
         </div>
-        <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
+        <div style={{ display: 'flex', justifyContent: 'flex-end', gap: 8, marginBottom: 8 }}>
+          {/* 数据刷新（用户 2026-10-29 指令）：force 重采当日快照，导入新项目表后立即可见最新分析 */}
+          <Button
+            icon={<SyncOutlined spin={refreshing} />}
+            disabled={refreshing}
+            onClick={async () => {
+              setRefreshing(true)
+              try {
+                await runSnapshot(true)
+                message.success('分析数据已刷新')
+                const data = await getAnalysisTrend(days)
+                setTrend(data)
+              } catch (e) {
+                message.error('刷新失败：' + (e as Error).message)
+              } finally {
+                setRefreshing(false)
+              }
+            }}
+          >
+            数据刷新
+          </Button>
           {/* 天数维度仅 30 天（用户 2026-10-27：90/180 切换快照积累有限看不出变化，删除） */}
           <Segmented
             value={days}

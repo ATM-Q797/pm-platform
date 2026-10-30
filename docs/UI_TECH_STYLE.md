@@ -37,6 +37,7 @@
 | 警告 Warning | `#fbbf24` | `#d97706` |
 | 危险 Error | `#ff4d6d` | `#e11d48` |
 | 背景 Layout | `#0a0e1a` | `#eef2f8` |
+| 背景 Secondary（填报页项目字段栏） | `#182034` | `#fafafa` |
 | 容器 Container | `rgba(20,27,45,.72)` | `rgba(255,255,255,.8)` |
 | 边框 Border | `rgba(120,180,255,.15)` | `rgba(8,145,178,.15)` |
 | 文字 Primary | `#e8ecf8` | `#0f172a` |

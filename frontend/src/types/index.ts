@@ -10,6 +10,8 @@ export const MARKET_OPTIONS = [
 // 且避免 App 静态导入页面模块破坏 ProjectListPage 的懒加载分包。
 export const PROJECT_LIST_FILTERS_KEY = 'pm_project_list_filters'
 export const PROJECT_LIST_SEARCH_KEY = 'pm_project_list_search'
+export const REPORT_FILTERS_KEY = 'pm_report_filters'
+export const REPORT_SEARCH_KEY = 'pm_report_search'
 
 export const MARKET_OPTION_ITEMS = MARKET_OPTIONS.map((m) => ({ value: m, label: m }))
 
@@ -17,7 +19,7 @@ export const MARKET_OPTION_ITEMS = MARKET_OPTIONS.map((m) => ({ value: m, label:
 export interface Project {
   id: number
   code: string
-  category: string // 新需求/量产/定制/改造
+  category: string // 新需求/量产升级/定制/改造
   name: string
   owner: string
   market: string // 销售区域（拉美区/西欧区/...）
@@ -406,13 +408,124 @@ export interface SnapshotRunResult {
 }
 
 // ---------- 用户与认证 ----------
+export type UserRole = 'admin' | 'manager' | 'engineer' | 'viewer' | 'reporter'
+
 export interface UserInfo {
   id: number
   username: string
   name: string
-  role: 'admin' | 'manager' | 'engineer' | 'viewer'
+  role: UserRole
   is_active: boolean
   must_change_password: boolean
   resource_id?: number | null
   created_at?: string | null
+}
+
+// ---------- 信息填报（信息填报一期 §五/§六） ----------
+
+/** 字段级 editable 标记（服务端 §3.2 判定，前端只做显示裁剪） */
+export type EditableMap = Record<string, boolean>
+
+export interface ReportPhaseRow {
+  id: number
+  phase_type: string
+  name: string
+  sequence: number
+  plan_start?: string | null
+  plan_end?: string | null
+  actual_start?: string | null
+  actual_end?: string | null
+  status: string
+  progress: number
+  remark?: string | null
+  assignees: Resource[]
+  assignee_ids: number[]
+  editable: EditableMap
+  can_request_change: boolean
+  has_pending: boolean
+}
+
+export interface ReportProjectItem {
+  id: number
+  code: string
+  name: string
+  category: string
+  owner: string
+  market: string
+  status: string
+  remark?: string | null
+  managed_by?: number | null
+  managed_by_name?: string | null
+  progress: number | null // 名下阶段 progress 均值；无阶段 null（显示"—"）
+  is_mine: boolean
+  involved: boolean
+  phase_count: number
+  overdue: boolean
+  due_soon: boolean
+}
+
+export interface ReportProjectDetail {
+  id: number
+  code: string
+  name: string
+  category: string
+  owner: string
+  market: string
+  status: string
+  remark?: string | null
+  managed_by?: number | null
+  managed_by_name?: string | null
+  is_mine: boolean
+  // 删除权限（用户 2026-10-29 需求 3）：仅项目负责人及管理员
+  can_delete: boolean
+  editable: EditableMap
+  phases: ReportPhaseRow[]
+}
+
+export interface ReportPhaseInput {
+  phase_type: string
+  plan_start?: string | null
+  plan_end?: string | null
+  assignee_ids: number[]
+}
+
+export interface ReportProjectCreatePayload {
+  code?: string | null // 留空/缺省 → 后端自动递增（用户 2026-10-29：编号可不填）
+  category: string
+  name: string
+  market: string
+  status: string
+  remark?: string | null
+  managed_by?: number | null
+  phases: ReportPhaseInput[]
+}
+
+export interface ReportChangeProposal {
+  old?: string | null
+  new?: string | null
+}
+
+export interface ReportChangeRequestItem {
+  id: number
+  phase_id: number
+  phase_name?: string | null
+  project_id: number
+  project_name?: string | null
+  project_code?: string | null
+  requester_name?: string | null
+  proposed: Record<string, ReportChangeProposal>
+  status: string
+  review_comment?: string | null
+  created_at?: string | null
+}
+
+export interface ReportMeta {
+  categories: string[]
+  markets: string[]
+  project_statuses: string[]
+  phase_statuses: string[]
+  phase_types: { value: string; label: string }[]
+  users: { id: number; name: string; role: string }[]
+  resources: { id: number; name: string; role: string | null }[]
+  next_code: string
 }

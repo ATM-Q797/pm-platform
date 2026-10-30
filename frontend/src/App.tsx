@@ -10,16 +10,17 @@ import {
   KeyOutlined,
   DownOutlined,
   AuditOutlined,
-  CheckSquareOutlined,
   StarOutlined,
   MoonOutlined,
   SunOutlined,
+  FormOutlined,
 } from '@ant-design/icons'
 import ErrorBoundary from './components/ErrorBoundary'
 import LoginPage from './pages/LoginPage'
 import ChangePasswordModal from './components/ChangePasswordModal'
 import DashboardPage from './pages/DashboardPage'
-import { PROJECT_LIST_FILTERS_KEY as FILTERS_KEY, PROJECT_LIST_SEARCH_KEY as SEARCH_KEY } from './types'
+import ReportPage from './pages/ReportPage'
+import { PROJECT_LIST_FILTERS_KEY as FILTERS_KEY, PROJECT_LIST_SEARCH_KEY as SEARCH_KEY, REPORT_FILTERS_KEY, REPORT_SEARCH_KEY } from './types'
 import { getMe, logout } from './api/auth'
 import { useTheme } from './theme'
 import type { UserInfo } from './types'
@@ -41,12 +42,14 @@ const ROLE_LABEL: Record<string, string> = {
   manager: '项目负责人',
   engineer: '工程师',
   viewer: '观察者',
+  reporter: '填报人',
 }
 const ROLE_COLOR: Record<string, string> = {
   admin: 'red',
   manager: 'blue',
   engineer: 'green',
   viewer: 'default',
+  reporter: 'purple',
 }
 
 export default function App() {
@@ -66,6 +69,8 @@ export default function App() {
       try {
         sessionStorage.removeItem(FILTERS_KEY)
         sessionStorage.removeItem(SEARCH_KEY)
+        sessionStorage.removeItem(REPORT_FILTERS_KEY)
+        sessionStorage.removeItem(REPORT_SEARCH_KEY)
       } catch { /* 无害：读不到就不清 */ }
     }
     window.addEventListener('pagehide', clearListFilters)
@@ -105,8 +110,12 @@ export default function App() {
       setForcePwd(true)
       setPwdModalOpen(true)
     }
-    // 按角色跳转默认页：admin/viewer 去看板，manager/engineer 去项目列表
-    const defaultPath = u.role === 'manager' || u.role === 'engineer' ? '/projects' : '/'
+    // 按角色跳转默认页：admin/viewer 去看板，manager/engineer 去项目列表，reporter 去填报页
+    const defaultPath = u.role === 'reporter'
+      ? '/report'
+      : u.role === 'manager' || u.role === 'engineer'
+      ? '/projects'
+      : '/'
     navigate(defaultPath)
   }
 
@@ -120,7 +129,9 @@ export default function App() {
     navigate('/login')
   }
 
-  const selectedKey = location.pathname.startsWith('/resources')
+  const selectedKey = location.pathname.startsWith('/report')
+    ? 'report'
+    : location.pathname.startsWith('/resources')
     ? 'resources'
     : location.pathname.startsWith('/special-projects')
     ? 'special-projects' // 专项列表/详情（含 /special-projects/:id）都高亮「专项项目」——须在 /projects 判定之前
@@ -132,8 +143,6 @@ export default function App() {
     ? 'review'
     : location.pathname.startsWith('/my-tasks')
     ? 'my-tasks'
-    : location.pathname.startsWith('/special-projects')
-    ? 'special-projects'
     : 'dashboard'
 
   if (loading) {
@@ -149,39 +158,20 @@ export default function App() {
   }
 
   // 导航项（按角色）
-  // - admin：全部（看板/项目/资源/用户管理/审核中心）
-  // - manager：项目列表 + 我的任务（不需要看板和资源负载）
-  // - engineer：项目列表 + 我的任务（不需要看板和资源负载）
-  // - viewer：看板/项目列表/资源负载（只读）
-  const navItems =
-    user.role === 'admin'
-      ? [
-          { key: 'dashboard', icon: <DashboardOutlined />, label: '看板' },
-          { key: 'projects', icon: <ProjectOutlined />, label: '项目列表' },
-          { key: 'special-projects', icon: <StarOutlined />, label: '专项项目' },
-          { key: 'resources', icon: <TeamOutlined />, label: '资源负载' },
-          { key: 'users', icon: <UserOutlined />, label: '用户管理' },
-          { key: 'review', icon: <AuditOutlined />, label: '审核中心' },
-        ]
-      : user.role === 'manager' || user.role === 'engineer'
-      ? [
-          { key: 'projects', icon: <ProjectOutlined />, label: '项目列表' },
-          ...(user.role === 'manager'
-            ? [{ key: 'special-projects', icon: <StarOutlined />, label: '专项项目' }]
-            : []),
-          { key: 'my-tasks', icon: <CheckSquareOutlined />, label: '我的任务' },
-          ...(user.role === 'manager'
-            ? [
-                { key: 'review', icon: <AuditOutlined />, label: '审核中心' },
-              ]
-            : []),
-        ]
-      : // viewer
-        [
-          { key: 'dashboard', icon: <DashboardOutlined />, label: '看板' },
-          { key: 'projects', icon: <ProjectOutlined />, label: '项目列表' },
-          { key: 'resources', icon: <TeamOutlined />, label: '资源负载' },
-        ]
+  // 导航标签：reporter 仅见「信息填报」（用户 2026-10-29 权限分级需求 1）；
+  // 其余角色显示全部页面标签（页面内权限仍按角色守卫）
+  const ALL_NAV_ITEMS = [
+    { key: 'dashboard', icon: <DashboardOutlined />, label: '看板' },
+    { key: 'projects', icon: <ProjectOutlined />, label: '项目列表' },
+    { key: 'special-projects', icon: <StarOutlined />, label: '专项项目' },
+    { key: 'resources', icon: <TeamOutlined />, label: '资源负载' },
+    { key: 'users', icon: <UserOutlined />, label: '用户管理' },
+    { key: 'review', icon: <AuditOutlined />, label: '审核中心' },
+    { key: 'report', icon: <FormOutlined />, label: '信息填报' },
+  ]
+  const navItems = user.role === 'reporter'
+    ? ALL_NAV_ITEMS.filter((i) => i.key === 'report')
+    : ALL_NAV_ITEMS
 
   // 用户下拉菜单
   const userMenu = {
@@ -223,6 +213,7 @@ export default function App() {
                 else if (key === 'users') navigate('/users')
                 else if (key === 'review') navigate('/review')
                 else if (key === 'my-tasks') navigate('/my-tasks')
+                else if (key === 'report') navigate('/report')
               }}
               items={navItems}
               style={{ minWidth: 280, background: 'transparent' }}
@@ -250,18 +241,30 @@ export default function App() {
         <Content style={{ padding: 24 }}>
           <Suspense fallback={<Spin size="large" style={{ display: 'block', margin: '100px auto' }} />}>
             <Routes>
-              {/* 看板/资源负载仅 admin + viewer 可见，manager/engineer 重定向到项目列表 */}
+              {/* 信息填报（信息填报一期）：所有角色可达（reporter 主页面；平台角色也可协作填报） */}
+              <Route path="/report" element={<ReportPage user={user} />} />
+              {/* 看板/资源负载仅 admin + viewer 可见，manager/engineer 重定向到项目列表；reporter 隔离回填报页（评审 #74） */}
               <Route path="/" element={
-                user.role === 'manager' || user.role === 'engineer'
+                user.role === 'reporter'
+                  ? <Navigate to="/report" replace />
+                  : user.role === 'manager' || user.role === 'engineer'
                   ? <Navigate to="/projects" replace />
                   : <DashboardPage />
               } />
-              <Route path="/projects" element={<ProjectListPage />} />
-              <Route path="/projects/:id" element={<ProjectDetailPage />} />
+              {/* reporter 角色隔离（§3.1）：平台页面全部回填报页（各路由独立守卫，不可用通配——
+                  react-router 按特异性匹配，通配会被具体路由压过，实测 /projects 穿透） */}
+              <Route path="/projects" element={
+                user.role === 'reporter' ? <Navigate to="/report" replace /> : <ProjectListPage />
+              } />
+              <Route path="/projects/:id" element={
+                user.role === 'reporter' ? <Navigate to="/report" replace /> : <ProjectDetailPage />
+              } />
               {/* 专项项目：仅 admin/manager 可见（与审核中心同模式） */}
               <Route path="/special-projects" element={
                 user.role === 'admin' || user.role === 'manager'
                   ? <SpecialProjectsPage />
+                  : user.role === 'reporter'
+                  ? <Navigate to="/report" replace />
                   : <Navigate to="/" replace />
               } />
               {/* 专项项目详情：复用详情页（is_special 驱动返回按钮），并套用与列表相同的角色守卫——
@@ -269,30 +272,45 @@ export default function App() {
               <Route path="/special-projects/:id" element={
                 user.role === 'admin' || user.role === 'manager'
                   ? <ProjectDetailPage />
+                  : user.role === 'reporter'
+                  ? <Navigate to="/report" replace />
                   : <Navigate to="/" replace />
               } />
               <Route path="/resources" element={
                 user.role === 'manager' || user.role === 'engineer'
                   ? <Navigate to="/projects" replace />
+                  : user.role === 'reporter'
+                  ? <Navigate to="/report" replace />
                   : <ResourcePage />
               } />
               {/* 用户管理/审核中心仅 admin */}
               <Route path="/users" element={
-                user.role === 'admin' ? <UserManagePage /> : <Navigate to="/" replace />
+                user.role === 'admin'
+                  ? <UserManagePage />
+                  : user.role === 'reporter'
+                  ? <Navigate to="/report" replace />
+                  : <Navigate to="/" replace />
               } />
               <Route path="/review" element={
                 user.role === 'admin' || user.role === 'manager'
                   ? <ReviewPage userRole={user.role} />
+                  : user.role === 'reporter'
+                  ? <Navigate to="/report" replace />
                   : <Navigate to="/" replace />
               } />
               {/* 我的任务仅 manager + engineer */}
               <Route path="/my-tasks" element={
                 user.role === 'manager' || user.role === 'engineer'
                   ? <MyTasksPage />
+                  : user.role === 'reporter'
+                  ? <Navigate to="/report" replace />
                   : <Navigate to="/" replace />
               } />
-              <Route path="/login" element={<Navigate to="/" replace />} />
-              <Route path="*" element={<Navigate to="/" replace />} />
+              <Route path="/login" element={user.role === 'reporter' ? <Navigate to="/report" replace /> : <Navigate to="/" replace />} />
+              {/* 兜底：reporter 回填报页，其余回首页（置于末尾，仅无其他匹配时生效） */}
+              <Route path="*" element={
+                user.role === 'reporter' ? <Navigate to="/report" replace /> : <Navigate to="/" replace />
+              } />
             </Routes>
           </Suspense>
         </Content>

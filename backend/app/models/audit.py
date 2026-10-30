@@ -61,10 +61,12 @@ class OperationLog(Base):
 
 
 class PhaseChangeRequest(Base):
-    """工程师阶段编辑审批（Phase 5.3）。
+    """工程师阶段编辑审批（Phase 5.3）+ 填报流改期申请（信息填报一期复用，零 DDL）。
 
     流程：engineer 编辑阶段 → 创建 pending change request →
           manager 审核通过→变更应用 / 拒绝→关闭请求。
+    填报流：阶段负责人提交计划时间变更 → 项目负责人（managed_by）在 /api/report/* 审批，
+          提案 JSON 格式 {"plan_start": {"old","new"}, "plan_end": {"old","new"}}（设计 §四）。
     同一阶段同时只能有一个 pending 请求。
     """
     __tablename__ = "phase_change_request"

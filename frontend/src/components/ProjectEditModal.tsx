@@ -84,7 +84,7 @@ export default function ProjectEditModal({ project, open, onClose, onSaved }: {
               getPopupContainer={(trigger) => trigger.parentElement || document.body}
               options={[
                 { value: '新需求', label: '新需求' },
-                { value: '量产', label: '量产' },
+                { value: '量产升级', label: '量产升级' },
                 { value: '定制', label: '定制' },
                 { value: '改造', label: '改造' },
               ]}

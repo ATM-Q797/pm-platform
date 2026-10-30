@@ -26,11 +26,15 @@ _TREND_DAYS = (30, 90, 180)
 @router.post("/snapshots/run", response_model=SnapshotRunResult)
 def run_snapshot(
     response: Response,
+    force: bool = False,
     db: Session = Depends(get_db),
     _user: User = Depends(require_role("admin")),
 ) -> SnapshotRunResult:
-    """手动触发当日快照（幂等：建行 201 / 当日已有 200）。"""
-    snapshot, created = create_today_if_absent(db)
+    """手动触发当日快照（幂等：建行 201 / 当日已有 200）。
+
+    force=True（分析弹窗"数据刷新"按钮）：当日已有也重新采集覆盖，立即反映最新项目数据。
+    """
+    snapshot, created = create_today_if_absent(db, force=force)
     response.status_code = 201 if created else 200
     return SnapshotRunResult(
         snapshot_date=snapshot.snapshot_date.isoformat(),

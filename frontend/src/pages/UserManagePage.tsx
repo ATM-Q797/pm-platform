@@ -20,6 +20,7 @@ import {
   createUser,
   updateUser,
   deleteUser,
+  forceDeleteUser,
   resetPassword,
   type UserCreatePayload,
 } from '../api/users'
@@ -31,6 +32,7 @@ const ROLE_COLOR: Record<string, string> = {
   manager: 'blue',
   engineer: 'green',
   viewer: 'default',
+  reporter: 'purple',
 }
 
 const ROLE_LABEL: Record<string, string> = {
@@ -38,6 +40,7 @@ const ROLE_LABEL: Record<string, string> = {
   manager: '项目负责人',
   engineer: '工程师',
   viewer: '观察者',
+  reporter: '填报人',
 }
 
 export default function UserManagePage() {
@@ -116,10 +119,40 @@ export default function UserManagePage() {
     }
   }
 
+  // 强制删除（用户 2026-10-29 指令）：3 次删除失败后，第 4 次删除+确认时弹「强制删除」询问
+  const [deleteCounts, setDeleteCounts] = useState<Record<number, number>>({})
+  const [forceTarget, setForceTarget] = useState<UserInfo | null>(null)
+
   const handleDelete = async (u: UserInfo) => {
     try {
       await deleteUser(u.id)
       message.success('已删除')
+      load()
+    } catch (e) {
+      const msg = (e as Error).message
+      // 评审 #6+#8：仅审计保护类 400 计入升级计数——拦截器抛裸 Error（无 .response，
+      // client.ts:22），唯一可靠信号是后端 400 文案含"审计"二字（users.py 引导文案独有）
+      if (!msg.includes('审计')) {
+        message.error(msg)
+        return
+      }
+      const n = (deleteCounts[u.id] ?? 0) + 1
+      setDeleteCounts((c) => ({ ...c, [u.id]: n }))
+      if (n >= 4) {
+        // 第 4 次：升级为强制删除询问
+        setForceTarget(u)
+      } else {
+        message.error(`${msg}（第 ${n} 次，第 4 次可选强制删除）`)
+      }
+    }
+  }
+
+  const handleForceDelete = async () => {
+    if (!forceTarget) return
+    try {
+      await forceDeleteUser(forceTarget.id)
+      message.success(`${forceTarget.name} 已强制删除（操作日志保留）`)
+      setForceTarget(null)
       load()
     } catch (e) {
       message.error((e as Error).message)
@@ -238,6 +271,7 @@ export default function UserManagePage() {
                 { value: 'manager', label: '项目负责人（管理自己的项目）' },
                 { value: 'engineer', label: '工程师（更新分配的阶段）' },
                 { value: 'viewer', label: '观察者（只读）' },
+                { value: 'reporter', label: '填报人（信息填报页，过渡期角色）' },
               ]}
             />
           </Form.Item>
@@ -261,6 +295,25 @@ export default function UserManagePage() {
             </Form.Item>
           )}
         </Form>
+      </Modal>
+
+      {/* 强制删除确认（用户 2026-10-29 指令）：第 4 次删除失败后弹出——墓碑式，日志保留 */}
+      <Modal
+        open={!!forceTarget}
+        title={`强制删除用户 ${forceTarget?.name ?? ''}？`}
+        onOk={handleForceDelete}
+        onCancel={() => setForceTarget(null)}
+        okText="确认强制删除"
+        okButtonProps={{ danger: true }}
+        cancelText="取消"
+      >
+        <p>该账号有操作记录，普通删除被审计保护拒绝。</p>
+        <p style={{ marginBottom: 0 }}><b>强制删除效果：</b></p>
+        <ul style={{ margin: '8px 0 0', paddingLeft: 22 }}>
+          <li>用户从用户管理列表消失、无法登录</li>
+          <li>操作日志<b>完整保留</b>（历史记录显示“已强制删除”标记）</li>
+          <li>项目负责人等指派保留（项目历史不失真）</li>
+        </ul>
       </Modal>
     </Card>
   )
