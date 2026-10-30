@@ -32,18 +32,6 @@ from app.services import apply_template, build_gantt
 from app.services.critical_path import compute_critical_path
 from app.services.project_code import next_project_code, next_special_code
 
-# 纯数字编号正则（自动编号用）——编号口径见 app/services/project_code.py
-_CODE_INT_RE = re.compile(r"^\d+$")
-
-
-def _next_project_code(db: Session) -> str:
-    """兼容别名——实现见 app/services/project_code.py（全平台单一来源）。
-
-    普通项目：非专项纯数字编号最大值 + 1，逐个跳过已被占用值；
-    专项项目走独立 ZX 系列，不占用项目编号（用户 2026-10-30 规则）。
-    """
-    return next_project_code(db)
-
 router = APIRouter(prefix="/api/projects", tags=["项目"])
 
 
@@ -195,13 +183,15 @@ def create_project(
     try:
         db.commit()
     except IntegrityError:
-        # 并发创建撞 code 唯一约束（取号与写入之间无锁）：回滚并返回 409，
-        # 让调用方重试，而不是抛 500（评审 #8）
+        # 完整性错误分类处理（评审 #8/#N3）：只有 code 真的被占才报 409 让调用方重试，
+        # 其它约束错误（外键等）原样抛出，不冒充“编号冲突”误导排查
         db.rollback()
-        raise HTTPException(
-            status.HTTP_409_CONFLICT,
-            f"项目编号 {data['code']} 已被占用（可能是并发创建），请重试",
-        )
+        if db.scalars(select(Project).where(Project.code == data["code"])).first():
+            raise HTTPException(
+                status.HTTP_409_CONFLICT,
+                f"项目编号 {data['code']} 已被占用（可能是并发创建），请重试",
+            )
+        raise
     db.refresh(project)
     log_operation(db, user, "create_project", "project", project.id, project.name)
     db.commit()
