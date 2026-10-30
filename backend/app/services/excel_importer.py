@@ -929,10 +929,21 @@ _CODE_INT_RE = re.compile(r"^\d+$")
 
 
 def _next_project_code(db: Session) -> str:
-    """生成下一个项目编号：现有纯数字编号最大值 + 1（无则从 1 开始）。"""
-    codes = db.scalars(select(Project.code)).all()
-    nums = [int(c) for c in codes if c and _CODE_INT_RE.match(c)]
-    return str(max(nums) + 1) if nums else "1"
+    """生成下一个普通项目编号：仅统计非专项项目的纯数字编号，最大值 + 1。
+
+    专项项目单独核算、不占用项目编号（用户 2026-10-30 规则）——与
+    routers/projects.py 同口径：专项走独立 ZX 系列，历史专项若占用数字编号则跳过，
+    避免 code 唯一约束冲突。
+    """
+    normal_codes = db.scalars(
+        select(Project.code).where(Project.is_special.is_(False))
+    ).all()
+    nums = [int(c) for c in normal_codes if c and _CODE_INT_RE.match(c)]
+    candidate = max(nums) + 1 if nums else 1
+    taken = set(db.scalars(select(Project.code)).all())
+    while str(candidate) in taken:
+        candidate += 1
+    return str(candidate)
 
 
 # 阶段类型自然顺序（PHASE_TYPES_V2 §三）：解析 P(主位)(子位)? → (主, 子) 元组比较，

@@ -357,6 +357,7 @@ export default function PhaseDetailTable({
             <OwnerSelect
               value={detail.managed_by}
               users={userOptions}
+              fallbackLabel={detail.managed_by_name ?? detail.owner}
               onChange={(id) => patchProject({ managed_by: id })}
             />
           ) : (
@@ -459,28 +460,43 @@ function OwnerSelect({
   value,
   users,
   onChange,
+  fallbackLabel,
 }: {
   value: number | null | undefined
   users: { value: number; label: string }[]
   onChange: (v: number) => void
+  fallbackLabel?: string | null
 }) {
-  // 无匹配选项（负责人已停用等）时显示占位名，避免裸数字 id；value 为空时不注入兜底项
+  // 显示兜底（用户 2026-10-30 指令）：项目负责人已有值（owner 文本）时不得留空——
+  // managed_by 未关联账号（Excel 导入项目）→ 注入哨兵选项展示负责人姓名，
+  // 选中真实用户才触发 onChange（哨兵 0 不上报，避免写入非法 id）。
+  // 无匹配选项（负责人已停用等）时显示占位名，避免裸数字 id。
   const matched = users.find((u) => u.value === value)
-  const options =
-    matched || value == null ? users : [...users, { value: value as number, label: `用户#${value}` }]
+  const label = (fallbackLabel || '').trim()
+  const useFallback = !matched && value == null && !!label
+  const options = useFallback
+    ? [{ value: OWNER_FALLBACK_VALUE, label }, ...users]
+    : matched || value == null
+      ? users
+      : [...users, { value: value as number, label: `用户#${value}` }]
   return (
     <Select
       size="small"
       style={{ width: 120 }}
-      value={value ?? undefined}
+      value={useFallback ? OWNER_FALLBACK_VALUE : value ?? undefined}
       placeholder="选负责人"
-      onChange={onChange}
+      onChange={(v: number) => {
+        if (v !== OWNER_FALLBACK_VALUE) onChange(v)
+      }}
       showSearch
       optionFilterProp="label"
       options={options}
     />
   )
 }
+
+/** 负责人文本哨兵值：仅用于展示未关联账号的负责人姓名，不写库（用户 id 从 1 起，0 安全） */
+const OWNER_FALLBACK_VALUE = 0
 
 function NameInput({
   value,

@@ -35,10 +35,31 @@ _CODE_INT_RE = re.compile(r"^\d+$")
 
 
 def _next_project_code(db: Session) -> str:
-    """生成下一个项目编号：现有纯数字编号最大值 + 1（无则从 1 开始）。"""
-    codes = db.scalars(select(Project.code)).all()
-    nums = [int(c) for c in codes if c and _CODE_INT_RE.match(c)]
-    return str(max(nums) + 1) if nums else "1"
+    """生成下一个普通项目编号：仅统计非专项项目的纯数字编号，最大值 + 1。
+
+    专项项目单独核算、不占用项目编号（用户 2026-10-30 规则）：专项走独立 ZX 系列
+    （见 _next_special_code），不参与本数字序列。历史专项若曾占用数字编号，
+    则跳过已被占用的值，避免 code 唯一约束冲突。
+    """
+    normal_codes = db.scalars(
+        select(Project.code).where(Project.is_special.is_(False))
+    ).all()
+    nums = [int(c) for c in normal_codes if c and _CODE_INT_RE.match(c)]
+    candidate = max(nums) + 1 if nums else 1
+    taken = set(db.scalars(select(Project.code)).all())
+    while str(candidate) in taken:
+        candidate += 1
+    return str(candidate)
+
+
+def _next_special_code(db: Session) -> str:
+    """生成下一个专项项目编号：独立 ZX 系列（ZX001 起），不占用普通项目数字编号。"""
+    codes = db.scalars(select(Project.code).where(Project.is_special.is_(True))).all()
+    nums = [
+        int(c[2:]) for c in codes
+        if c and c.upper().startswith("ZX") and c[2:].isdigit()
+    ]
+    return f"ZX{max(nums) + 1:03d}" if nums else "ZX001"
 
 router = APIRouter(prefix="/api/projects", tags=["项目"])
 
@@ -174,9 +195,12 @@ def create_project(
     user: User = Depends(require_role("admin", "manager")),
 ):
     data = payload.model_dump()
-    # 项目编号：未提供时自动生成（现有纯数字编号的最大值 + 1）
+    # 项目编号：未提供时自动生成——专项走独立 ZX 系列，普通项目走数字序列
+    # （专项单独核算、不占用项目编号，用户 2026-10-30 规则）
     if not data.get("code"):
-        data["code"] = _next_project_code(db)
+        data["code"] = (
+            _next_special_code(db) if data.get("is_special") else _next_project_code(db)
+        )
     if db.scalars(select(Project).where(Project.code == data["code"])).first():
         raise HTTPException(400, f"项目编号 {data['code']} 已存在")
     # 自动记录创建者；manager 创建时若未指定 managed_by，默认为自己的 user_id
