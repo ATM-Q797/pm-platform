@@ -49,7 +49,7 @@ export default function ApprovalTab({
   }
 
   const columns: ColumnsType<ReportChangeRequestItem> = [
-    { title: '项目编号', dataIndex: 'project_code', width: 90 },
+    // 项目编号已停用（用户 2026-10-30 指令）：审批表改以项目名称识别
     { title: '项目', dataIndex: 'project_name', width: 180, ellipsis: true },
     { title: '阶段', dataIndex: 'phase_name', width: 130 },
     { title: '申请人', dataIndex: 'requester_name', width: 100 },

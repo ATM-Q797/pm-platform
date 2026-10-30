@@ -306,9 +306,16 @@ def project_overdue_flags(project: Project, phases: list[Phase]) -> tuple[bool, 
 # ---------- 可见范围 ----------
 
 def visible_projects(db: Session, user: User) -> list[Project]:
-    """填报视角可见项目（§3.1）：全量普通项目（专项排除，与 GET /api/projects 同口径）。"""
+    """填报视角可见项目（§3.1）：全量普通项目（专项排除，与 GET /api/projects 同口径）。
+
+    排序：项目计划开始时间升序（无计划日期的排最后，同日期按 id）——
+    与项目列表页（routers/projects.list_projects）同一条规则，
+    两个页面项目顺序一一对应（用户 2026-10-30 指令）。
+    """
     return list(db.scalars(
-        select(Project).where(Project.is_special.is_(False)).order_by(Project.id)
+        select(Project)
+        .where(Project.is_special.is_(False))
+        .order_by(Project.plan_start.is_(None), Project.plan_start.asc(), Project.id)
     ))
 
 

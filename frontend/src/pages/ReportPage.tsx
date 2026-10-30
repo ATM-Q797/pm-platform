@@ -86,18 +86,24 @@ export default function ReportPage({ user }: { user: UserInfo }) {
 
   const columns: ColumnsType<ReportProjectItem> = [
     {
-      title: '项目编号',
-      dataIndex: 'code',
-      width: 90,
+      title: '序号',
+      width: 70,
+      align: 'center',
+      render: (_: unknown, __: ReportProjectItem, index: number) => index + 1,
+    },
+    {
+      title: '项目名称',
+      dataIndex: 'name',
+      width: 360,
+      ellipsis: true,
       render: (v: string, row) => (
         <Space_inline>
           {row.is_mine && <Tag color="blue" style={{ margin: 0 }}>我负责</Tag>}
           {row.involved && !row.is_mine && <Tag color="cyan" style={{ margin: 0 }}>我参与</Tag>}
-          <Text copyable={false}>{v}</Text>
+          <span>{v}</span>
         </Space_inline>
       ),
     },
-    { title: '项目名称', dataIndex: 'name', width: 360, ellipsis: true },
     { title: '类目', dataIndex: 'category', width: 90 },
     {
       title: '项目负责人',
@@ -150,38 +156,23 @@ export default function ReportPage({ user }: { user: UserInfo }) {
     },
   ]
 
-  // 「我的」版块（用户 2026-10-30 指令）：展示我创建/负责/参与的项目——除项目编号不显示外
-  // 其余展示与已建项目一致（"我负责/我参与"标记随之移到项目名称列），按创建日期（id 即创建顺序）排序
+  // 「我的」版块（用户 2026-10-30 指令）：展示我创建/负责/参与的项目
+  // 展示字段与已建项目完全一致（项目编号已停用，两版块均以序号替代），
+  // 顺序沿用后端按计划开始时间的排序（不再二次按 id 排，保证与已建项目版块同序）
   // 筛选（用户 2026-10-30：与项目列表页逻辑一致）——搜索词+状态下拉前端过滤，两个版块共用同一筛选
   const filterItems = (rows: ReportProjectItem[]) => {
     const kw = searchText.trim().toLowerCase()
     return rows.filter(
       (p) =>
-        (!kw || p.name.toLowerCase().includes(kw) || p.code.toLowerCase().includes(kw)) &&
+        (!kw || p.name.toLowerCase().includes(kw)) &&
         (!filters.status || p.status === filters.status) &&
         (!filters.market || p.market === filters.market) &&
         (!filters.category || p.category === filters.category),
     )
   }
-  const myProjects = projects
-    .filter((p) => p.is_mine || p.involved)
-    .sort((a, b) => a.id - b.id)
+  const myProjects = projects.filter((p) => p.is_mine || p.involved)
+  // 列配置两版块共用（项目名称列已内含“我负责/我参与”标记）
   const myColumns: ColumnsType<ReportProjectItem> = columns
-    .filter((c) => !('dataIndex' in c && c.dataIndex === 'code'))
-    .map((c) =>
-      'dataIndex' in c && c.dataIndex === 'name'
-        ? {
-            ...c,
-            render: (v: string, row: ReportProjectItem) => (
-              <Space_inline>
-                {row.is_mine && <Tag color="blue" style={{ margin: 0 }}>我负责</Tag>}
-                {row.involved && !row.is_mine && <Tag color="cyan" style={{ margin: 0 }}>我参与</Tag>}
-                <span>{v}</span>
-              </Space_inline>
-            ),
-          }
-        : c,
-    )
 
   return (
     <div>
@@ -189,7 +180,7 @@ export default function ReportPage({ user }: { user: UserInfo }) {
       <div className="pm-toolbar" style={{ marginBottom: 4 }}>
         <Space size="middle" wrap>
           <Input.Search
-            placeholder="搜索项目名称/编号"
+            placeholder="搜索项目名称"
             allowClear
             style={{ width: 240 }}
             value={searchText}

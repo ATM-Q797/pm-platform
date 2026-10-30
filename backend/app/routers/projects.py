@@ -79,16 +79,20 @@ def list_projects(
         stmt = stmt.where(Project.market == market)
     # 专项项目仅专项页可见（SPECIAL_PROJECT §4.3）：普通列表统一排除
     stmt = stmt.where(Project.is_special.is_(False))
-    stmt = stmt.order_by(Project.id)
+    # 排序：项目计划开始时间升序（无计划日期的排最后，同日期按 id）——
+    # 与填报页（services/report_service.visible_projects）同一条排序规则，
+    # 保证「项目列表页」与「信息填报页」项目顺序一一对应（用户 2026-10-30 指令）
+    stmt = stmt.order_by(
+        Project.plan_start.is_(None), Project.plan_start.asc(), Project.id
+    )
 
-    # 关注标记 + 置顶排序（关注的项目优先，组内按 id）
+    # 关注标记（不再置顶排序：两页面顺序必须一致，置顶会打破一一对应）
     favorite_ids = set(db.scalars(
         select(UserFavorite.project_id).where(UserFavorite.user_id == user.id)
     ).all())
     projects = [ProjectRead.model_validate(p) for p in db.scalars(stmt)]
     for item in projects:
         item.is_favorite = item.id in favorite_ids
-    projects.sort(key=lambda x: (not x.is_favorite, x.id))
     return projects
 
 

@@ -323,14 +323,11 @@ export default function ProjectListPage() {
 
   const toggleFavorite = async (r: Project) => {
     const target = !r.is_favorite
-    // 乐观更新：立即切换星标状态，失败回滚
+    // 乐观更新：立即切换星标状态，失败回滚（星标只作标记，不再置顶——
+    // 两页面排序统一按计划开始时间，置顶会打破一一对应，用户 2026-10-30 指令）
     setProjects((prev) => prev.map((p) => (p.id === r.id ? { ...p, is_favorite: target } : p)))
     try {
       await setFavorite(r.id, target)
-      // 置顶：关注后项目应排到前面（后端排序规则：is_favorite DESC, id）
-      if (target) {
-        load()
-      }
     } catch (e) {
       setProjects((prev) => prev.map((p) => (p.id === r.id ? { ...p, is_favorite: !target } : p)))
       message.error('操作失败：' + (e as Error).message)
@@ -346,13 +343,13 @@ export default function ProjectListPage() {
         <a
           onClick={(e) => { e.stopPropagation(); toggleFavorite(r) }}
           style={{ fontSize: 16, color: r.is_favorite ? '#fadb14' : '#d9d9d9' }}
-          title={r.is_favorite ? '取消关注' : '关注（置顶）'}
+          title={r.is_favorite ? '取消关注' : '关注'}
         >
           {r.is_favorite ? <StarFilled /> : <StarOutlined />}
         </a>
       ),
     },
-    { title: '编号', width: 70, align: 'center',
+    { title: '序号', width: 70, align: 'center',
       render: (_: unknown, _r: Project, index: number) => index + 1 },
     {
       title: '项目名称',

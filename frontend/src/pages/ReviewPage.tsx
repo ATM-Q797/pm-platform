@@ -177,7 +177,7 @@ export default function ReviewPage({ userRole = 'admin' }: { userRole?: string }
   // 删除申请表格列
   const reqColumns: ColumnsType<DeleteRequest> = [
     { title: '#', dataIndex: 'id', width: 50, align: 'center' },
-    { title: '项目编号', dataIndex: 'project_code', width: 90, align: 'center' },
+    // 项目编号已停用（用户 2026-10-30 指令）：以项目名称识别
     { title: '项目名称', dataIndex: 'project_name' },
     { title: '申请人', dataIndex: 'requester_name', width: 100 },
     { title: '原因', dataIndex: 'reason', width: 200, ellipsis: true },

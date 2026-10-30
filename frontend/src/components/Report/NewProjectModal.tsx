@@ -98,7 +98,7 @@ export default function NewProjectModal({
         }
       }
       const payload: ReportProjectCreatePayload = {
-        code: values.code?.trim() || null, // 留空 → 后端自动递增（§九-2）
+        // 项目编号已停用（用户 2026-10-30 指令）：界面不再提供输入，后端自动生成
         category: values.category,
         name: values.name,
         market: values.market,
@@ -114,7 +114,7 @@ export default function NewProjectModal({
       }
       setSaving(true)
       const created = await createReportProject(payload)
-      message.success(`项目「${created.name}」已创建（编号 ${created.code}）`)
+      message.success(`项目「${created.name}」已创建`)
       form.resetFields()
       onCreated()
     } catch (e) {
@@ -137,12 +137,6 @@ export default function NewProjectModal({
     >
       <Form form={form} layout="vertical">
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
-          <Form.Item
-            name="code"
-            label="项目编号（可留空，留空自动生成）"
-          >
-            <Input placeholder="留空自动生成" maxLength={20} />
-          </Form.Item>
           <Form.Item name="category" label="项目类目" rules={[{ required: true }]}>
             <Select options={(meta?.categories ?? []).map((c) => ({ value: c, label: c }))} />
           </Form.Item>

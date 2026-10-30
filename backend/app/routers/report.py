@@ -88,7 +88,7 @@ def list_report_projects(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    """填报视角项目列表：按创建日期排序，附参与标记与项目进度均值（§五 Tab1）。"""
+    """填报视角项目列表：按项目计划开始时间排序（与项目列表页同序），附参与标记与项目进度均值（§五 Tab1）。"""
     projects = svc.visible_projects(db, user)
     involved_ids = svc.involved_project_ids(db, user)
     items: list[ReportProjectItem] = []
@@ -113,7 +113,8 @@ def list_report_projects(
             phase_count=len(p.phases),
             **dict(zip(("overdue", "due_soon"), svc.project_overdue_flags(p, p.phases))),
         ))
-    items.sort(key=lambda i: i.id)  # 按创建时间罗列（id 即创建顺序，从 1 开始；用户 2026-10-29 指令，更新原"我负责排前"）
+    # 顺序已由 svc.visible_projects 统一按计划开始时间给出（与 /api/projects 同一条规则）——
+    # 不再二次按 id 排序，否则两页面顺序会分叉（用户 2026-10-30 指令）
     return items
 
 
