@@ -549,21 +549,25 @@ def list_report_change_requests(
 ):
     """待我审批（Tab2 角标数据源）：我负责项目的 pending 变更申请。
 
-    「我负责」与审批端点同一口径（svc.is_project_owner）：managed_by 命中，
-    **或 managed_by 为空时 owner 文本 = 账号名**（Excel 导入项目，用户 2026-10-30 口径）——
-    修复：此前只认 managed_by，Excel 导入项目的负责人在列表里永远看不到待审批项。
+    「我负责」与审批端点同一口径（svc.is_project_owner）：
+    - 管理员：恒可审 → 看到全部 pending（修复：此前同样只认 managed_by，看不到非自己名下的）；
+    - 普通用户：managed_by 命中，**或 managed_by 为空时 owner 文本 = 账号名**（Excel 导入项目，
+      用户 2026-10-30 口径）——修复：此前只认 managed_by，Excel 导入项目的负责人永远看不到。
     """
-    rows = db.scalars(
+    stmt = (
         select(PhaseChangeRequest)
         .join(Project, PhaseChangeRequest.project_id == Project.id)
-        .where(
-            PhaseChangeRequest.status == "pending",
+        .where(PhaseChangeRequest.status == "pending")
+    )
+    if user.role != "admin":
+        stmt = stmt.where(
             or_(
                 Project.managed_by == user.id,
                 and_(Project.managed_by.is_(None), Project.owner == user.name),
-            ),
+            )
         )
-        .order_by(PhaseChangeRequest.created_at.desc(), PhaseChangeRequest.id.desc())
+    rows = db.scalars(
+        stmt.order_by(PhaseChangeRequest.created_at.desc(), PhaseChangeRequest.id.desc())
     ).all()
     return [_change_item(db, r) for r in rows]
 

@@ -90,3 +90,41 @@ def test_non_owner_still_cannot_see_others_pending(client: TestClient, db_sessio
 
     _login(client, "stranger_t")
     assert client.get("/api/report/change-requests").json() == []
+
+
+def test_admin_sees_all_pending(client: TestClient, db_session: Session):
+    """管理员看到全部 pending（审批端点对 admin 恒可审——列表同口径）。"""
+    zhu = User(username="zqlin_t3", name="朱全林", role="reporter",
+               password_hash=hash_password("testpass"), must_change_password=False)
+    db_session.add(zhu)
+    res = Resource(name="曹俊杰")
+    db_session.add(res)
+    db_session.flush()
+    cao = User(username="cjjie_t2", name="曹俊杰", role="reporter",
+               password_hash=hash_password("testpass"), resource_id=res.id,
+               must_change_password=False)
+    db_session.add(cao)
+    admin = User(username="admin_t", name="管理员", role="admin",
+                 password_hash=hash_password("testpass"), must_change_password=False)
+    db_session.add(admin)
+    p = Project(code="CR-3", category="新需求", name="管理员可见性项目",
+                owner="朱全林", market="非洲区", status="进行中", managed_by=None)
+    db_session.add(p)
+    db_session.flush()
+    ph = Phase(project_id=p.id, phase_type="P3", name="模块选型", sequence=1)
+    ph.assignees.append(res)
+    db_session.add(ph)
+    db_session.commit()
+
+    _login(client, "cjjie_t2")
+    r = client.post("/api/report/change-requests", json={"phase_id": ph.id,
+                                                         "plan_start": "2026-11-05"})
+    assert r.status_code == 201, r.text
+
+    # 项目负责人（姓名回退）看到 1 条
+    _login(client, "zqlin_t3")
+    assert len(client.get("/api/report/change-requests").json()) == 1
+    # 管理员也看到同一条（即使项目不在自己名下）
+    _login(client, "admin_t")
+    seen = client.get("/api/report/change-requests").json()
+    assert len(seen) == 1 and seen[0]["phase_id"] == ph.id, seen
