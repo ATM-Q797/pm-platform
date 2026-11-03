@@ -18,7 +18,7 @@ from __future__ import annotations
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import and_, or_, select
 from sqlalchemy.orm import Session
 
 from app.core.deps import get_current_user
@@ -547,13 +547,21 @@ def list_report_change_requests(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    """待我审批（Tab2 角标数据源）：我负责项目的 pending 改期申请。"""
+    """待我审批（Tab2 角标数据源）：我负责项目的 pending 变更申请。
+
+    「我负责」与审批端点同一口径（svc.is_project_owner）：managed_by 命中，
+    **或 managed_by 为空时 owner 文本 = 账号名**（Excel 导入项目，用户 2026-10-30 口径）——
+    修复：此前只认 managed_by，Excel 导入项目的负责人在列表里永远看不到待审批项。
+    """
     rows = db.scalars(
         select(PhaseChangeRequest)
         .join(Project, PhaseChangeRequest.project_id == Project.id)
         .where(
-            Project.managed_by == user.id,
             PhaseChangeRequest.status == "pending",
+            or_(
+                Project.managed_by == user.id,
+                and_(Project.managed_by.is_(None), Project.owner == user.name),
+            ),
         )
         .order_by(PhaseChangeRequest.created_at.desc(), PhaseChangeRequest.id.desc())
     ).all()
