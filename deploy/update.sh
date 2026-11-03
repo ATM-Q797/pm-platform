@@ -5,6 +5,7 @@
 # 前置条件（本机已上传）：
 #   /opt/pm-platform.zip   ← git archive 打包的最新代码
 #   /tmp/pm-dist/          ← npm run build 的最新前端产物
+#     （缺失时自动兑底 /tmp/dist —— tar/unzip 直解压落点，工程债① 2026-11-03）
 #
 # 用法：bash /opt/pm-platform/deploy/update.sh
 # 数据安全：本脚本不触碰数据库（数据在 docker pg_data 卷 / PostgreSQL 中）
@@ -23,7 +24,18 @@ echo "=================================================="
 
 # 0. 检查输入文件
 [ -f "$CODE_ZIP" ] || { echo "[错误] 未找到代码包: $CODE_ZIP（请先 scp 上传）"; exit 1; }
-[ -d "$DIST_DIR" ] || { echo "[错误] 未找到前端产物: $DIST_DIR（请先 scp 上传）"; exit 1; }
+
+# 前端产物目录自动解析（工程债①：2026-10-30 两次踩坑——tar -C frontend dist / unzip 的解压落点是 /tmp/dist 而非规范路径）
+#   仅在规范路径 /tmp/pm-dist 缺失时兑底，避免规范路径存在时误用旁支产物；
+#   兑底前同样要求 index.html + assets 完整，残缺源继续往下走会被硬校验拦住
+if [ ! -d "$DIST_DIR" ] && [ -d /tmp/dist ]; then
+    if [ -f /tmp/dist/index.html ] && [ -n "$(ls -A /tmp/dist/assets 2>/dev/null)" ]; then
+        echo "    规范路径 $DIST_DIR 不存在，自动改用 /tmp/dist（直解压落点）"
+        DIST_DIR=/tmp/dist
+    fi
+fi
+
+[ -d "$DIST_DIR" ] || { echo "[错误] 未找到前端产物: $DIST_DIR（也未见完整的 /tmp/dist；请上传解压后重试）"; exit 1; }
 
 # scp -r 嵌套防御：目标目录已存在时 dist 会被复制成 dist/dist/ 子目录
 if [ -d "$DIST_DIR/dist" ]; then
