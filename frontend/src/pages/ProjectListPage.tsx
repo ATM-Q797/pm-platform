@@ -9,7 +9,7 @@ import { listTemplates } from '../api/templates'
 import { listUsers } from '../api/users'
 import { requestDeleteProject } from '../api/audit'
 import { getMe } from '../api/auth'
-import { MARKET_OPTION_ITEMS, MARKET_OPTIONS, PROJECT_LIST_FILTERS_KEY as FILTERS_KEY, PROJECT_LIST_SEARCH_KEY as SEARCH_KEY } from '../types'
+import { MARKET_OPTION_ITEMS, MARKET_OPTIONS, PROJECT_LIST_FILTERS_KEY as FILTERS_KEY, PROJECT_LIST_SEARCH_KEY as SEARCH_KEY, PROJECT_LIST_VIEW_KEY as VIEW_KEY } from '../types'
 import type { ImportPreview, Project, ImportReport, Template, UserInfo } from '../types'
 
 // 列表筛选持久化（用户 2026-10-26：返回列表不重置、刷新才重置）：
@@ -338,10 +338,14 @@ export default function ProjectListPage() {
   // 序号 = 全量有序列表位置，只取关注子集会导致编号跳跃，故此视图不显示序号。
   // 视图切换仅前端过滤，不重拉数据；取消关注后若当前行不在关注集则自动移出视图。
   const [viewMode, setViewMode] = useState<'all' | 'favorites'>(
-    () => (sessionStorage.getItem('project_list_view') === 'favorites' ? 'favorites' : 'all'))
+    () => {
+      // 存储被禁用时静默回退到全部视图（与文件内其余 sessionStorage 访问同一兜底模式）
+      try { return sessionStorage.getItem(VIEW_KEY) === 'favorites' ? 'favorites' : 'all' }
+      catch { return 'all' }
+    })
   const changeViewMode = (v: 'all' | 'favorites') => {
     setViewMode(v)
-    sessionStorage.setItem('project_list_view', v)
+    try { sessionStorage.setItem(VIEW_KEY, v) } catch { /* 存储满/禁用时静默：视图仍可切换，仅刷新后不记忆 */ }
   }
   const favoriteProjects = projects.filter((p) => p.is_favorite)
   const viewProjects = viewMode === 'favorites' ? favoriteProjects : projects
@@ -361,7 +365,7 @@ export default function ProjectListPage() {
         </a>
       ),
     },
-    { title: '序号', width: 70, align: 'center',
+    { title: '序号', width: 70, align: 'center', dataIndex: 'sequence_position',
       // 序号 = 项目在全量有序列表中的位置（非当前页序号）：
       // 项目列表页分页、填报页不分页，用全局位置才能两页一致（用户 2026-10-30 指令）
       render: (_: unknown, r: Project, index: number) => {
@@ -418,8 +422,10 @@ export default function ProjectListPage() {
     },
   ]
 
-  // 关注视图列：复用主列表列，仅去掉序号（用户 2026-11-04 批复：不显示序号）
-  const favoriteColumns: ColumnsType<Project> = columns.filter((c) => c.title !== '序号')
+  // 关注视图列：复用主列表列，仅去掉序号列（按 dataIndex 结构化裁剪，不依赖展示文案；
+  // ColumnGroupType 无 dataIndex，本表全部为普通列，'dataIndex' in c 守卫即可）
+  const favoriteColumns: ColumnsType<Project> = columns.filter(
+    (c) => !('dataIndex' in c) || c.dataIndex !== 'sequence_position')
 
   return (
     <>
@@ -508,9 +514,13 @@ export default function ProjectListPage() {
           columns={viewMode === 'favorites' ? favoriteColumns : columns}
           dataSource={viewProjects.filter((p) =>
             searchText ? p.name.toLowerCase().includes(searchText.trim().toLowerCase()) : true)}
-          pagination={viewMode === 'favorites'
-            ? { pageSize: 20, showSizeChanger: false, showTotal: (t) => `共 ${t} 个关注项目` }
-            : { pageSize: 20, showSizeChanger: false, showTotal: (t) => `共 ${t} 个项目` }}
+          // 关注视图沿用分页（pageSize 20）：关注数可能超过一屏，一页拉满滚动反而难用；
+          // 仅底栏文案区分视图（用户批复只约束「不显示序号」，分页不关）
+          pagination={{
+            pageSize: 20,
+            showSizeChanger: false,
+            showTotal: (t) => (viewMode === 'favorites' ? `共 ${t} 个关注项目` : `共 ${t} 个项目`),
+          }}
           size="middle"
         />
       </Spin>

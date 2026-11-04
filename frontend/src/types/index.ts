@@ -10,6 +10,9 @@ export const MARKET_OPTIONS = [
 // 且避免 App 静态导入页面模块破坏 ProjectListPage 的懒加载分包。
 export const PROJECT_LIST_FILTERS_KEY = 'pm_project_list_filters'
 export const PROJECT_LIST_SEARCH_KEY = 'pm_project_list_search'
+// 「我的关注」视图选择（用户 2026-11-04 批复副板块）；刷新**不重置**——视图是习惯性入口而非筛选条件，
+// 刷新后回到全部项目反而需要重新点一次。有意不走 App.tsx 刷新清除（与筛选的「刷新才重置」契约不同）。
+export const PROJECT_LIST_VIEW_KEY = 'pm_project_list_view'
 export const REPORT_FILTERS_KEY = 'pm_report_filters'
 export const REPORT_SEARCH_KEY = 'pm_report_search'
 
