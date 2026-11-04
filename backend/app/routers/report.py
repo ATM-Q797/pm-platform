@@ -760,7 +760,7 @@ def report_badges(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ) -> dict[str, int]:
-    """填报页三个角标的一次性计数：待我审批 / 我的在审申请 / 未读通知。
+    """填报页两个角标的一次性计数：待我审批 / 我的在审申请。
 
     为何单独开一个端点：此前「待我审批」的角标由该标签页自己 load 后回填——
     不点进去就永远是 0；铃铛另有一套 60 秒轮询；三者刷新时机不同，体感就是「不及时」。
@@ -782,12 +782,11 @@ def report_badges(
         PhaseChangeRequest.requested_by == user.id,
         PhaseChangeRequest.status == "pending",
     )
-    unread = select(func.count()).select_from(Notification).where(
-        Notification.user_id == user.id, Notification.read_at.is_(None))
+    # 只算两个数：未读数由铃铛自己的 /notifications/unread-count 提供，
+    # 同一语义两处实现会漂移（评审 #11 🔵）。
     return {
         "approvals": int(db.scalar(approvals_stmt) or 0),
         "mine": int(db.scalar(mine) or 0),
-        "notifications": int(db.scalar(unread) or 0),
     }
 
 

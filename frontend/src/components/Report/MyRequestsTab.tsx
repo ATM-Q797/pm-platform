@@ -18,7 +18,7 @@ const STATUS_META: Record<string, { color: string; label: string }> = {
  * 此前只有「待我审批」（给审批人），申请人提交后无从查看：被驳回时连理由都看不到
  * （驳回理由只由旧审核中心渲染，而 reporter 被角色隔离挡在旧页面之外）。
  */
-export default function MyRequestsTab() {
+export default function MyRequestsTab({ reloadToken }: { reloadToken?: number }) {
   const [rows, setRows] = useState<ReportMyChangeRequestItem[]>([])
   const [loading, setLoading] = useState(false)
 
@@ -35,7 +35,8 @@ export default function MyRequestsTab() {
 
   useEffect(() => {
     load()
-  }, [load])
+    // 与 ApprovalTab 同理：面板不销毁，靠令牌触发重拉（评审 #11 🟡）
+  }, [load, reloadToken])
 
   const columns: ColumnsType<ReportMyChangeRequestItem> = [
     { title: '项目', dataIndex: 'project_name', width: 180, ellipsis: true },

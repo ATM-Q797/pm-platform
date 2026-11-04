@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { Badge, Button, Empty, Popover, Tooltip, Typography, message } from 'antd'
 import { BellOutlined } from '@ant-design/icons'
 import { useNavigate } from 'react-router-dom'
@@ -25,6 +25,7 @@ export default function NotificationBell() {
   const [open, setOpen] = useState(false)
   const [loading, setLoading] = useState(false)
   const navigate = useNavigate()
+  const openRef = useRef(false) // 面板是否打开：供轮询回调读取最新值（评审 #11 🔵）
 
   const loadCount = useCallback(async () => {
     try {
@@ -48,7 +49,10 @@ export default function NotificationBell() {
   useEffect(() => {
     loadCount()
     const timer = window.setInterval(() => {
-      if (document.visibilityState === 'visible') loadCount()
+      if (document.visibilityState !== 'visible') return
+      loadCount()
+      // 面板开着时连列表一起重拉，否则会出现「角标 3、列表 2 条」（评审 #11 🔵）
+      if (openRef.current) loadItems()
     }, 15000)
     const onFocus = () => loadCount()
     const onVisibility = () => {
@@ -64,6 +68,7 @@ export default function NotificationBell() {
   }, [loadCount])
 
   const openChange = (next: boolean) => {
+    openRef.current = next
     setOpen(next)
     if (next) {
       loadItems()

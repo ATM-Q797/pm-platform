@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
 import useReportBadges from '../hooks/useReportBadges'
 import { Badge, Button, Input, Select, Space, Table, Tabs, Tag, Tooltip, Typography, message } from 'antd'
@@ -63,7 +63,23 @@ export default function ReportPage({ user }: { user: UserInfo }) {
   const [createOpen, setCreateOpen] = useState(false)
   const [reloadKey, setReloadKey] = useState(0)
   // 角标统一口径（用户 2026-11-04 体验反馈）：15 秒轮询 + 聚焦/切回即刷 + 动作后立即刷
-  const { badges, refresh: refreshBadges, updatedAt, refreshing } = useReportBadges()
+  const { badges, refresh: refreshBadges, updatedAt, refreshing, failed } = useReportBadges()
+  // 面板重拉令牌：antd Tabs 默认不销毁非活动面板，切回时不会重挂载，
+  // 必须显式给个令牌让列表跟着角标一起变新（评审 #11 🟡）。
+  const [tabTokens, setTabTokens] = useState({ approvals: 0, mine: 0 })
+  const bumpTab = (key: 'approvals' | 'mine') =>
+    setTabTokens((t) => ({ ...t, [key]: t[key] + 1 }))
+  const prevBadges = useRef(badges)
+  useEffect(() => {
+    // 角标变了，正开着的那一页也要变——否则就是「角标 2、列表 1 行」
+    if (prevBadges.current.approvals !== badges.approvals && activeTab === 'approvals') {
+      bumpTab('approvals')
+    }
+    if (prevBadges.current.mine !== badges.mine && activeTab === 'my-requests') {
+      bumpTab('mine')
+    }
+    prevBadges.current = badges
+  }, [badges, activeTab])
   // 筛选状态（用户 2026-10-30：与项目列表页同款——搜索/状态/市场/类目+重置，sessionStorage 进出保留）
   const [filters, setFiltersState] = useState(_readFilters)
   const updateFilters = (next: typeof _DEFAULT_FILTERS) => {
@@ -99,9 +115,16 @@ export default function ReportPage({ user }: { user: UserInfo }) {
     load()
   }, [load, reloadKey])
 
-  const refresh = () => {
+  // 两个粒度（评审 #11 🟡/🔵）：审批只影响角标与那一行（面板自己会重拉），
+  // 不该因为批准一条就重拉整个项目列表；手动刷新才做全量。
+  const refreshBadgesOnly = () => {
+    void refreshBadges()
+  }
+  const refreshAll = async () => {
     setReloadKey((k) => k + 1)
-    refreshBadges()
+    setTabTokens((t) => ({ approvals: t.approvals + 1, mine: t.mine + 1 }))
+    const ok = await refreshBadges({ manual: true })
+    if (!ok) message.error('角标刷新失败，请重试')
   }
 
   const columns: ColumnsType<ReportProjectItem> = [
@@ -247,10 +270,34 @@ export default function ReportPage({ user }: { user: UserInfo }) {
       </div>
       <Tabs
         activeKey={activeTab}
+        tabBarExtraContent={{
+          right: (
+            <Space size={8} align="center">
+              {failed ? (
+                <Text type="danger" style={{ fontSize: 12 }}>
+                  更新失败
+                </Text>
+              ) : updatedAt ? (
+                <Text type="secondary" style={{ fontSize: 12 }}>
+                  更新于 {updatedAt.toLocaleTimeString('zh-CN', { hour12: false })}
+                </Text>
+              ) : null}
+              <Button
+                size="small"
+                icon={<ReloadOutlined spin={refreshing} />}
+                disabled={refreshing}
+                onClick={refreshAll}
+                title="刷新列表与角标"
+              />
+            </Space>
+          ),
+        }}
         onChange={(key) => {
           setActiveTab(key)
-          // 切标签时重拉角标：从「待我审批」里处理完回来，数字应当已经是新的
-          refreshBadges()
+          // 切标签：角标重拉 + 该面板列表重拉（面板不销毁，不重拉就还是旧数据）
+          void refreshBadges()
+          if (key === 'approvals') bumpTab('approvals')
+          if (key === 'my-requests') bumpTab('mine')
           // 通知点击可直达标签（link="/report?tab=approvals" 等）；
           // replace 避免来回切标签把浏览器历史塞满。
           const next = new URLSearchParams(searchParams)
@@ -269,22 +316,6 @@ export default function ReportPage({ user }: { user: UserInfo }) {
                     阶段负责人可填实际进展。
                   </Text>
                   <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                    {updatedAt && (
-                      <Text type="secondary" style={{ fontSize: 12 }}>
-                        更新于 {updatedAt.toLocaleTimeString('zh-CN', { hour12: false })}
-                      </Text>
-                    )}
-                    <button
-                      className="ant-btn"
-                      onClick={() => {
-                        load()
-                        refresh()
-                      }}
-                      disabled={refreshing}
-                      title="刷新列表与角标"
-                    >
-                      <ReloadOutlined spin={refreshing} />
-                    </button>
                     <button className="ant-btn ant-btn-primary" onClick={() => setCreateOpen(true)}>
                       <PlusOutlined /> 新建项目
                     </button>
@@ -307,7 +338,7 @@ export default function ReportPage({ user }: { user: UserInfo }) {
                   expandable={{
                     expandedRowKeys: expandedId === null ? [] : [expandedId],
                     expandedRowRender: (row) => (
-                      <PhaseDetailTable projectId={row.id} onChanged={refresh} />
+                      <PhaseDetailTable projectId={row.id} onChanged={refreshAll} />
                     ),
                     showExpandColumn: false,
                   }}
@@ -342,7 +373,7 @@ export default function ReportPage({ user }: { user: UserInfo }) {
                   expandable={{
                     expandedRowKeys: expandedId === null ? [] : [expandedId],
                     expandedRowRender: (row) => (
-                      <PhaseDetailTable projectId={row.id} onChanged={refresh} />
+                      <PhaseDetailTable projectId={row.id} onChanged={refreshAll} />
                     ),
                     showExpandColumn: false,
                   }}
@@ -357,7 +388,7 @@ export default function ReportPage({ user }: { user: UserInfo }) {
                 <span>我的申请</span>
               </Badge>
             ),
-            children: <MyRequestsTab />,
+            children: <MyRequestsTab reloadToken={tabTokens.mine} />,
           },
           {
             key: 'approvals',
@@ -367,7 +398,7 @@ export default function ReportPage({ user }: { user: UserInfo }) {
               </Badge>
             ),
             children: (
-              <ApprovalTab onChanged={refresh} />
+              <ApprovalTab onChanged={refreshBadgesOnly} reloadToken={tabTokens.approvals} />
             ),
           },
         ]}
@@ -378,7 +409,7 @@ export default function ReportPage({ user }: { user: UserInfo }) {
         onClose={() => setCreateOpen(false)}
         onCreated={() => {
           setCreateOpen(false)
-          refresh()
+          refreshAll()
         }}
       />
     </div>

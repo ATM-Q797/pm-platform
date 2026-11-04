@@ -10,8 +10,10 @@ const { Text } = Typography
 /** Tab2 待我审批（§五/§九-4）：仅项目负责人可见，批准/驳回在填报页内闭环。 */
 export default function ApprovalTab({
   onChanged,
+  reloadToken,
 }: {
   onChanged: () => void
+  reloadToken?: number
 }) {
   const [rows, setRows] = useState<ReportChangeRequestItem[]>([])
   const [loading, setLoading] = useState(false)
@@ -32,7 +34,9 @@ export default function ApprovalTab({
 
   useEffect(() => {
     load()
-  }, [load])
+    // reloadToken 变化 → 重拉列表：antd Tabs 不销毁非活动面板，
+    // 不靠这个令牌就只能整页刷新才能看到新申请（评审 #11 🟡）。
+  }, [load, reloadToken])
 
   const review = async (item: ReportChangeRequestItem, approved: boolean, comment?: string) => {
     try {

@@ -550,7 +550,6 @@ export interface ReportNotificationItem {
 export interface ReportBadges {
   approvals: number // 待我审批的申请数
   mine: number // 我提交且仍在审批中的申请数
-  notifications: number // 未读通知数
 }
 
 export interface ReportMeta {

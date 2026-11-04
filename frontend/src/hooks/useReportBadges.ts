@@ -2,35 +2,61 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import type { ReportBadges } from '../types'
 import { getReportBadges } from '../api/report'
 
-const EMPTY: ReportBadges = { approvals: 0, mine: 0, notifications: 0 }
+const EMPTY: ReportBadges = { approvals: 0, mine: 0 }
 
-/** 填报页角标轮询（用户 2026-11-04 体验反馈）。
+const same = (a: ReportBadges, b: ReportBadges) =>
+  a.approvals === b.approvals && a.mine === b.mine
+
+/** 填报页角标轮询（用户 2026-11-04 体验反馈；评审 #11 修正）。
  *
- * 为什么需要这个 hook：此前「待我审批」的角标由该标签页自己加载后回填——不点进去
- * 就一直是 0；铃铛另有一套 60 秒轮询。三处刷新时机不同，用户看到的就是「不及时」。
- * 这里把三个数合成一条链：15 秒轮询（仅页面可见时）+ 窗口聚焦 + 标签页切回时立即重拉，
- * 业务动作（提交/审批/已读）后由调用方调 refresh() 立即刷新，做到「做完就变」。
+ * 三条链路的取舍：
+ * ① 15 秒轮询（仅页面可见）+ 聚焦/切回立即重拉 —— 解决「不及时」；
+ * ② 业务动作后的刷新**不丢弃**：正在飞时记为尾随任务，当前请求结束后补跑一次
+ *    （原实现直接 return，慢网络下「做完就变」会落空）；
+ * ③ 失败有出口：`failed` 交给调用方渲染成「更新失败」，与「本来就是 0」区分开
+ *    （静默失败会让用户读成「没有待办」）。
+ * `refreshing` 只代表手动刷新，后台轮询不再让按钮自己转圈。
  */
 export default function useReportBadges() {
   const [badges, setBadges] = useState<ReportBadges>(EMPTY)
   const [updatedAt, setUpdatedAt] = useState<Date | null>(null)
   const [refreshing, setRefreshing] = useState(false)
+  const [failed, setFailed] = useState(false)
   const inFlight = useRef(false)
+  const queued = useRef(false)
 
-  const refresh = useCallback(async () => {
-    if (inFlight.current) return // 并发点击/聚焦不叠加请求
-    inFlight.current = true
-    setRefreshing(true)
+  const fetchOnce = useCallback(async (): Promise<boolean> => {
     try {
-      setBadges(await getReportBadges())
+      const next = await getReportBadges()
+      // 三个数都没变就复用旧对象：避免每 15 秒让整棵填报页重渲染一次
+      setBadges((prev) => (same(prev, next) ? prev : next))
       setUpdatedAt(new Date())
+      setFailed(false)
+      return true
     } catch {
-      // 轮询静默失败：下一轮或聚焦会重试；手动刷新失败时的提示由调用方决定
-    } finally {
-      inFlight.current = false
-      setRefreshing(false)
+      setFailed(true)
+      return false
     }
   }, [])
+
+  const refresh = useCallback(async (opts?: { manual?: boolean }): Promise<boolean> => {
+    if (inFlight.current) {
+      queued.current = true // 尾随合并：这次刷新不丢，等当前请求结束后补跑
+      return false
+    }
+    inFlight.current = true
+    if (opts?.manual) setRefreshing(true)
+    try {
+      return await fetchOnce()
+    } finally {
+      inFlight.current = false
+      if (opts?.manual) setRefreshing(false)
+      if (queued.current) {
+        queued.current = false
+        void refresh()
+      }
+    }
+  }, [fetchOnce])
 
   useEffect(() => {
     refresh()
@@ -50,5 +76,5 @@ export default function useReportBadges() {
     }
   }, [refresh])
 
-  return { badges, refresh, updatedAt, refreshing }
+  return { badges, refresh, updatedAt, refreshing, failed }
 }
