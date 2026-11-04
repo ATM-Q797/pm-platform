@@ -529,6 +529,7 @@ export interface ReportMyChangeRequestItem {
   project_name?: string | null
   proposed: Record<string, ReportChangeProposal>
   status: string // pending / approved / rejected
+  invalidated?: boolean // 系统自动作废（区别于人工驳回）
   review_comment?: string | null
   reviewer_name?: string | null
   created_at?: string | null

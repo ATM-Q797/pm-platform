@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import { useSearchParams } from 'react-router-dom'
 import { Badge, Button, Input, Select, Space, Table, Tabs, Tag, Tooltip, Typography, message } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import {
@@ -42,6 +43,11 @@ const _readSearch = (): string => {
 
 /** 信息填报页（/report，信息填报一期 §五）：筛选栏 + Tab1 已建项目 + Tab2 我的 + Tab3 待我审批。 */
 export default function ReportPage({ user }: { user: UserInfo }) {
+  const [searchParams, setSearchParams] = useSearchParams()
+  const [activeTab, setActiveTab] = useState<string>(() => {
+    const t = searchParams.get('tab')
+    return t && ['projects', 'mine', 'my-requests', 'approvals'].includes(t) ? t : 'projects'
+  })
   const [projects, setProjects] = useState<ReportProjectItem[]>([])
   const [loading, setLoading] = useState(false)
   const [expandedId, setExpandedId] = useState<number | null>(null)
@@ -227,7 +233,15 @@ export default function ReportPage({ user }: { user: UserInfo }) {
         </Space>
       </div>
       <Tabs
-        defaultActiveKey="projects"
+        activeKey={activeTab}
+        onChange={(key) => {
+          setActiveTab(key)
+          // 通知点击可直达标签（link="/report?tab=approvals" 等）；
+          // replace 避免来回切标签把浏览器历史塞满。
+          const next = new URLSearchParams(searchParams)
+          next.set('tab', key)
+          setSearchParams(next, { replace: true })
+        }}
         items={[
           {
             key: 'projects',

@@ -46,6 +46,7 @@ from app.schemas.report import (
     ReportProjectItem,
 )
 from app.services import report_service as svc
+from app.services.change_request import INVALIDATION_COMMENT, plan_fields_really_changed
 from app.services.notification import notify, project_owner_user_ids
 
 router = APIRouter(prefix="/api/report", tags=["信息填报"])
@@ -347,6 +348,9 @@ def patch_report_phase(
     if ps and pe and pe < ps:
         raise HTTPException(400, "计划结束不得早于计划开始")
     assignee_ids = data.pop("assignee_ids", None)
+    # 直改计划时间 → 作废待审申请（放在全部校验通过之后：非法请求不得产生副作用）
+    if plan_fields_really_changed(phase, data):
+        svc.apply_direct_edit_invalidation(db, phase, user)
     for k, v in data.items():
         setattr(phase, k, v)
     # 类型变更 → 名称自动跟随类型显示名（§二：PhaseEditor 同规则；申请路径 report_service 同口径）
@@ -545,7 +549,7 @@ def create_report_change_request(
             notify(db, owner_id, "change_request_created",
                    f"新的变更申请：{project.name} / {phase.name}",
                    f"{user.name} 提交了变更申请，请到「待我审批」处理。",
-                   link="/report")
+                   link="/report?tab=approvals")
     db.commit()
     db.refresh(req)
     return _change_item(db, req)
@@ -610,18 +614,19 @@ def review_report_change_request(
         req.status = "rejected"
         log_operation(db, user, "reject_report_phase_change", "phase", req.phase_id,
                       detail=f"驳回改期申请 #{req.id}，原因：{payload.comment}")
-    # 通知申请人（二期①）：审批结果与驳回原因第一次能被申请人看到
-    phase_name = (db.get(Phase, req.phase_id).name if db.get(Phase, req.phase_id) else "该阶段")
+    # 通知申请人（二期①）：审批结果第一次能被申请人看到
+    phase = db.get(Phase, req.phase_id)
+    phase_name = phase.name if phase else "该阶段"
     if payload.approved:
         notify(db, req.requested_by, "change_request_approved",
-               f"改期申请已批准：{phase_name}",
-               "项目负责人已批准你的变更申请，计划已按申请更新。",
-               link="/report")
+               f"变更申请已批准：{phase_name}",
+               "项目负责人已批准你的变更申请，改动已生效。",
+               link="/report?tab=my-requests")
     else:
         notify(db, req.requested_by, "change_request_rejected",
-               f"改期申请被驳回：{phase_name}",
+               f"变更申请被驳回：{phase_name}",
                f"驳回原因：{payload.comment}",
-               link="/report")
+               link="/report?tab=my-requests")
     db.commit()
     db.refresh(req)
     return _change_item(db, req)
@@ -678,6 +683,7 @@ def list_my_change_requests(
             proposed=svc.parse_change_proposal(r.proposed_changes),
             status=r.status,
             review_comment=r.review_comment,
+            invalidated=(r.status == "rejected" and r.review_comment == INVALIDATION_COMMENT),
             reviewer_name=(f"{reviewer.name}（已强制删除）" if reviewer and reviewer.force_deleted_at
                            else (reviewer.name if reviewer else None)),
             created_at=r.created_at,

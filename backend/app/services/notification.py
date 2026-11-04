@@ -24,12 +24,20 @@ def notify(db: Session, user_id: int, type: str, title: str,
 def project_owner_user_ids(db: Session, project: Project) -> list[int]:
     """项目负责人的账号 id 列表——与 is_project_owner 非 admin 口径同源。
 
-    managed_by 命中即唯一负责人；为空（Excel 导入项目）时按 owner 文本找在职账号。
-    同名账号都会收到（姓名回退口径系用户 2026-10-30 拍板，此处不另立规则）。
+    managed_by 命中即唯一负责人，但要求账号在职；停用或墓碑账号看不到页面，
+    通知发给它等于丢弃——此时回落到姓名口径（与姓名分支同一标准）。
+    managed_by 为空（Excel 导入项目）直接走姓名回退（用户 2026-10-30 口径）。
+    同名账号都会收到（姓名回退口径系用户拍板，此处不另立规则）。
     """
     if project.managed_by is not None:
-        return [project.managed_by]
+        owner = db.get(User, project.managed_by)
+        if owner is not None and owner.is_active and owner.force_deleted_at is None:
+            return [owner.id]
     rows = db.scalars(
-        select(User.id).where(User.name == project.owner, User.is_active.is_(True))
+        select(User.id).where(
+            User.name == project.owner,
+            User.is_active.is_(True),
+            User.force_deleted_at.is_(None),
+        )
     ).all()
-    return list(rows)
+    return list(dict.fromkeys(rows))

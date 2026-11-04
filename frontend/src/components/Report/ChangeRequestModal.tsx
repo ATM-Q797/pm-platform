@@ -1,7 +1,7 @@
 import { useEffect, useState } from 'react'
 import { DatePicker, Form, Modal, Select, Typography, message } from 'antd'
 import dayjs, { type Dayjs } from 'dayjs'
-import type { ReportChangeRequestItem, ReportMeta, ReportPhaseRow } from '../../types'
+import type { ReportChangeProposal, ReportMeta, ReportPhaseRow } from '../../types'
 import { createReportChangeRequest } from '../../api/report'
 
 const { Text } = Typography
@@ -113,7 +113,7 @@ const FIELD_LABELS: Record<string, string> = {
   assignee_ids: '阶段负责人',
 }
 
-export function describeProposal(item: ReportChangeRequestItem): string {
+export function describeProposal(item: { proposed: Record<string, ReportChangeProposal> }): string {
   return Object.entries(item.proposed)
     .map(([field, p]) => {
       const label = FIELD_LABELS[field] ?? field

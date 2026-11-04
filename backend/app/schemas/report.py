@@ -211,6 +211,7 @@ class ReportMyChangeRequestItem(BaseModel):
     project_name: str | None = None
     proposed: dict[str, Any] = {}
     status: str  # pending / approved / rejected
+    invalidated: bool = False  # 系统自动作废（区别于人工驳回），前端按此渲染标签
     review_comment: str | None = None
     reviewer_name: str | None = None
     created_at: datetime | None = None

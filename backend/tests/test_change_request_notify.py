@@ -188,3 +188,70 @@ def test_notification_read_flow_and_ownership(client: TestClient, db_session: Se
     assert client.get("/api/report/notifications/unread-count").json()["count"] == 1
     assert client.post("/api/report/notifications/read-all").status_code == 204
     assert client.get("/api/report/notifications/unread-count").json()["count"] == 0
+
+
+# ---------- 评审 #1 的回归：误作废、姓名回退、旧工程师流 ----------
+
+def test_unchanged_plan_save_does_not_invalidate(client: TestClient, db_session: Session):
+    """只改进度（payload 仍带原计划时间）不得误废申请——评审 #1 🔴1。
+
+    PhaseEditor 每次保存都会带上 plan_start/plan_end，若按「字段出现」判定，
+    负责人只改进度就会销毁申请人的待审申请并发一条不实通知。
+    """
+    _owner, _req, _p, phase = _fixture(db_session)
+    req = _submit(client, phase.id)
+
+    _login(client, "mgr_owner")
+    r = client.put(f"/api/phases/{phase.id}", json={
+        "plan_start": "2026-11-01",  # 与现值相同
+        "plan_end": "2026-11-10",    # 与现值相同
+        "progress": 40,
+    })
+    assert r.status_code == 200, r.text
+
+    db_session.expire_all()
+    row = db_session.get(PhaseChangeRequest, req["id"])
+    assert row.status == "pending", f"计划未变却把申请作废了：{row.review_comment}"
+    assert db_session.scalars(
+        select(Notification).where(Notification.type == "change_request_invalidated")
+    ).all() == []
+
+
+def test_owner_by_name_receives_notification(client: TestClient, db_session: Session):
+    """Excel 导入项目（managed_by 空）按姓名找到负责人并通知——评审 #1 🔵9。"""
+    owner, _req_user, project, phase = _fixture(db_session, managed=False)
+    assert project.managed_by is None and project.owner == owner.name
+    _submit(client, phase.id)
+
+    db_session.expire_all()
+    notes = db_session.scalars(
+        select(Notification).where(Notification.type == "change_request_created")).all()
+    assert len(notes) == 1
+    assert notes[0].user_id == owner.id
+
+
+def test_legacy_engineer_flow_sends_notifications(client: TestClient, db_session: Session):
+    """旧工程师流（/api/phase-change-requests 提交 + review 审批）同样发通知——评审 #1 🟡2。"""
+    owner, req_user, _p, phase = _fixture(db_session)
+
+    _login(client, "eng_req")
+    r = client.post("/api/phase-change-requests",
+                    json={"phase_id": phase.id, "proposed_changes": {"plan_end": "2026-11-20"}})
+    assert r.status_code == 201, r.text
+    rid = r.json()["id"]
+
+    db_session.expire_all()
+    notes = db_session.scalars(
+        select(Notification).where(Notification.user_id == owner.id)).all()
+    assert len(notes) == 1 and notes[0].type == "change_request_created"
+
+    _login(client, "mgr_owner")
+    rv = client.post(f"/api/phase-change-requests/{rid}/review",
+                     json={"approved": True, "comment": None})
+    assert rv.status_code == 200, rv.text
+
+    db_session.expire_all()
+    notes = db_session.scalars(
+        select(Notification).where(Notification.user_id == req_user.id)).all()
+    assert len(notes) == 1 and notes[0].type == "change_request_approved"
+

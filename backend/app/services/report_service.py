@@ -27,7 +27,11 @@ from app.models import (
 )
 from app.routers.audit import log_operation
 from app.routers.phases import _sync_assignees
-from app.services.change_request import get_pending_request, invalidate_pending_on_direct_edit
+from app.services.change_request import (
+    get_pending_request,
+    invalidate_pending_on_direct_edit,
+    plan_fields_really_changed,
+)
 from app.services.notification import notify
 
 # 项目级字段 editable 白名单（按 §3.2：仅项目负责人可改项目级字段）
@@ -134,8 +138,9 @@ def check_phase_patch(
             if f in PHASE_FIELD_OWNER_DIRECT and role == "assignee":
                 raise _403(f, "阶段负责人修改计划时间请走改期申请接口（POST /api/report/change-requests）")
             raise _403(f, "无该字段修改权限")
-    if role == "owner" and ({"plan_start", "plan_end"} & set(data)):
-        _invalidate_pending_on_direct_edit(db, phase, user)
+    # 直改计划时间 → 作废待审申请：判定在 plan_fields_really_changed（按值比，
+    # 不是「字段出现」），执行由路由层在全部校验通过后调
+    # apply_direct_edit_invalidation——不得在校验前产生副作用（评审 #1 🔵10）。
     return data
 
 
@@ -143,21 +148,22 @@ def check_phase_patch(
 # 规则本体已下沉到 services/change_request.py（二期④：旧入口 phases.py 共用同一条），
 # 此处 re-export 使 svc.get_pending_request 调用点不变。
 
-def _invalidate_pending_on_direct_edit(db: Session, phase: Phase, user: User) -> None:
-    """负责人直改计划时间 → 该阶段 pending 申请自动置 rejected（§四边界规则 2）。
+def apply_direct_edit_invalidation(db: Session, phase: Phase, user: User) -> None:
+    """执行「直改计划时间 → 作废待审申请」：改状态 + 写审计 + 通知申请人。
 
-    作废后写审计日志并通知申请人（二期①：申请人第一次能看到「被作废」这件事）。
+    由路由层在全部字段校验通过之后、提交之前调用（不得在校验前执行：
+    非法请求不应产生任何副作用，哪怕最终会回滚）。
     """
-    pending = invalidate_pending_on_direct_edit(db, phase, user)
-    if pending is not None:
+    invalidated = invalidate_pending_on_direct_edit(db, phase, user)
+    for pending in invalidated:
         log_operation(
             db, user, "invalidate_phase_change", "phase", phase.id, phase.name,
             detail=f"负责人直接改期，自动作废待审申请 #{pending.id}",
         )
         notify(db, pending.requested_by, "change_request_invalidated",
                f"改期申请已作废：{phase.name}",
-               "项目负责人已直接修改计划时间，你提交的改期申请自动作废。",
-               link="/report")
+               "项目负责人已直接修改计划时间，你提交的变更申请自动作废。",
+               link="/report?tab=my-requests")
 
 
 # ---------- 改期申请：提案构造与解析 ----------

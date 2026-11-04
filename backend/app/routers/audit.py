@@ -7,7 +7,7 @@
 """
 from __future__ import annotations
 
-from datetime import datetime
+from datetime import date, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
@@ -16,6 +16,7 @@ from sqlalchemy.orm import Session
 from app.core.deps import get_current_user, require_role, check_project_access
 from app.database import get_db
 from app.models import OperationLog, Phase, PhaseChangeRequest, Project, ProjectDeleteRequest, User
+from app.services.notification import notify, project_owner_user_ids
 from app.schemas import (
     DeleteRequestCreate,
     DeleteRequestRead,
@@ -27,6 +28,10 @@ from app.schemas import (
 )
 
 router = APIRouter(tags=["审核与日志"])
+
+# 旧工程师流提案里的日期字段：JSON 传来是字符串，落库前必须转成 date
+# （直接 setattr 字符串会让 Date 列报错——批准改期的旧路径曾因此 500）。
+_DATE_FIELDS = {"plan_start", "plan_end", "actual_start", "actual_end"}
 
 
 # ---------- 操作日志辅助函数 ----------
@@ -200,6 +205,15 @@ def create_phase_change_request(
     db.flush()
     log_operation(db, user, "submit_phase_change", "phase", phase.id, phase.name,
                   detail=f"项目#{phase.project_id}，提交编辑审批")
+    # 通知项目负责人（二期①，评审 #1 🟡2）：旧工程师流与填报页同口径
+    project = db.get(Project, phase.project_id)
+    if project is not None:
+        for owner_id in project_owner_user_ids(db, project):
+            if owner_id != user.id:
+                notify(db, owner_id, "change_request_created",
+                       f"新的变更申请：{project.name} / {phase.name}",
+                       f"{user.name} 提交了阶段编辑申请，请到「待我审批」处理。",
+                       link="/report?tab=approvals")
     db.commit()
     db.refresh(req)
     return _enrich_change_request(req, db)
@@ -244,17 +258,21 @@ def review_phase_change_request(
     req.reviewed_by = user.id
     req.review_comment = payload.comment
     req.reviewed_at = datetime.now()
+    phase = db.get(Phase, req.phase_id)
+    phase_name = phase.name if phase else "该阶段"
 
     if payload.approved:
         req.status = "approved"
         # 应用变更到阶段
-        phase = db.get(Phase, req.phase_id)
-        phase_name = phase.name if phase else ""
         if phase:
             import json
             changes = json.loads(req.proposed_changes) if req.proposed_changes else {}
             assignee_ids = changes.pop("assignee_ids", None)
             for k, v in changes.items():
+                # 日期字段在提案里是 ISO 字符串（前端 JSON 提交）；直接 setattr 会让
+                # Date 列报错（SQLite/PostgreSQL 同）——既有的旧流批准改期会 500。
+                if k in _DATE_FIELDS and isinstance(v, str) and v:
+                    v = date.fromisoformat(v[:10])
                 setattr(phase, k, v)
             if assignee_ids is not None:
                 from app.routers.phases import _sync_assignees
@@ -265,6 +283,18 @@ def review_phase_change_request(
         req.status = "rejected"
         log_operation(db, user, "reject_phase_change", "phase", req.phase_id,
                       detail=f"拒绝变更审批 #{req_id}，评论：{payload.comment or '无'}")
+
+    # 通知申请人（二期①，评审 #1 🟡2）：旧工程师流的审批结果也要告知
+    if payload.approved:
+        notify(db, req.requested_by, "change_request_approved",
+               f"变更申请已批准：{phase_name}",
+               "你的阶段编辑申请已通过，改动已生效。",
+               link="/report?tab=my-requests")
+    else:
+        notify(db, req.requested_by, "change_request_rejected",
+               f"变更申请被驳回：{phase_name}",
+               f"驳回原因：{payload.comment or '未填写'}",
+               link="/report?tab=my-requests")
 
     db.commit()
     db.refresh(req)

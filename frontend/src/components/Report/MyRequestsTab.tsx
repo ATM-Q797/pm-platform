@@ -43,7 +43,7 @@ export default function MyRequestsTab() {
     {
       title: '变更内容',
       key: 'proposed',
-      render: (_: unknown, r) => <Text>{describeProposal(r as never)}</Text>,
+      render: (_: unknown, r) => <Text>{describeProposal(r)}</Text>,
     },
     {
       title: '提交时间',
@@ -56,8 +56,9 @@ export default function MyRequestsTab() {
       dataIndex: 'status',
       width: 110,
       render: (v: string, r: ReportMyChangeRequestItem) => {
-        // 作废与驳回在库里同为 rejected（作废是系统自动置的），按原因文案区分显示
-        if (v === 'rejected' && (r.review_comment ?? '').includes('申请作废')) {
+        // 「已作废」由后端结构化标记下发（invalidated），不再匹配驳回原因文案：
+        // 文案一旦改词就会静默退化成「已驳回」，反之人工理由含同样字样也会误判。
+        if (r.invalidated) {
           return <Tag>已作废</Tag>
         }
         const m = STATUS_META[v] ?? { color: 'default', label: v }
