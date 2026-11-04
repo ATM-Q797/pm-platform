@@ -11,3 +11,4 @@
 | RT-4 | 负责人直改已有一 pending 申请的阶段计划时间 | 申请自动 rejected，comment="负责人已直接改期" | 填报页 | 设计方案 §四边界规则 | 信息填报一期 |
 | RT-5 | reporter 登录 → 打既有任意 /api/* 接口 | 全部 403（封锁矩阵：projects/phases/resources/users/imports/audit/analysis…） | 直敲 API | 设计方案 §3.1（过渡期角色隔离） | 信息填报一期 |
 | RT-6 | reporter 登录 → 前端任意非 /report 路由 | 重定向 /report，导航仅一项 | 浏览器地址栏 | 设计方案 §3.1（过渡期角色隔离） | 信息填报一期 |
+| RT-7 | 项目列表页卡片标题 Segmented（全部项目 / 我的关注）→ GET /api/projects 的 is_favorite 过滤 → Table 列集裁剪 | 关注视图仅显示已关注项目、无「序号」列、底栏「共 N 个关注项目」；视图内取消关注后该行即时移出且计数同步减；刷新后仍停留在原视图 | 项目列表页 · 卡片标题 Segmented | 批次 §4 用户 2026-11-04 批复：副板块「我的关注」显示关注项目、不显示序号 | 我的关注副板块 |

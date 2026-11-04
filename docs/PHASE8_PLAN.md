@@ -152,9 +152,12 @@ BI 大屏、自定义报表编排、多级下钻、实时流式刷新（保持�
 | `backend/app/models/project_snapshot.py` | 新增（8-3 方案 A） |
 | `backend/app/routers/analysis.py` | 扩展：项目趋势 / 健康度 / 团队效率端点 |
 | `frontend/src/components/AnalysisModal.tsx` | 扩展：环比、口径说明、导出 |
-| `frontend/src/pages/ProjectListPage.tsx`、`ProjectDetailPage.tsx` | 健康度列 / 趋势区 |
+| `frontend/src/pages/ProjectListPage.tsx` | 新增：健康度列（8-2 接口） |
+| `frontend/src/pages/ProjectDetailPage.tsx` | 扩展：健康度五维明细 + 趋势区 |
 | `frontend/src/pages/TeamMetricsPage.tsx` | 新增（8-4） |
 | `deploy/migrate_v5.sql` | 新增（仅 8-3 方案 A 需要） |
+
+> ⚠ **拆分前置**：`ProjectListPage.tsx` 在本批后已 755 行，**8-2 加健康度列会逼近 800 行硬顶**——8-2 的设计轮须先做拆分评审（拆成列表呈现 + 列定义/派生两层），再动列。
 
 ## 六、验收总纲
 1. 每项指标**可复算**（页面数字与库查询一致，抽样核对）；
