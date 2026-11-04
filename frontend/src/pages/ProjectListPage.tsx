@@ -1,6 +1,6 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Table, Card, Select, Input, Button, Space, Tag, Upload, Modal, Form, DatePicker, message, Spin, Popconfirm, Radio } from 'antd'
+import { Table, Card, Select, Input, Button, Space, Tag, Upload, Modal, Form, DatePicker, message, Spin, Popconfirm, Radio, Segmented } from 'antd'
 import { DownloadOutlined, ReloadOutlined, UploadOutlined, PlusOutlined, EditOutlined, DeleteOutlined, StarFilled, StarOutlined, ClearOutlined } from '@ant-design/icons'
 import type { ColumnsType } from 'antd/es/table'
 import { listProjects, createProject, deleteProject, applyTemplate, setFavorite } from '../api/projects'
@@ -334,6 +334,18 @@ export default function ProjectListPage() {
     }
   }
 
+  // 「我的关注」副板块（用户 2026-11-04 批复）：关注项目独立视图，不显示序号列——
+  // 序号 = 全量有序列表位置，只取关注子集会导致编号跳跃，故此视图不显示序号。
+  // 视图切换仅前端过滤，不重拉数据；取消关注后若当前行不在关注集则自动移出视图。
+  const [viewMode, setViewMode] = useState<'all' | 'favorites'>(
+    () => (sessionStorage.getItem('project_list_view') === 'favorites' ? 'favorites' : 'all'))
+  const changeViewMode = (v: 'all' | 'favorites') => {
+    setViewMode(v)
+    sessionStorage.setItem('project_list_view', v)
+  }
+  const favoriteProjects = projects.filter((p) => p.is_favorite)
+  const viewProjects = viewMode === 'favorites' ? favoriteProjects : projects
+
   const columns: ColumnsType<Project> = [
     {
       title: '★',
@@ -406,6 +418,9 @@ export default function ProjectListPage() {
     },
   ]
 
+  // 关注视图列：复用主列表列，仅去掉序号（用户 2026-11-04 批复：不显示序号）
+  const favoriteColumns: ColumnsType<Project> = columns.filter((c) => c.title !== '序号')
+
   return (
     <>
     <Card
@@ -413,7 +428,15 @@ export default function ProjectListPage() {
       title={
         <Space>
           <span>项目列表</span>
-          <Tag color="blue">{projects.length} 个项目</Tag>
+          <Segmented
+            value={viewMode}
+            onChange={(v) => changeViewMode(v as 'all' | 'favorites')}
+            options={[
+              { label: '全部项目', value: 'all' },
+              { label: `我的关注 (${favoriteProjects.length})`, value: 'favorites' },
+            ]}
+          />
+          {viewMode === 'all' && <Tag color="blue">{projects.length} 个项目</Tag>}
         </Space>
       }
       extra={
@@ -482,15 +505,12 @@ export default function ProjectListPage() {
       <Spin spinning={loading}>
         <Table
           rowKey="id"
-          columns={columns}
-          dataSource={searchText
-            ? projects.filter((p) => p.name.toLowerCase().includes(searchText.trim().toLowerCase()))
-            : projects}
-          pagination={{
-            pageSize: 20,
-            showSizeChanger: false,
-            showTotal: (t) => `共 ${t} 个项目`,
-          }}
+          columns={viewMode === 'favorites' ? favoriteColumns : columns}
+          dataSource={viewProjects.filter((p) =>
+            searchText ? p.name.toLowerCase().includes(searchText.trim().toLowerCase()) : true)}
+          pagination={viewMode === 'favorites'
+            ? { pageSize: 20, showSizeChanger: false, showTotal: (t) => `共 ${t} 个关注项目` }
+            : { pageSize: 20, showSizeChanger: false, showTotal: (t) => `共 ${t} 个项目` }}
           size="middle"
         />
       </Spin>
