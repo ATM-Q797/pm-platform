@@ -44,10 +44,18 @@ const _readSearch = (): string => {
 /** 信息填报页（/report，信息填报一期 §五）：筛选栏 + Tab1 已建项目 + Tab2 我的 + Tab3 待我审批。 */
 export default function ReportPage({ user }: { user: UserInfo }) {
   const [searchParams, setSearchParams] = useSearchParams()
+  const TAB_KEYS = ['projects', 'mine', 'my-requests', 'approvals']
   const [activeTab, setActiveTab] = useState<string>(() => {
     const t = searchParams.get('tab')
-    return t && ['projects', 'mine', 'my-requests', 'approvals'].includes(t) ? t : 'projects'
+    return t && TAB_KEYS.includes(t) ? t : 'projects'
   })
+  // 通知点击会在本页已挂载的情况下只改 query（同路由不重挂组件，useState 初始化器不会重跑），
+  // 故需监听 searchParams 把合法值同步进 activeTab，否则深链只在“首次进入”生效。
+  useEffect(() => {
+    const t = searchParams.get('tab')
+    if (t && TAB_KEYS.includes(t)) setActiveTab(t)
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [searchParams])
   const [projects, setProjects] = useState<ReportProjectItem[]>([])
   const [loading, setLoading] = useState(false)
   const [expandedId, setExpandedId] = useState<number | null>(null)

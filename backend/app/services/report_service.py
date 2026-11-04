@@ -30,7 +30,6 @@ from app.routers.phases import _sync_assignees
 from app.services.change_request import (
     get_pending_request,
     invalidate_pending_on_direct_edit,
-    plan_fields_really_changed,
 )
 from app.services.notification import notify
 
