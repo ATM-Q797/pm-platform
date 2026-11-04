@@ -9,10 +9,8 @@ const { Text } = Typography
 
 /** Tab2 待我审批（§五/§九-4）：仅项目负责人可见，批准/驳回在填报页内闭环。 */
 export default function ApprovalTab({
-  onCountChange,
   onChanged,
 }: {
-  onCountChange: (n: number) => void
   onChanged: () => void
 }) {
   const [rows, setRows] = useState<ReportChangeRequestItem[]>([])
@@ -25,13 +23,12 @@ export default function ApprovalTab({
     try {
       const data = await listReportChangeRequests()
       setRows(data)
-      onCountChange(data.length)
     } catch (e) {
       message.error((e as Error).message)
     } finally {
       setLoading(false)
     }
-  }, [onCountChange])
+  }, [])
 
   useEffect(() => {
     load()

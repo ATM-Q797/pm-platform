@@ -255,3 +255,34 @@ def test_legacy_engineer_flow_sends_notifications(client: TestClient, db_session
         select(Notification).where(Notification.user_id == req_user.id)).all()
     assert len(notes) == 1 and notes[0].type == "change_request_approved"
 
+
+def test_badges_endpoint_counts_all_three(client: TestClient, db_session: Session):
+    """角标汇总端点（用户 2026-11-04 体验反馈）：一次返回审批/我的在审/未读三个数。"""
+    owner, req_user, _p, phase = _fixture(db_session)
+
+    _login(client, "eng_req")
+    assert client.get("/api/report/badges").json() == {
+        "approvals": 0, "mine": 0, "notifications": 0}
+
+    _submit(client, phase.id)
+
+    # 申请人：我的在审 = 1，未读 = 0（通知发给了负责人）
+    mine = client.get("/api/report/badges").json()
+    assert mine["mine"] == 1 and mine["approvals"] == 0 and mine["notifications"] == 0
+
+    # 负责人：待我审批 = 1，未读 = 1
+    _login(client, "mgr_owner")
+    owner_badges = client.get("/api/report/badges").json()
+    assert owner_badges == {"approvals": 1, "mine": 0, "notifications": 1}
+
+    # 批准后：审批数归零；负责人那条「新申请」通知仍未读，所以未读数保持 1
+    pending = client.get("/api/report/change-requests").json()
+    client.post(f"/api/report/change-requests/{pending[0]['id']}/review", json={"approved": True})
+    assert client.get("/api/report/badges").json() == {
+        "approvals": 0, "mine": 0, "notifications": 1}
+
+    _login(client, "eng_req")
+    after = client.get("/api/report/badges").json()
+    assert after["approvals"] == 0 and after["mine"] == 0 and after["notifications"] == 1
+
+

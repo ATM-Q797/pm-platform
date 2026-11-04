@@ -1,5 +1,6 @@
 import { useCallback, useEffect, useState } from 'react'
 import { useSearchParams } from 'react-router-dom'
+import useReportBadges from '../hooks/useReportBadges'
 import { Badge, Button, Input, Select, Space, Table, Tabs, Tag, Tooltip, Typography, message } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import {
@@ -61,7 +62,8 @@ export default function ReportPage({ user }: { user: UserInfo }) {
   const [expandedId, setExpandedId] = useState<number | null>(null)
   const [createOpen, setCreateOpen] = useState(false)
   const [reloadKey, setReloadKey] = useState(0)
-  const [pendingCount, setPendingCount] = useState(0)
+  // 角标统一口径（用户 2026-11-04 体验反馈）：15 秒轮询 + 聚焦/切回即刷 + 动作后立即刷
+  const { badges, refresh: refreshBadges, updatedAt, refreshing } = useReportBadges()
   // 筛选状态（用户 2026-10-30：与项目列表页同款——搜索/状态/市场/类目+重置，sessionStorage 进出保留）
   const [filters, setFiltersState] = useState(_readFilters)
   const updateFilters = (next: typeof _DEFAULT_FILTERS) => {
@@ -97,7 +99,10 @@ export default function ReportPage({ user }: { user: UserInfo }) {
     load()
   }, [load, reloadKey])
 
-  const refresh = () => setReloadKey((k) => k + 1)
+  const refresh = () => {
+    setReloadKey((k) => k + 1)
+    refreshBadges()
+  }
 
   const columns: ColumnsType<ReportProjectItem> = [
     {
@@ -244,6 +249,8 @@ export default function ReportPage({ user }: { user: UserInfo }) {
         activeKey={activeTab}
         onChange={(key) => {
           setActiveTab(key)
+          // 切标签时重拉角标：从「待我审批」里处理完回来，数字应当已经是新的
+          refreshBadges()
           // 通知点击可直达标签（link="/report?tab=approvals" 等）；
           // replace 避免来回切标签把浏览器历史塞满。
           const next = new URLSearchParams(searchParams)
@@ -261,16 +268,22 @@ export default function ReportPage({ user }: { user: UserInfo }) {
                     点项目行展开阶段明细；列表按项目计划开始时间排序。项目负责人可改项目级字段与阶段计划时间，
                     阶段负责人可填实际进展。
                   </Text>
-                  <div style={{ display: 'flex', gap: 8 }}>
+                  <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
+                    {updatedAt && (
+                      <Text type="secondary" style={{ fontSize: 12 }}>
+                        更新于 {updatedAt.toLocaleTimeString('zh-CN', { hour12: false })}
+                      </Text>
+                    )}
                     <button
                       className="ant-btn"
                       onClick={() => {
                         load()
                         refresh()
                       }}
-                      title="刷新"
+                      disabled={refreshing}
+                      title="刷新列表与角标"
                     >
-                      <ReloadOutlined />
+                      <ReloadOutlined spin={refreshing} />
                     </button>
                     <button className="ant-btn ant-btn-primary" onClick={() => setCreateOpen(true)}>
                       <PlusOutlined /> 新建项目
@@ -339,21 +352,22 @@ export default function ReportPage({ user }: { user: UserInfo }) {
           },
           {
             key: 'my-requests',
-            label: '我的申请',
+            label: (
+              <Badge count={badges.mine} size="small" offset={[8, -2]} color="orange">
+                <span>我的申请</span>
+              </Badge>
+            ),
             children: <MyRequestsTab />,
           },
           {
             key: 'approvals',
             label: (
-              <Badge count={pendingCount} size="small" offset={[8, -2]}>
+              <Badge count={badges.approvals} size="small" offset={[8, -2]}>
                 <span>待我审批</span>
               </Badge>
             ),
             children: (
-              <ApprovalTab
-                onCountChange={setPendingCount}
-                onChanged={refresh}
-              />
+              <ApprovalTab onChanged={refresh} />
             ),
           },
         ]}

@@ -546,6 +546,13 @@ export interface ReportNotificationItem {
   created_at?: string | null
 }
 
+/** 填报页角标计数（用户 2026-11-04 体验反馈） */
+export interface ReportBadges {
+  approvals: number // 待我审批的申请数
+  mine: number // 我提交且仍在审批中的申请数
+  notifications: number // 未读通知数
+}
+
 export interface ReportMeta {
   categories: string[]
   markets: string[]

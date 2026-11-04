@@ -1,5 +1,6 @@
 import client from './client'
 import type {
+  ReportBadges,
   ReportChangeRequestItem,
   ReportMeta,
   ReportMyChangeRequestItem,
@@ -99,6 +100,12 @@ export async function listNotifications(unreadOnly = false): Promise<ReportNotif
 export async function getUnreadNotificationCount(): Promise<number> {
   const { data } = await client.get<{ count: number }>('/report/notifications/unread-count')
   return data.count
+}
+
+/** 填报页三个角标的一次性计数（用户 2026-11-04 体验反馈） */
+export async function getReportBadges(): Promise<ReportBadges> {
+  const { data } = await client.get<ReportBadges>('/report/badges')
+  return data
 }
 
 export async function markNotificationRead(id: number): Promise<void> {

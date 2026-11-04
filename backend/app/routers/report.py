@@ -753,6 +753,44 @@ def mark_notification_read(
         db.commit()
 
 
+# ---------- 角标汇总（用户 2026-11-04 体验反馈） ----------
+
+@router.get("/badges")
+def report_badges(
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> dict[str, int]:
+    """填报页三个角标的一次性计数：待我审批 / 我的在审申请 / 未读通知。
+
+    为何单独开一个端点：此前「待我审批」的角标由该标签页自己 load 后回填——
+    不点进去就永远是 0；铃铛另有一套 60 秒轮询；三者刷新时机不同，体感就是「不及时」。
+    合成一次轻量查询，前端统一按 15 秒 + 窗口聚焦刷新，任一动作后立即重拉。
+    """
+    approvals_stmt = (
+        select(func.count()).select_from(PhaseChangeRequest)
+        .join(Project, PhaseChangeRequest.project_id == Project.id)
+        .where(PhaseChangeRequest.status == "pending")
+    )
+    if user.role != "admin":
+        approvals_stmt = approvals_stmt.where(
+            or_(
+                Project.managed_by == user.id,
+                and_(Project.managed_by.is_(None), Project.owner == user.name),
+            )
+        )
+    mine = select(func.count()).select_from(PhaseChangeRequest).where(
+        PhaseChangeRequest.requested_by == user.id,
+        PhaseChangeRequest.status == "pending",
+    )
+    unread = select(func.count()).select_from(Notification).where(
+        Notification.user_id == user.id, Notification.read_at.is_(None))
+    return {
+        "approvals": int(db.scalar(approvals_stmt) or 0),
+        "mine": int(db.scalar(mine) or 0),
+        "notifications": int(db.scalar(unread) or 0),
+    }
+
+
 # ---------- 元数据 ----------
 
 @router.get("/meta", response_model=ReportMeta)

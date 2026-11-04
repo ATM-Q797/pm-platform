@@ -15,7 +15,8 @@ const { Text } = Typography
 /** 顶栏通知铃铛（二期①，用户 2026-11-04）。
  *
  * 审批结果此前只在页面刷新时可查，且没有入口——通知是让「结果主动找到人」。
- * 60 秒轮询一次：审批不需要秒级实时，但也不能让人永远等不到。
+ * 15 秒轮询（仅页面可见时）+ 窗口聚焦/切回标签页立即刷新（用户 2026-11-04 体验反馈：
+ * 原 60 秒轮询太钝，回来一看还是旧数字）；打开面板也会重拉一次。
  * 轮询失败不弹错误（顶栏噪音大），下一次轮询自然重试；点开列表失败才提示。
  */
 export default function NotificationBell() {
@@ -46,13 +47,28 @@ export default function NotificationBell() {
 
   useEffect(() => {
     loadCount()
-    const timer = window.setInterval(loadCount, 60000)
-    return () => window.clearInterval(timer)
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === 'visible') loadCount()
+    }, 15000)
+    const onFocus = () => loadCount()
+    const onVisibility = () => {
+      if (document.visibilityState === 'visible') loadCount()
+    }
+    window.addEventListener('focus', onFocus)
+    document.addEventListener('visibilitychange', onVisibility)
+    return () => {
+      window.clearInterval(timer)
+      window.removeEventListener('focus', onFocus)
+      document.removeEventListener('visibilitychange', onVisibility)
+    }
   }, [loadCount])
 
   const openChange = (next: boolean) => {
     setOpen(next)
-    if (next) loadItems()
+    if (next) {
+      loadItems()
+      loadCount() // 打开面板再校一次未读数，避免看到列表与角标不一致
+    }
   }
 
   const clickItem = async (n: ReportNotificationItem) => {
@@ -82,6 +98,8 @@ export default function NotificationBell() {
               await markAllNotificationsRead()
               setCount(0)
               setItems((list) => list.map((x) => ({ ...x, read_at: x.read_at ?? new Date().toISOString() })))
+              // 消除要有回伴：只看角标消失经常没注意到，补一句提示
+              message.success('已全部标为已读')
             } catch (e) {
               message.error((e as Error).message)
             }
