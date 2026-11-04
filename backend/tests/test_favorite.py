@@ -46,7 +46,12 @@ def test_favorite_404(client, db_session):
 
 
 def test_list_favorites_marked_and_pinned(client, db_session):
-    """列表返回 is_favorite 标记，且关注项目置顶（组内按 id）。"""
+    """列表返回 is_favorite 标记；**关注不置顶**——排序恒按 plan_start 升序（同日按 id），
+    与填报页一一对应（用户 2026-10-30 指令，projects.py:82-89）。
+
+    注：本用例三个项目均无 plan_start，故顺序退化为 id 升序；此断言验证「关注不改变顺序」，
+    函数名沿用历史名（已不再断言置顶）。
+    """
     p1 = _mk_project(client, "项目一")
     p2 = _mk_project(client, "项目二")
     p3 = _mk_project(client, "项目三")
@@ -56,7 +61,7 @@ def test_list_favorites_marked_and_pinned(client, db_session):
     client.put(f"/api/projects/{p2}/favorite")
 
     projects = client.get("/api/projects").json()
-    # 置顶：p1、p2 在前（按 id 升序），p3 在后
+    # 关注不置顶：顺序恒为 plan_start 升序（本用例全为空 → id 升序）
     assert [p["id"] for p in projects] == [p1, p2, p3]
     by_id = {p["id"]: p for p in projects}
     assert by_id[p1]["is_favorite"] is True
