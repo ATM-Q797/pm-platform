@@ -18,12 +18,13 @@ from __future__ import annotations
 from datetime import datetime
 
 from fastapi import APIRouter, Depends, HTTPException, status
-from sqlalchemy import and_, or_, select
+from sqlalchemy import and_, func, or_, select
 from sqlalchemy.orm import Session
 
 from app.core.deps import get_current_user
 from app.database import get_db
 from app.models import (
+    Notification,
     Phase,
     PhaseChangeRequest,
     Project,
@@ -35,6 +36,8 @@ from app.schemas.report import (
     ReportChangeRequestItem,
     ReportChangeReview,
     ReportMeta,
+    ReportMyChangeRequestItem,
+    ReportNotificationItem,
     ReportPhaseOut,
     ReportPhaseCreate,
     ReportPhasePatch,
@@ -43,6 +46,7 @@ from app.schemas.report import (
     ReportProjectItem,
 )
 from app.services import report_service as svc
+from app.services.notification import notify, project_owner_user_ids
 
 router = APIRouter(prefix="/api/report", tags=["信息填报"])
 
@@ -535,6 +539,13 @@ def create_report_change_request(
     db.add(req)
     log_operation(db, user, "request_phase_change", "phase", phase.id, phase.name,
                   detail=f"提交变更申请（项目：{project.name}）")
+    # 通知项目负责人（二期①）：审批人不必再靠人喊一声才发现有新申请
+    for owner_id in project_owner_user_ids(db, project):
+        if owner_id != user.id:
+            notify(db, owner_id, "change_request_created",
+                   f"新的变更申请：{project.name} / {phase.name}",
+                   f"{user.name} 提交了变更申请，请到「待我审批」处理。",
+                   link="/report")
     db.commit()
     db.refresh(req)
     return _change_item(db, req)
@@ -599,6 +610,18 @@ def review_report_change_request(
         req.status = "rejected"
         log_operation(db, user, "reject_report_phase_change", "phase", req.phase_id,
                       detail=f"驳回改期申请 #{req.id}，原因：{payload.comment}")
+    # 通知申请人（二期①）：审批结果与驳回原因第一次能被申请人看到
+    phase_name = (db.get(Phase, req.phase_id).name if db.get(Phase, req.phase_id) else "该阶段")
+    if payload.approved:
+        notify(db, req.requested_by, "change_request_approved",
+               f"改期申请已批准：{phase_name}",
+               "项目负责人已批准你的变更申请，计划已按申请更新。",
+               link="/report")
+    else:
+        notify(db, req.requested_by, "change_request_rejected",
+               f"改期申请被驳回：{phase_name}",
+               f"驳回原因：{payload.comment}",
+               link="/report")
     db.commit()
     db.refresh(req)
     return _change_item(db, req)
@@ -621,6 +644,107 @@ def _change_item(db: Session, req: PhaseChangeRequest) -> ReportChangeRequestIte
         review_comment=req.review_comment,
         created_at=req.created_at,
     )
+
+
+# ---------- 我的申请（二期①，用户 2026-11-04） ----------
+
+@router.get("/my-change-requests", response_model=list[ReportMyChangeRequestItem])
+def list_my_change_requests(
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """我提交的变更申请（倒序，最多 100 条）。
+
+    为何需要这个端点：此前只有「待我审批」（给审批人），申请人看不到自己提交的结果——
+    被驳回后连原因都没有入口可看（驳回理由只被旧审核中心渲染，而 reporter 被角色隔离挡在外）。
+    """
+    rows = db.scalars(
+        select(PhaseChangeRequest)
+        .where(PhaseChangeRequest.requested_by == user.id)
+        .order_by(PhaseChangeRequest.created_at.desc(), PhaseChangeRequest.id.desc())
+        .limit(100)
+    ).all()
+    out: list[ReportMyChangeRequestItem] = []
+    for r in rows:
+        phase = db.get(Phase, r.phase_id)
+        project = db.get(Project, r.project_id)
+        reviewer = db.get(User, r.reviewed_by) if r.reviewed_by else None
+        out.append(ReportMyChangeRequestItem(
+            id=r.id,
+            phase_id=r.phase_id,
+            phase_name=phase.name if phase else None,
+            project_id=r.project_id,
+            project_name=project.name if project else None,
+            proposed=svc.parse_change_proposal(r.proposed_changes),
+            status=r.status,
+            review_comment=r.review_comment,
+            reviewer_name=(f"{reviewer.name}（已强制删除）" if reviewer and reviewer.force_deleted_at
+                           else (reviewer.name if reviewer else None)),
+            created_at=r.created_at,
+            reviewed_at=r.reviewed_at,
+        ))
+    return out
+
+
+# ---------- 站内通知（二期①，用户 2026-11-04） ----------
+# 路径放在 /api/report 下：main.py 的 reporter 封锁门只放行 /api/report/* 与 /api/auth/*，
+# 单独开 /api/notifications 会把填报人挡在外面（而填报人正是最需要看到审批结果的人）。
+
+@router.get("/notifications", response_model=list[ReportNotificationItem])
+def list_notifications(
+    unread_only: bool = False,
+    limit: int = 50,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    stmt = select(Notification).where(Notification.user_id == user.id)
+    if unread_only:
+        stmt = stmt.where(Notification.read_at.is_(None))
+    limit = max(1, min(limit, 200))
+    return list(db.scalars(
+        stmt.order_by(Notification.created_at.desc(), Notification.id.desc()).limit(limit)
+    ).all())
+
+
+@router.get("/notifications/unread-count")
+def unread_notification_count(
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> dict[str, int]:
+    n = db.scalar(
+        select(func.count()).select_from(Notification).where(
+            Notification.user_id == user.id, Notification.read_at.is_(None))
+    )
+    return {"count": int(n or 0)}
+
+
+@router.post("/notifications/read-all", status_code=status.HTTP_204_NO_CONTENT)
+def mark_all_notifications_read(
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    rows = db.scalars(
+        select(Notification).where(
+            Notification.user_id == user.id, Notification.read_at.is_(None))
+    ).all()
+    now = datetime.now()
+    for n in rows:
+        n.read_at = now
+    db.commit()
+
+
+@router.post("/notifications/{nid}/read", status_code=status.HTTP_204_NO_CONTENT)
+def mark_notification_read(
+    nid: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    n = db.get(Notification, nid)
+    if n is None or n.user_id != user.id:  # 越权访问他人通知一律 404，不泄露存在性
+        raise HTTPException(404, "通知不存在")
+    if n.read_at is None:
+        n.read_at = datetime.now()
+        db.commit()
 
 
 # ---------- 元数据 ----------

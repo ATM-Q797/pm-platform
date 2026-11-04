@@ -18,6 +18,8 @@ from app.database import get_db
 from app.models import Dependency, Phase, Project, Resource, ReworkLog, User
 from app.routers.audit import log_operation
 from app.schemas import PhaseCreate, PhaseRead, PhaseUpdate, ReworkLogRead, ReworkRequest
+from app.services.change_request import invalidate_pending_on_direct_edit
+from app.services.notification import notify
 
 router = APIRouter(tags=["阶段"])
 
@@ -228,10 +230,25 @@ def update_phase(
         for ph in existing:
             ph.sequence += 1
 
+    plan_changed = bool({"plan_start", "plan_end"} & set(data))
     for k, v in data.items():
         setattr(phase, k, v)
     if assignee_ids is not None:
         _sync_assignees(db, phase, assignee_ids)
+    # 直改计划时间 → 该阶段 pending 改期申请作废（二期④，用户 2026-11-04）
+    # 与填报页共用 services/change_request.py 的同一条规则：不这么做的话，
+    # 旧入口改完日期后挂着的申请一被「批准」就会把日期写回旧提案（数据被回滚）。
+    if plan_changed:
+        invalidated = invalidate_pending_on_direct_edit(db, phase, user)
+        if invalidated is not None:
+            log_operation(
+                db, user, "invalidate_phase_change", "phase", phase.id, phase.name,
+                detail=f"项目详情页直接改期，自动作废待审申请 #{invalidated.id}",
+            )
+            notify(db, invalidated.requested_by, "change_request_invalidated",
+                   f"改期申请已作废：{phase.name}",
+                   "项目负责人已在项目详情页直接修改计划时间，你提交的改期申请自动作废。",
+                   link="/report")
     # 重排 sequence 保证连续无空洞
     _normalize_sequence(db, phase.project_id)
     db.commit()

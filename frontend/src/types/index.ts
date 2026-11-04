@@ -521,6 +521,30 @@ export interface ReportChangeRequestItem {
   created_at?: string | null
 }
 
+export interface ReportMyChangeRequestItem {
+  id: number
+  phase_id: number
+  phase_name?: string | null
+  project_id: number
+  project_name?: string | null
+  proposed: Record<string, ReportChangeProposal>
+  status: string // pending / approved / rejected
+  review_comment?: string | null
+  reviewer_name?: string | null
+  created_at?: string | null
+  reviewed_at?: string | null
+}
+
+export interface ReportNotificationItem {
+  id: number
+  type: string
+  title: string
+  body?: string | null
+  link?: string | null
+  read_at?: string | null
+  created_at?: string | null
+}
+
 export interface ReportMeta {
   categories: string[]
   markets: string[]

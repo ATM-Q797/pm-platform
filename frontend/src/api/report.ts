@@ -2,6 +2,8 @@ import client from './client'
 import type {
   ReportChangeRequestItem,
   ReportMeta,
+  ReportMyChangeRequestItem,
+  ReportNotificationItem,
   ReportPhaseRow,
   ReportProjectCreatePayload,
   ReportProjectDetail,
@@ -78,6 +80,33 @@ export async function deleteReportProject(projectId: number): Promise<void> {
 export async function listReportChangeRequests(): Promise<ReportChangeRequestItem[]> {
   const { data } = await client.get<ReportChangeRequestItem[]>('/report/change-requests')
   return data
+}
+
+/** 我提交的变更申请（二期①）：申请人可见审批结果与驳回原因 */
+export async function listMyChangeRequests(): Promise<ReportMyChangeRequestItem[]> {
+  const { data } = await client.get<ReportMyChangeRequestItem[]>('/report/my-change-requests')
+  return data
+}
+
+/** 站内通知（二期①）：默认最多 50 条，倒序 */
+export async function listNotifications(unreadOnly = false): Promise<ReportNotificationItem[]> {
+  const { data } = await client.get<ReportNotificationItem[]>('/report/notifications', {
+    params: { unread_only: unreadOnly },
+  })
+  return data
+}
+
+export async function getUnreadNotificationCount(): Promise<number> {
+  const { data } = await client.get<{ count: number }>('/report/notifications/unread-count')
+  return data.count
+}
+
+export async function markNotificationRead(id: number): Promise<void> {
+  await client.post(`/report/notifications/${id}/read`)
+}
+
+export async function markAllNotificationsRead(): Promise<void> {
+  await client.post('/report/notifications/read-all')
 }
 
 export async function reviewReportChangeRequest(

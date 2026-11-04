@@ -27,6 +27,8 @@ from app.models import (
 )
 from app.routers.audit import log_operation
 from app.routers.phases import _sync_assignees
+from app.services.change_request import get_pending_request, invalidate_pending_on_direct_edit
+from app.services.notification import notify
 
 # 项目级字段 editable 白名单（按 §3.2：仅项目负责人可改项目级字段）
 PROJECT_FIELDS = ("category", "name", "market", "status", "remark", "managed_by")
@@ -138,29 +140,24 @@ def check_phase_patch(
 
 
 # ---------- 单 pending 与直改作废（§四边界规则） ----------
-
-def get_pending_request(db: Session, phase_id: int) -> PhaseChangeRequest | None:
-    """该阶段当前 pending 的改期申请（单一 pending 语义，audit.py:181-189 同口径）。"""
-    return db.scalars(
-        select(PhaseChangeRequest).where(
-            PhaseChangeRequest.phase_id == phase_id,
-            PhaseChangeRequest.status == "pending",
-        )
-    ).first()
-
+# 规则本体已下沉到 services/change_request.py（二期④：旧入口 phases.py 共用同一条），
+# 此处 re-export 使 svc.get_pending_request 调用点不变。
 
 def _invalidate_pending_on_direct_edit(db: Session, phase: Phase, user: User) -> None:
-    """负责人直改计划时间 → 该阶段 pending 申请自动置 rejected（§四边界规则 2）。"""
-    pending = get_pending_request(db, phase.id)
+    """负责人直改计划时间 → 该阶段 pending 申请自动置 rejected（§四边界规则 2）。
+
+    作废后写审计日志并通知申请人（二期①：申请人第一次能看到「被作废」这件事）。
+    """
+    pending = invalidate_pending_on_direct_edit(db, phase, user)
     if pending is not None:
-        pending.status = "rejected"
-        pending.reviewed_by = user.id
-        pending.review_comment = "负责人已直接改期，申请作废"
-        pending.reviewed_at = datetime.now()
         log_operation(
             db, user, "invalidate_phase_change", "phase", phase.id, phase.name,
             detail=f"负责人直接改期，自动作废待审申请 #{pending.id}",
         )
+        notify(db, pending.requested_by, "change_request_invalidated",
+               f"改期申请已作废：{phase.name}",
+               "项目负责人已直接修改计划时间，你提交的改期申请自动作废。",
+               link="/report")
 
 
 # ---------- 改期申请：提案构造与解析 ----------

@@ -201,6 +201,36 @@ class ReportChangeReview(BaseModel):
     comment: str | None = None
 
 
+class ReportMyChangeRequestItem(BaseModel):
+    """我提交的变更申请（二期①「我的申请」：申请人可见审批结果与驳回原因）。"""
+
+    id: int
+    phase_id: int
+    phase_name: str | None = None
+    project_id: int
+    project_name: str | None = None
+    proposed: dict[str, Any] = {}
+    status: str  # pending / approved / rejected
+    review_comment: str | None = None
+    reviewer_name: str | None = None
+    created_at: datetime | None = None
+    reviewed_at: datetime | None = None
+
+
+class ReportNotificationItem(BaseModel):
+    """站内通知（二期①）。"""
+
+    model_config = ConfigDict(from_attributes=True)
+
+    id: int
+    type: str
+    title: str
+    body: str | None = None
+    link: str | None = None
+    read_at: datetime | None = None
+    created_at: datetime | None = None
+
+
 # ---------- 元数据 ----------
 
 class ReportMeta(BaseModel):

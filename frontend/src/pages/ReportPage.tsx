@@ -12,6 +12,7 @@ import { listReportProjects } from '../api/report'
 import NewProjectModal from '../components/Report/NewProjectModal'
 import PhaseDetailTable from '../components/Report/PhaseDetailTable'
 import ApprovalTab from '../components/Report/ApprovalTab'
+import MyRequestsTab from '../components/Report/MyRequestsTab'
 
 const { Text } = Typography
 
@@ -313,6 +314,11 @@ export default function ReportPage({ user }: { user: UserInfo }) {
                 />
               </div>
             ),
+          },
+          {
+            key: 'my-requests',
+            label: '我的申请',
+            children: <MyRequestsTab />,
           },
           {
             key: 'approvals',
