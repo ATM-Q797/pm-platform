@@ -170,7 +170,7 @@ def test_snapshot_excludes_special_and_shelved(client, db_session):
 # ---------- trend：周聚合 + 差分 ----------
 
 def test_trend_weekly_aggregation_and_delta(client, db_session):
-    """周点 = 周内最后一个快照；delta 仅累计量键、首周为 0；窗口按天过滤。
+    """周点 = 周内最后一个快照；delta 仅 _WEEKLY_DELTA_KEYS 键、首周为 0；窗口按天过滤。
 
     日期构造与今天星期几无关：上周两个快照（早/晚）+ 今天一个；
     上周周点 = 晚者覆盖早者。
@@ -202,9 +202,15 @@ def test_trend_weekly_aggregation_and_delta(client, db_session):
     # 周点 = 周内最后一个快照
     assert weekly[0]["metrics"]["projects_total"] == 11
     assert weekly[1]["metrics"]["projects_total"] == 15
-    # 差分：首周 0；本周 = 本周值 - 上周值（键集 = _WEEKLY_DELTA_KEYS，项目级，用户 2026-10-26 裁定）
-    assert weekly[0]["delta"] == {"completed_projects_total": 0, "shelved_total": 0, "started_projects_total": 0}
-    assert weekly[1]["delta"] == {"completed_projects_total": 0, "shelved_total": 1, "started_projects_total": 0}
+    # 差分：首周 0；本周 = 本周值 - 上周值（键集 = _WEEKLY_DELTA_KEYS；8-1 新增 delayed_phases/conflict_pairs）
+    assert weekly[0]["delta"] == {
+        "completed_projects_total": 0, "shelved_total": 0, "started_projects_total": 0,
+        "delayed_phases": 0, "conflict_pairs": 0,
+    }
+    assert weekly[1]["delta"] == {
+        "completed_projects_total": 0, "shelved_total": 1, "started_projects_total": 0,
+        "delayed_phases": 0, "conflict_pairs": 0,
+    }
 
     # 窗口下界（纯函数级）：days=3 → 仅窗口内快照（端点层 days 固定 30/90/180）
     row_old = StatusSnapshot(snapshot_date=date(2026, 9, 7), metrics={"projects_total": 1})

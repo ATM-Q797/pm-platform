@@ -1,4 +1,4 @@
-"""看板增强（T5）测试：阶段级延期 / 即将到期 / 冲突计数。
+"""看板增强测试：T5 阶段级延期/即将到期/冲突计数 + 8-1 风险队列/周差分/环比。
 
 日期用例基于相对今天构造，避免时间漂移。
 """
@@ -6,7 +6,8 @@ from __future__ import annotations
 
 from datetime import date, timedelta
 
-from app.models import Phase, Project, Resource
+from app.models import Phase, Project, Resource, StatusSnapshot
+from app.services.snapshot import build_trend
 
 
 def _today() -> date:
@@ -121,3 +122,143 @@ def test_no_risk_data_empty_lists(client, db_session):
     assert data["due_soon_phases"] == []
     assert data["due_soon_count"] == 0
     assert data["conflict_count"] == 0
+
+
+# ---------- 8-1 数据看板增强：风险队列合并去重 + 周差分/环比 ----------
+
+def _mk_conflict_cluster(db_session, prefix: str, resources: list[Resource], t: date) -> None:
+    """4 个项目各 1 个深度重叠阶段挂到给定资源——峰值并行 4 > 3 触发冲突。
+
+    区间设计产生 5 对（重叠 20/20/12/12/12）：两两 ≥ 10 天且 ≥ 短者 60%（B-C 仅重叠 4 天不成对）。
+    同批阶段挂多个资源时每人各报 5 对（跨资源重复），供去重用例。
+    """
+    ranges = [(t, t + timedelta(days=20)), (t + timedelta(days=8), t + timedelta(days=28)),
+              (t, t + timedelta(days=12)), (t, t + timedelta(days=28))]
+    for i, (start, end) in enumerate(ranges):
+        p = _mk_project(db_session, f"{prefix}项目{i + 1}")
+        ph = _mk_phase(db_session, p, f"{prefix}阶段{i + 1}", start, end)
+        ph.assignees = resources
+    db_session.flush()
+
+
+def test_risk_queue_merge_dedup(client, db_session):
+    """三源合并去重：同冲突对跨资源合 1 行（资源并入 detail）；分组顺序 逾期 → 冲突 → 到期。"""
+    t = _today()
+    r1, r2 = Resource(name="资源甲"), Resource(name="资源乙")
+    db_session.add_all([r1, r2])
+    db_session.flush()
+
+    p1 = _mk_project(db_session, "逾期项目")
+    _mk_phase(db_session, p1, "逾期阶段", t - timedelta(days=12), t - timedelta(days=2))  # 逾期 2 天
+    p2 = _mk_project(db_session, "到期项目")
+    _mk_phase(db_session, p2, "到期阶段", t - timedelta(days=1), t + timedelta(days=3))  # 剩 3 天
+
+    _mk_conflict_cluster(db_session, "冲突", [r1, r2], t)
+    db_session.commit()
+
+    data = client.get("/api/dashboard/stats").json()
+    queue = data["risk_queue"]
+    assert [r["type"] for r in queue] == ["overdue"] + ["conflict"] * 5 + ["due_soon"]
+    assert len(queue) == 7  # 三来源合并去重后总数（2 资源 × 5 对 → 5 行冲突）
+
+    # 同一冲突对跨资源只算 1 行，两个资源名并入 detail
+    for row in (r for r in queue if r["type"] == "conflict"):
+        assert "资源甲" in row["detail"] and "资源乙" in row["detail"]
+    # 卡面 conflict_count 仍按资源计（T4 口径：2 人 × 5 对 = 10）；队列去重后 5
+    assert data["conflict_count"] == 10
+
+    # 点行跳项目详情：project_id 为真实项目，days/detail 与来源同口径
+    overdue_row = queue[0]
+    assert overdue_row["project_id"] == p1.id and overdue_row["days"] == 2
+    assert overdue_row["detail"] == "阶段逾期 2 天"
+    due_row = queue[-1]
+    assert due_row["project_id"] == p2.id and due_row["days"] == 3
+    assert due_row["detail"] == "剩余 3 天到期"
+
+
+def test_risk_queue_group_sorting(client, db_session):
+    """组内排序（2026-11-04 裁定）：逾期天数降序 → 冲突重叠降序 → 到期剩余升序。"""
+    t = _today()
+    p = _mk_project(db_session, "排序风险项目")
+    _mk_phase(db_session, p, "逾期10天", t - timedelta(days=12), t - timedelta(days=10))
+    _mk_phase(db_session, p, "逾期5天", t - timedelta(days=7), t - timedelta(days=5))
+    _mk_phase(db_session, p, "剩2天", t - timedelta(days=1), t + timedelta(days=2))
+    _mk_phase(db_session, p, "剩5天", t - timedelta(days=2), t + timedelta(days=5))
+    r = Resource(name="单资源")
+    db_session.add(r)
+    db_session.flush()
+    _mk_conflict_cluster(db_session, "簇", [r], t)
+    db_session.commit()
+
+    queue = client.get("/api/dashboard/stats").json()["risk_queue"]
+    assert [x["type"] for x in queue] == ["overdue", "overdue"] + ["conflict"] * 5 + ["due_soon", "due_soon"]
+    assert [x["days"] for x in queue] == [10, 5, 20, 20, 12, 12, 12, 2, 5]
+
+
+def test_risk_queue_cross_type_not_deduped(client, db_session):
+    """同一阶段既逾期又卷入冲突 = 两行（跨风险类型不去重，两类风险都要查）。"""
+    t = _today()
+    r = Resource(name="背锅人")
+    db_session.add(r)
+    db_session.flush()
+    for i in range(4):
+        p = _mk_project(db_session, f"交叉项目{i + 1}")
+        ph = _mk_phase(db_session, p, f"交叉阶段{i + 1}", t - timedelta(days=25), t - timedelta(days=5))
+        ph.assignees = [r]
+    db_session.commit()
+
+    queue = client.get("/api/dashboard/stats").json()["risk_queue"]
+    types = [x["type"] for x in queue]
+    assert types.count("overdue") == 4  # 4 个逾期阶段各 1 行
+    assert types.count("conflict") == 6  # 4 阶段两两深度重叠 6 对（单资源无跨资源重复）
+    assert len(queue) == 10  # 跨类型不去重：逾期行与冲突行并存
+    # 交叉证据：交叉阶段1 既有逾期行，又出现在冲突行中
+    assert "交叉阶段1" in {x["phase_name"] for x in queue if x["type"] == "overdue"}
+    conflict_text = " ".join(x["phase_name"] + x["detail"] for x in queue if x["type"] == "conflict")
+    assert "交叉阶段1" in conflict_text
+
+
+def test_weekly_delta_new_keys():
+    """8-1：_WEEKLY_DELTA_KEYS 新增 delayed_phases/conflict_pairs，周差分与快照值同源。"""
+    t = _today()
+    monday0 = t - timedelta(days=t.weekday())
+    last_monday = monday0 - timedelta(days=7)
+    rows = [
+        StatusSnapshot(snapshot_date=last_monday, metrics={"delayed_phases": 4, "conflict_pairs": 6}),
+        StatusSnapshot(snapshot_date=last_monday + timedelta(days=6), metrics={"delayed_phases": 5, "conflict_pairs": 6}),
+        StatusSnapshot(snapshot_date=t, metrics={"delayed_phases": 2, "conflict_pairs": 9}),
+    ]
+    out = build_trend(rows, days=30, today=t)
+    assert [w["delta"]["delayed_phases"] for w in out["weekly"]] == [0, -3]  # 本周 2 − 上周 5
+    assert [w["delta"]["conflict_pairs"] for w in out["weekly"]] == [0, 3]
+
+
+def test_stats_weekly_delta_and_snapshot_date(client, db_session):
+    """8-1：stats 返回 4 卡环比（与 build_trend 同一周差分公式）与数据截至日期；无快照/无基期 → None。"""
+    t = _today()
+    monday0 = t - timedelta(days=t.weekday())
+    last_monday = monday0 - timedelta(days=7)
+
+    # 无快照：空态（页面不报错，前端显示触发入口）
+    data = client.get("/api/dashboard/stats").json()
+    assert data["snapshot_date"] is None
+    assert data["weekly_delta"] is None
+
+    db_session.add(StatusSnapshot(snapshot_date=last_monday, metrics={
+        "projects_total": 10, "delayed_projects": 1, "due_soon_phases": 2, "conflict_pairs": 3,
+    }))
+    db_session.commit()
+    data = client.get("/api/dashboard/stats").json()
+    assert data["snapshot_date"] == last_monday.isoformat()
+    assert data["weekly_delta"] is None  # 仅一周快照，无对比基期——不用 0 冒充无变化
+
+    db_session.add(StatusSnapshot(snapshot_date=t, metrics={
+        "projects_total": 12, "delayed_projects": 0, "due_soon_phases": 4, "conflict_pairs": 3,
+    }))
+    db_session.commit()
+    data = client.get("/api/dashboard/stats").json()
+    assert data["snapshot_date"] == t.isoformat()
+    assert data["weekly_delta"] == {
+        "projects_total": 2, "delayed_projects": -1, "due_soon_phases": 2, "conflict_pairs": 0,
+    }
+

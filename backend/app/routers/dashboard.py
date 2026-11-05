@@ -6,19 +6,23 @@
 from __future__ import annotations
 
 from datetime import date, timedelta
+from typing import Sequence
 
 from fastapi import APIRouter, Depends
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from app.database import get_db
-from app.models import Phase, Project
+from app.models import Phase, Project, StatusSnapshot
 from app.schemas import (
+    ConflictPair,
     DashboardStats,
     DelayedPhase,
     DelayedProject,
     DueSoonPhase,
+    ResourceConflict,
     ReworkPhase,
+    RiskQueueItem,
     StatusCount,
 )
 from app.services.resource_conflicts import detect_conflicts
@@ -32,12 +36,17 @@ _ACTIVE_STATUSES = ("未开始", "进行中")
 _SHELVED_PROJECT_STATUSES = ("搁置",)
 # 即将到期窗口（天）
 _DUE_SOON_DAYS = 7
+# 看板 4 卡环比指标键（8-1，2026-11-04 裁定：小字与卡面大数字同指标）
+_CARD_DELTA_KEYS = ("projects_total", "delayed_projects", "due_soon_phases", "conflict_pairs")
+# 风险队列行分组顺序（8-1，2026-11-04 裁定：逾期 → 冲突 → 到期，紧急优先）
+_RISK_TYPE_RANK = {"overdue": 0, "conflict": 1, "due_soon": 2}
 
 
-def build_dashboard_stats(db: Session) -> DashboardStats:
+def build_dashboard_stats(db: Session, conflicts: list[ResourceConflict] | None = None) -> DashboardStats:
     """看板统计主体（模块级纯函数）——与每日快照共用的口径单一来源（PROJECT_ANALYSIS §3.2）。
 
     路由行为不变：get_dashboard_stats 仅委托本函数。
+    conflicts 可传入已检冲突结果（看板路由需冲突明细建风险队列，传入避免二次全量检测）。
     """
     today = date.today()
 
@@ -180,7 +189,8 @@ def build_dashboard_stats(db: Session) -> DashboardStats:
     )
 
     # 资源冲突对数（复用 T4 检测逻辑）
-    conflicts = detect_conflicts(db)
+    if conflicts is None:
+        conflicts = detect_conflicts(db)
     conflict_count = sum(len(rc.conflicts) for rc in conflicts)
 
     return DashboardStats(
@@ -200,7 +210,87 @@ def build_dashboard_stats(db: Session) -> DashboardStats:
     )
 
 
+def build_risk_queue(stats: DashboardStats, conflicts: Sequence[ResourceConflict]) -> list[RiskQueueItem]:
+    """今日风险队列（8-1）：延期阶段 + 即将到期阶段 + 资源冲突 三源合并去重。
+
+    行 = 风险事件（2026-11-04 裁定）：
+    - 去重：同一冲突对跨资源合并为 1 行（涉事资源并入 detail）；延期/到期按 (type, 项目, 阶段) 去重；
+      跨风险类型不去重（同一阶段既逾期又卷入冲突 = 两行，两件事都要查）。
+    - 排序（2026-11-04 裁定：紧急优先）：逾期（severity=3，逾期天数降序）→ 冲突（severity=2，
+      重叠天数降序）→ 到期（severity=2，剩余天数升序）。
+    - 冲突行取 A 侧项目为点行跳转目标，B 侧在 detail 中给出。
+    """
+    items: list[RiskQueueItem] = []
+    seen: set[tuple] = set()
+
+    for d in stats.delayed_phases:
+        key = ("overdue", d.project_id, d.phase_id)
+        if key in seen:
+            continue
+        seen.add(key)
+        items.append(RiskQueueItem(
+            project_id=d.project_id,
+            project_name=d.project_name,
+            phase_name=d.phase_name,
+            type="overdue",
+            severity=3,
+            detail=f"阶段逾期 {d.overdue_days} 天",
+            days=d.overdue_days,
+        ))
+
+    # 同一冲突对跨资源去重：同两阶段只算 1 行，涉事资源名合并
+    pair_map: dict[tuple[int, int], tuple[ConflictPair, list[str]]] = {}
+    for rc in conflicts:
+        for pair in rc.conflicts:
+            key = tuple(sorted((pair.phase_a_id, pair.phase_b_id)))
+            if key in pair_map:
+                pair_map[key][1].append(rc.resource_name)
+            else:
+                pair_map[key] = (pair, [rc.resource_name])
+    for pair, resource_names in pair_map.values():
+        items.append(RiskQueueItem(
+            project_id=pair.project_a_id,
+            project_name=pair.project_a_name,
+            phase_name=pair.phase_a_name,
+            type="conflict",
+            severity=2,
+            detail=f"与 {pair.project_b_name}·{pair.phase_b_name} 重叠 {pair.overlap_days} 天"
+                   f"（资源：{'、'.join(resource_names)}）",
+            days=pair.overlap_days,
+        ))
+
+    for s in stats.due_soon_phases:
+        key = ("due_soon", s.project_id, s.phase_id)
+        if key in seen:
+            continue
+        seen.add(key)
+        items.append(RiskQueueItem(
+            project_id=s.project_id,
+            project_name=s.project_name,
+            phase_name=s.phase_name,
+            type="due_soon",
+            severity=2,
+            detail=f"剩余 {s.days_left} 天到期",
+            days=s.days_left,
+        ))
+
+    items.sort(key=lambda r: (_RISK_TYPE_RANK[r.type], -r.days if r.type != "due_soon" else r.days, r.project_id))
+    return items
+
+
 @router.get("/stats", response_model=DashboardStats)
 def get_dashboard_stats(db: Session = Depends(get_db)):
-    """首页看板聚合统计：项目/阶段状态分布、延期预警、返工统计。"""
-    return build_dashboard_stats(db)
+    """首页看板聚合统计：分布/预警/返工 + 今日风险队列、数据截至日期与 4 卡环比。"""
+    # 函数内导入：app.services.snapshot 顶部 import 本模块，顶层互引会成循环导入
+    from app.services.snapshot import build_weekly_delta
+
+    conflicts = detect_conflicts(db)
+    stats = build_dashboard_stats(db, conflicts=conflicts)
+    snapshot_date = db.scalar(
+        select(StatusSnapshot.snapshot_date).order_by(StatusSnapshot.snapshot_date.desc()).limit(1)
+    )
+    return stats.model_copy(update={
+        "risk_queue": build_risk_queue(stats, conflicts),
+        "snapshot_date": snapshot_date.isoformat() if snapshot_date else None,
+        "weekly_delta": build_weekly_delta(db, _CARD_DELTA_KEYS),
+    })

@@ -53,6 +53,7 @@ from app.schemas.dashboard import (
     DelayedProject,
     DueSoonPhase,
     ReworkPhase,
+    RiskQueueItem,
     StatusCount,
 )
 from app.schemas.user import (
@@ -105,7 +106,7 @@ __all__ = [
     "ImportPreview", "ImportExistingCounts", "ImportIncomingCounts",
     "ProjectMatchInfo", "PreviewProject", "PendingLinkPhase",
     "DashboardStats", "DelayedProject", "ReworkPhase", "StatusCount",
-    "DelayedPhase", "DueSoonPhase",
+    "DelayedPhase", "DueSoonPhase", "RiskQueueItem",
     "UserCreate", "UserRead", "UserUpdate", "LoginRequest", "LoginResponse", "PasswordChange",
     "DeleteRequestCreate", "DeleteRequestRead", "DeleteReview", "OperationLogRead",
     "PhaseChangeRequestCreate", "PhaseChangeRequestRead", "PhaseChangeReview",

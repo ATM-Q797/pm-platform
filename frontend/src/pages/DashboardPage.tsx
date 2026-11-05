@@ -1,6 +1,6 @@
 import { useEffect, useState, lazy, Suspense } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Button, Card, Col, Row, Tag, Empty, Spin, message, Drawer, List } from 'antd'
+import { Alert, Button, Card, Col, Row, Space, Tag, Empty, Spin, Tooltip, message, Drawer, List, Modal } from 'antd'
 import {
   ProjectOutlined,
   ClockCircleOutlined,
@@ -10,10 +10,15 @@ import {
   ToolOutlined,
   FireOutlined,
   FundOutlined,
+  QuestionCircleOutlined,
+  FileExcelOutlined,
+  AlertOutlined,
+  CalendarOutlined,
 } from '@ant-design/icons'
 import { getDashboardStats } from '../api/dashboard'
 import { getResourceConflicts } from '../api/resources'
-import type { DashboardStats, ResourceConflict } from '../types'
+import { runSnapshot } from '../api/analysis'
+import type { DashboardStats, ResourceConflict, RiskQueueItem } from '../types'
 
 // 项目分析弹窗懒加载（含 ECharts，避免影响看板首屏）
 const AnalysisModal = lazy(() => import('../components/Analysis/AnalysisModal'))
@@ -31,6 +36,25 @@ const CARD_STYLE: Record<string, { bg: string; color: string; bar: string }> = {
   rework: { bg: 'rgba(123,97,255,.12)', color: '#6d5ae0', bar: 'linear-gradient(90deg,#7b61ff,#00d4ff)' },
 }
 
+// 口径说明文案（8-1 ③：每卡 Tooltip 内嵌；与 PHASE8_PLAN §一 各指标口径一致）
+const CARD_CALIBER: Record<string, string> = {
+  total: '项目总数 = 非专项项目数（专项项目独立监控，不计入看板）',
+  active: '进行中 = 状态为「进行中」的非专项项目数',
+  delayed: '延期 = 阶段 plan_end < 今天 且状态 ∉ {已完成, 搁置}，排除专项；延期项目 = 名下存在此类逾期阶段的项目',
+  due: '即将到期 = 阶段 plan_end 在未来 7 天内（含今天）且状态 ∈ {未开始, 进行中}，所属项目未搁置，排除专项',
+  conflict: '资源冲突 = 今日风险队列中的冲突行数（同一冲突对跨资源去重为 1 行）；冲突明细抽屉按资源计对数（两人任务重叠计 1 对）',
+  rework: '返工次数 = 各阶段返工次数之和（阶段每返工一次记 1），排除专项',
+  risk: '今日风险 = 延期阶段 + 即将到期阶段 + 资源冲突三源合并去重，按紧急度排序（逾期 → 冲突 → 到期）',
+}
+
+// 今日风险队列（8-1 ②）：类型标签与天数文案
+const RISK_LABEL: Record<RiskQueueItem['type'], string> = { overdue: '延期', due_soon: '到期', conflict: '冲突' }
+const RISK_TAG: Record<RiskQueueItem['type'], string> = { overdue: 'error', due_soon: 'warning', conflict: 'volcano' }
+const riskDaysText = (item: RiskQueueItem) =>
+  item.type === 'overdue' ? `逾期 ${item.days} 天` : item.type === 'due_soon' ? `${item.days} 天后到期` : `重叠 ${item.days} 天`
+
+// 今日风险弹窗（用户 2026-11-05 指令 ③：版面简洁，列表收进弹窗；按钮在头部操作区）
+
 export default function DashboardPage() {
   const navigate = useNavigate()
   const [stats, setStats] = useState<DashboardStats | null>(null)
@@ -41,6 +65,10 @@ export default function DashboardPage() {
   const [conflictsLoading, setConflictsLoading] = useState(false)
   // 项目分析弹窗开关（裁定 ②：看板按钮 → 弹窗）
   const [analysisOpen, setAnalysisOpen] = useState(false)
+  // 今日风险弹窗（用户 2026-11-05 指令 ③）
+  const [riskOpen, setRiskOpen] = useState(false)
+  // 8-1：快照采集进行中标记
+  const [snapshotRunning, setSnapshotRunning] = useState(false)
 
   useEffect(() => {
     // 甘特消除后同步刷新本抽屉（用户 2026-08-28 决策 ③：消除统一在甘特，其他视图只同步）
@@ -82,6 +110,20 @@ export default function DashboardPage() {
     }
   }
 
+  // 触发采集（8-1 ⑤）：POST /api/analysis/snapshots/run（admin）后重载看板
+  const triggerSnapshot = async () => {
+    setSnapshotRunning(true)
+    try {
+      await runSnapshot()
+      message.success('快照采集完成')
+      load()
+    } catch (e) {
+      message.error('采集失败：' + (e as Error).message)
+    } finally {
+      setSnapshotRunning(false)
+    }
+  }
+
   const drawerTitle: Record<Exclude<DrawerKey, null>, string> = {
     delayed: '延期项目明细（按逾期天数倒序）',
     due: '即将到期明细（未来 7 天）',
@@ -97,7 +139,11 @@ export default function DashboardPage() {
     return <Card>暂无数据</Card>
   }
 
-  // 统计卡片渲染：左侧着色图标块 + 右侧数值
+  // 4 卡环比取数（8-1）：weekly_delta 为 null（无对比基期）→ 小字显示「较上周 —」
+  const deltaOf = (k: 'projects_total' | 'delayed_projects' | 'due_soon_phases' | 'conflict_pairs') =>
+    stats?.weekly_delta ? stats.weekly_delta[k] : null
+
+  // 统计卡片渲染：左侧着色图标块 + 右侧数值（8-1：口径 Tooltip + 环比小字）
   const renderCard = (
     key: string,
     title: string,
@@ -105,16 +151,26 @@ export default function DashboardPage() {
     icon: React.ReactNode,
     onClick: () => void,
     dangerHighlight = false,
+    delta?: number | null, // 环比（8-1）：undefined = 该卡不展示环比；null = 无对比基期
   ) => {
     const c = CARD_STYLE[key] || CARD_STYLE.total
     const isDanger = dangerHighlight && value > 0
+    // 环比着色：延期/风险类上升红下降绿；总数类上升蓝下降灰；0/无基期灰
+    const deltaColor =
+      delta == null || delta === 0
+        ? 'var(--text-secondary)'
+        : key === 'total'
+          ? delta > 0 ? '#1677ff' : 'var(--text-secondary)'
+          : delta > 0 ? '#e11d48' : '#16a34a'
+    const deltaText =
+      delta == null ? '较上周 —' : delta > 0 ? `较上周 +${delta}` : delta < 0 ? `较上周 −${Math.abs(delta)}` : '较上周 持平'
     return (
-      <Col span={8}>
+      <Col span={8} style={{ display: 'flex' }}>
         <Card
           hoverable
           onClick={onClick}
           className="pm-stat-card"
-          style={{ cursor: 'pointer', '--stat-bar': c.bar, '--stat-color': c.color } as React.CSSProperties}
+          style={{ cursor: 'pointer', flex: 1, '--stat-bar': c.bar, '--stat-color': c.color } as React.CSSProperties}
         >
           <div style={{ display: 'flex', alignItems: 'center', gap: 16 }}>
             <div
@@ -134,10 +190,18 @@ export default function DashboardPage() {
               {icon}
             </div>
             <div>
-              <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 2 }}>{title}</div>
+              <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 2 }}>
+                {title}
+                <Tooltip title={CARD_CALIBER[key]}>
+                  <QuestionCircleOutlined style={{ marginLeft: 4, fontSize: 11, cursor: 'help' }} />
+                </Tooltip>
+              </div>
               <div className={isDanger ? 'pm-stat-value pm-stat-danger' : 'pm-stat-value'}>
                 {value}
               </div>
+              {delta !== undefined && (
+                <div style={{ fontSize: 11, color: deltaColor, marginTop: 2 }}>{deltaText}</div>
+              )}
             </div>
           </div>
         </Card>
@@ -147,26 +211,103 @@ export default function DashboardPage() {
 
   return (
     <div>
-      {/* 头部操作区：项目分析入口（裁定 ②：不加页面，看板按钮 → 弹窗）
+      {/* 头部操作区：数据截至（8-1 ⑤）+ 三按钮（导出 Excel / 今日风险 / 项目分析，用户 2026-11-05 指令 ③ 顺序）
           不用 ghost 变体：ghost 文字取主色，在渐变底上对比度不足（用户 2026-10-26：字看不清）——
           实心主按钮文字为白色，对比稳定 */}
-      <div style={{ display: 'flex', justifyContent: 'flex-end', marginBottom: 8 }}>
-        <Button type="primary" icon={<FundOutlined />} onClick={() => setAnalysisOpen(true)}>
-          项目分析
-        </Button>
+      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, flexWrap: 'wrap', gap: 8 }}>
+        <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
+          <CalendarOutlined style={{ marginRight: 6 }} />
+          数据截至 {stats.snapshot_date ?? '暂无快照'}
+        </span>
+        <Space>
+          <Button icon={<FileExcelOutlined />} onClick={() => window.open('/api/export/excel')}>导出 Excel</Button>
+          <Button
+            icon={<AlertOutlined style={{ color: '#e11d48' }} />}
+            onClick={() => setRiskOpen(true)}
+          >
+            今日风险
+          </Button>
+          <Button type="primary" icon={<FundOutlined />} onClick={() => setAnalysisOpen(true)}>
+            项目分析
+          </Button>
+        </Space>
       </div>
 
-      {/* 6 张统计卡片：2 行 × 3 列，行间大间距 */}
-      <Row gutter={16} style={{ marginBottom: 32 }}>
-        {renderCard('total', '项目总数', stats.total_projects, <ProjectOutlined />, () => navigate('/projects'))}
-        {renderCard('active', '进行中', stats.active_projects, <ClockCircleOutlined />, () => navigate('/projects'))}
-        {renderCard('delayed', '延期项目', stats.delayed_count, <WarningOutlined />, () => openDrawer('delayed'), true)}
+      {/* 无快照空态（8-1 ⑤）：提示 + 触发采集入口（POST /api/analysis/snapshots/run） */}
+      {stats.snapshot_date === null && (
+        <Alert
+          type="info"
+          showIcon
+          style={{ marginBottom: 16 }}
+          message="暂无快照数据"
+          description="暂无快照数据，请在分析弹窗中触发采集；环比与数据日期将在采集后可用。"
+          action={<Button size="small" type="primary" loading={snapshotRunning} onClick={triggerSnapshot}>触发采集</Button>}
+        />
+      )}
+
+      {/* 统计卡片：6 卡等高（用户 2026-11-05 指令 ④：带环比小字的卡比不带的高——
+          对齐 antd 网格，整行拉伸同高、卡片纵向铺满；环比未定义的卡传 0 占位，保持结构同构） */}
+      <Row gutter={[16, 16]} style={{ marginBottom: 32, alignItems: 'stretch' }}>
+        {renderCard('total', '项目总数', stats.total_projects, <ProjectOutlined />, () => navigate('/projects'), false, deltaOf('projects_total'))}
+        {renderCard('active', '进行中', stats.active_projects, <ClockCircleOutlined />, () => navigate('/projects'), false, 0)}
+        {renderCard('delayed', '延期项目', stats.delayed_count, <WarningOutlined />, () => openDrawer('delayed'), true, deltaOf('delayed_projects'))}
       </Row>
-      <Row gutter={16}>
-        {renderCard('due', '即将到期', stats.due_soon_count, <FieldTimeOutlined />, () => openDrawer('due'), true)}
-        {renderCard('conflict', '资源冲突', stats.conflict_count, <ThunderboltOutlined />, () => openDrawer('conflict'), true)}
-        {renderCard('rework', '返工次数', stats.total_rework_count, <ToolOutlined />, () => openDrawer('rework'), true)}
+      <Row gutter={[16, 16]} style={{ alignItems: 'stretch' }}>
+        {renderCard('due', '即将到期', stats.due_soon_count, <FieldTimeOutlined />, () => openDrawer('due'), true, deltaOf('due_soon_phases'))}
+        {renderCard('conflict', '资源冲突', stats.risk_queue.filter((r) => r.type === 'conflict').length, <ThunderboltOutlined />, () => openDrawer('conflict'), true, deltaOf('conflict_pairs'))}
+        {renderCard('rework', '返工次数', stats.total_rework_count, <ToolOutlined />, () => openDrawer('rework'), true, 0)}
       </Row>
+
+      {/* 今日风险弹窗（用户 2026-11-05 指令 ③：头部按钮 → 弹窗展示，版面简洁一页显示） */}
+      <Modal
+        title={
+          <span>
+            <AlertOutlined style={{ color: '#e11d48', marginRight: 8 }} />
+            今日风险（{stats.risk_queue.length}）
+            <Tooltip title={CARD_CALIBER.risk}>
+              <QuestionCircleOutlined style={{ marginLeft: 4, fontSize: 12, color: 'var(--text-secondary)', cursor: 'help' }} />
+            </Tooltip>
+          </span>
+        }
+        open={riskOpen}
+        onCancel={() => setRiskOpen(false)}
+        footer={null}
+        width={720}
+      >
+        {stats.risk_queue.length > 0 ? (
+          <>
+            <List
+              size="small"
+              dataSource={stats.risk_queue.slice(0, 10)}
+              locale={{ emptyText: <Empty description="暂无" image={Empty.PRESENTED_IMAGE_SIMPLE} /> }}
+              renderItem={(item) => (
+                <List.Item
+                  style={{ cursor: 'pointer', padding: '6px 0' }}
+                  onClick={() => navigate(`/projects/${item.project_id}`)}
+                >
+                  <List.Item.Meta
+                    title={
+                      <span style={{ fontSize: 13 }}>
+                        <Tag color={RISK_TAG[item.type]}>{RISK_LABEL[item.type]}</Tag>
+                        {item.project_name} · {item.phase_name}
+                      </span>
+                    }
+                    description={<span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{item.detail}</span>}
+                  />
+                  <Tag color={RISK_TAG[item.type]}>{riskDaysText(item)}</Tag>
+                </List.Item>
+              )}
+            />
+            {stats.risk_queue.length > 10 && (
+              <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 8 }}>
+                共 {stats.risk_queue.length} 条（合并去重后总数），显示最紧急的前 10 条
+              </div>
+            )}
+          </>
+        ) : (
+          <Empty description="暂无风险 🎉" image={Empty.PRESENTED_IMAGE_SIMPLE} />
+        )}
+      </Modal>
 
       {/* 今日聚焦：延期项目 + 即将到期 各前 5 */}
       <Card

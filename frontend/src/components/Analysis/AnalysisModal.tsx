@@ -9,8 +9,8 @@
  * - 导出 PDF 已移除（用户 2026-10-27 裁定：实际作用不大）
  */
 import { useEffect, useRef, useState } from 'react'
-import { Button, Empty, Modal, Segmented, Spin, Tabs, message } from 'antd'
-import { CloseOutlined, FundOutlined, SyncOutlined } from '@ant-design/icons'
+import { Button, Empty, Modal, Segmented, Spin, Tabs, Tooltip, message } from 'antd'
+import { CloseOutlined, FundOutlined, QuestionCircleOutlined, SyncOutlined } from '@ant-design/icons'
 import { getAnalysisTrend, runSnapshot } from '../../api/analysis'
 import { useTheme } from '../../theme'
 import type { AnalysisMetrics, AnalysisTrend, TrendPoint, WeeklyPoint } from '../../types'
@@ -239,18 +239,40 @@ export default function AnalysisModal({ open, onClose }: Props) {
     ? `近 ${days} 天 · 最新快照 ${lastDate} · 共 ${daily.length} 个快照点`
     : '暂无快照数据'
 
-  // 总体盘面指标卡（四板块，取最新快照）
+  // 名词解释（tooltip 用，用户 2026-10-27：图表术语要有解释；8-1 ③：口径文案与 PHASE8_PLAN §一 一致）
+  // 定义置于 cardsBlock 之前——cardsBlock 构造时即取值，声明在后会触发 TDZ 运行时错误
+  const GLOSSARY: Record<string, string> = {
+    projects_total: '项目总数 = 非专项项目数（专项项目独立监控，不计入统计）',
+    in_flight_projects: '在期项目 = 状态为「未开始」或「进行中」的非专项项目数',
+    delayed_projects: '延期项目 = 名下存在已逾期活跃阶段的项目：阶段 plan_end < 今天 且状态 ∉ {已完成, 搁置}，排除专项',
+    due_soon_projects: '7 天内到期项目 = 计划结束日在未来 7 天内（含今天）的在期项目（未开始+进行中），排除专项',
+    plan_days_too_long: '工期超长：计划工期超过 120 天的项目',
+    plan_days_too_short: '工期过短：计划工期不足 7 天的项目',
+    delayed_days_p50: 'P50：全部延期项目按逾期天数排序后的中位数——半数延期项目逾期不超过该天数',
+    delayed_days_p90: 'P90：逾期天数第 90 百分位——最严重的前 10% 延期项目逾期不超过该天数（反映最坏情况）',
+    delayed_rate: '延期率 = 延期项目数 ÷ 进行中项目数 × 100%',
+    conflict_pairs: '资源冲突对数：同一时间段被排给同一人的项目任务对数（两人任务重叠计 1 对）',
+    peak_parallel_top3_avg: 'TOP3 峰值并行均值：负载最重的 3 个人，同期最多同时压几个任务的平均值',
+    active_people: '活跃人员数：近 12 周内有项目任务安排的人数',
+  }
+
+  // 总体盘面指标卡（四板块，取最新快照；8-1 ③：指标名旁「?」气泡写明计算口径）
   const cardsBlock = (
     <div key="cards" style={{ display: 'flex', gap: 12, marginBottom: 12 }}>
       {[
-        { label: '项目总数', value: latest?.metrics.projects_total },
-        { label: '在期项目（未开始+进行中）', value: latest?.metrics.in_flight_projects },
-        { label: '活跃人员数', value: latest?.metrics.active_people },
-        { label: '资源冲突对数', value: latest?.metrics.conflict_pairs },
+        { label: '项目总数', value: latest?.metrics.projects_total, caliberKey: 'projects_total' },
+        { label: '在期项目（未开始+进行中）', value: latest?.metrics.in_flight_projects, caliberKey: 'in_flight_projects' },
+        { label: '活跃人员数', value: latest?.metrics.active_people, caliberKey: 'active_people' },
+        { label: '资源冲突对数', value: latest?.metrics.conflict_pairs, caliberKey: 'conflict_pairs' },
       ].map((it) => (
         <div key={it.label}
              style={{ flex: 1, border: '1px solid var(--border-color, #eee)', borderRadius: 8, padding: '10px 12px' }}>
-          <div style={{ fontSize: 12, color: 'var(--text-secondary, #888)' }}>{it.label}</div>
+          <div style={{ fontSize: 12, color: 'var(--text-secondary, #888)' }}>
+            {it.label}
+            <Tooltip title={GLOSSARY[it.caliberKey]}>
+              <QuestionCircleOutlined style={{ marginLeft: 4, fontSize: 11, cursor: 'help' }} />
+            </Tooltip>
+          </div>
           <div style={{ fontSize: 24, fontWeight: 700, color: 'var(--text-primary, #333)' }}>
             {loading ? '—' : (it.value ?? '—')}
           </div>
@@ -258,20 +280,6 @@ export default function AnalysisModal({ open, onClose }: Props) {
       ))}
     </div>
   )
-
-// 名词解释（tooltip 用，用户 2026-10-27：图表术语要有解释）
-const GLOSSARY: Record<string, string> = {
-  delayed_projects: '延期项目：计划结束日已过仍未完成的项目',
-  due_soon_projects: '7天内到期项目：计划结束日在未来 7 天内的在期项目',
-  plan_days_too_long: '工期超长：计划工期超过 120 天的项目',
-  plan_days_too_short: '工期过短：计划工期不足 7 天的项目',
-  delayed_days_p50: 'P50：全部延期项目按逾期天数排序后的中位数——半数延期项目逾期不超过该天数',
-  delayed_days_p90: 'P90：逾期天数第 90 百分位——最严重的前 10% 延期项目逾期不超过该天数（反映最坏情况）',
-  delayed_rate: '延期率 = 延期项目数 ÷ 进行中项目数 × 100%',
-  conflict_pairs: '资源冲突对数：同一时间段被排给同一人的项目任务对数（两人任务重叠计 1 对）',
-  peak_parallel_top3_avg: 'TOP3 峰值并行均值：负载最重的 3 个人，同期最多同时压几个任务的平均值',
-  active_people: '活跃人员数：近 12 周内有项目任务安排的人数',
-}
 
 const chartNote = (keys: string[]) => (
   <div style={{ fontSize: 11, color: 'var(--text-secondary, #999)', margin: '4px 2px 0' }}>

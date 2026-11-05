@@ -357,6 +357,29 @@ export interface DashboardStats {
   due_soon_phases: DueSoonPhase[]
   due_soon_count: number
   conflict_count: number
+  // 8-1 数据看板增强（2026-11-04）
+  risk_queue: RiskQueueItem[]
+  snapshot_date: string | null // 数据截至（最新快照日期）；null = 无快照空态
+  weekly_delta: WeeklyDelta | null // 4 卡环比（与 build_trend 同一周差分公式）；null = 无对比基期
+}
+
+// 8-1 今日风险队列项（延期/即将到期/资源冲突三源合并去重，一行 = 一个风险事件）
+export interface RiskQueueItem {
+  project_id: number // 点行跳转目标（冲突行 = 冲突对 A 侧项目）
+  project_name: string
+  phase_name: string
+  type: 'overdue' | 'due_soon' | 'conflict'
+  severity: number // overdue=3；due_soon/conflict=2
+  detail: string
+  days: number // 逾期天数 / 剩余天数 / 重叠天数
+}
+
+// 8-1 看板 4 卡环比（小字与卡面大数字同指标）
+export interface WeeklyDelta {
+  projects_total: number
+  delayed_projects: number
+  due_soon_phases: number
+  conflict_pairs: number
 }
 
 // ---------- 项目分析（PROJECT_ANALYSIS §3.3） ----------

@@ -22,8 +22,15 @@ from app.services.resource_heatmap import build_heatmap
 
 # 未完成阶段口径（阶段级未结束状态；与 dashboard 延期判定同族）
 _OPEN_PHASE_EXCLUDED_STATUSES = ("已完成", "搁置")
-# 周差分指标键：仅累计量差分有吞吐含义（每周完成项目数 / 每周转搁置 / 每周新开工 —— 均项目级，用户 2026-10-26 裁定：统计聚焦项目级）
-_WEEKLY_DELTA_KEYS = ("completed_projects_total", "shelved_total", "started_projects_total")
+# 周差分指标键：累计量差分有吞吐含义（每周完成项目数 / 每周转搁置 / 每周新开工 —— 均项目级，用户 2026-10-26 裁定：统计聚焦项目级）；
+# 延期阶段数/冲突对数为存量型差分（8-1 看板环比与趋势差分用，2026-11-04 批次裁定：随 build_trend 周差分同源输出）
+_WEEKLY_DELTA_KEYS = (
+    "completed_projects_total",
+    "shelved_total",
+    "started_projects_total",
+    "delayed_phases",
+    "conflict_pairs",
+)
 # 在期项目状态（用户 2026-10-26 确认：未开始 + 进行中）
 _IN_FLIGHT_STATUSES = ("未开始", "进行中")
 # 计划工期异常阈值（沿工期异常清单口径，用户 2026-10-26 确认：>120 天超长、<7 天过短）
@@ -219,7 +226,7 @@ def build_trend(rows: Sequence[StatusSnapshot], days: int, today: date | None = 
     """构建趋势数据：days 窗口内的日级点位 + 周级聚合（周一锚点）。
 
     rows 须按 snapshot_date 升序。周点 metrics = 周内最后一个快照；
-    delta 仅对累计量键（_WEEKLY_DELTA_KEYS）做相邻周差分，首周为 0。
+    delta 仅对 _WEEKLY_DELTA_KEYS 键做相邻周差分（周内最后快照相减，周一锚点），首周为 0。
     """
     today = today or date.today()
     start = today - timedelta(days=days - 1)
@@ -255,3 +262,17 @@ def build_trend(rows: Sequence[StatusSnapshot], days: int, today: date | None = 
         prev = metrics
 
     return {"days": days, "daily": daily, "weekly": weekly}
+
+
+def build_weekly_delta(db: Session, keys: Sequence[str], days: int = 30) -> dict[str, int] | None:
+    """看板环比取数（8-1）：最新周点与上一周点的 metrics 相减（与 build_trend 周差分同一公式、同一快照源）。
+
+    对任意指标键生效（delta 字典只含 _WEEKLY_DELTA_KEYS，故环比按公式现算）；
+    不足两个周点（无对比基期）→ None，不用 0 冒充「无变化」。
+    """
+    rows = db.scalars(select(StatusSnapshot).order_by(StatusSnapshot.snapshot_date)).all()
+    weekly = build_trend(rows, days=days)["weekly"]
+    if len(weekly) < 2:
+        return None
+    cur, prev = weekly[-1]["metrics"], weekly[-2]["metrics"]
+    return {k: cur.get(k, 0) - prev.get(k, 0) for k in keys}

@@ -52,6 +52,17 @@ class DueSoonPhase(BaseModel):
     days_left: int  # 剩余天数（plan_end - 今天）
 
 
+class RiskQueueItem(BaseModel):
+    """今日风险队列项（8-1：延期/即将到期/资源冲突三源合并去重，一行 = 一个风险事件）。"""
+    project_id: int  # 点行跳转目标（冲突行 = 冲突对 A 侧项目）
+    project_name: str
+    phase_name: str
+    type: str  # overdue | due_soon | conflict
+    severity: int  # 严重度（overdue=3；due_soon/conflict=2）
+    detail: str  # 风险描述（含对方项目/资源名）
+    days: int  # 量化值（逾期天数 / 剩余天数 / 重叠天数）
+
+
 class DashboardStats(BaseModel):
     """首页看板聚合统计数据（一次请求返回全部）。"""
     # 顶部统计卡片
@@ -73,3 +84,7 @@ class DashboardStats(BaseModel):
     due_soon_phases: list[DueSoonPhase] = []  # 即将到期阶段（按剩余天数升序）
     due_soon_count: int = 0  # 即将到期阶段数
     conflict_count: int = 0  # 资源冲突对数（复用 T4 检测）
+    # 8-1 数据看板增强（2026-11-04）
+    risk_queue: list[RiskQueueItem] = []  # 今日风险队列（三源合并去重，严重度优先）
+    snapshot_date: str | None = None  # 最新快照日期（数据截至；无快照 → None，前端显示空态）
+    weekly_delta: dict[str, int] | None = None  # 4 卡环比（与 build_trend 同一周差分公式；不足两周无基期 → None）
