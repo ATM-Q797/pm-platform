@@ -215,7 +215,7 @@ export default function DashboardPage() {
 
   return (
     <div>
-      {/* 头部操作区：数据截至（8-1 ⑤）+ 三按钮（导出 Excel / 今日风险 / 项目分析，用户 2026-11-05 指令 ③ 顺序）
+      {/* 头部操作区：数据截至（8-1 ⑤）+ 三按钮（导出 Excel / 风险分析 / 项目分析，用户 2026-11-05 指令 ③ 顺序、2026-11-05 改名）
           不用 ghost 变体：ghost 文字取主色，在渐变底上对比度不足（用户 2026-10-26：字看不清）——
           实心主按钮文字为白色，对比稳定 */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 8, flexWrap: 'wrap', gap: 8 }}>
@@ -229,7 +229,7 @@ export default function DashboardPage() {
             icon={<AlertOutlined style={{ color: '#e11d48' }} />}
             onClick={() => setRiskOpen(true)}
           >
-            今日风险
+            风险分析
           </Button>
           <Button type="primary" icon={<FundOutlined />} onClick={() => setAnalysisOpen(true)}>
             项目分析
@@ -268,7 +268,7 @@ export default function DashboardPage() {
         title={
           <span>
             <AlertOutlined style={{ color: '#e11d48', marginRight: 8 }} />
-            今日风险（{riskQueue.length}）
+            风险分析（{riskQueue.length}）
             <Tooltip title={CARD_CALIBER.risk}>
               <QuestionCircleOutlined style={{ marginLeft: 4, fontSize: 12, color: 'var(--text-secondary)', cursor: 'help' }} />
             </Tooltip>
