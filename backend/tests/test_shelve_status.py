@@ -252,7 +252,9 @@ def test_migrate_v3_sql_executable(tmp_path):
 
 def test_frontend_status_color_single_key():
     """列表/详情页 STATUS_COLOR 仅含 '搁置'（2026-08-28 用户决策：旧值兼容已移除）。"""
-    for page in ("pages/ProjectListPage.tsx", "pages/ProjectDetailPage.tsx"):
+    # 2026-11-05 拆分批次：STATUS_COLOR 从 ProjectListPage 原样搬至 components/ProjectList/columns.tsx
+    # （逻辑体不变，断言跟着搬移后的定义位置走——pages 侧引用同一导出）
+    for page in ("components/ProjectList/columns.tsx", "pages/ProjectDetailPage.tsx"):
         text = (FRONTEND_DIR / page).read_text(encoding="utf-8")
         m = re.search(r"const STATUS_COLOR[^=]*=\s*\{([^}]+)\}", text)
         assert m, f"{page} 缺少 STATUS_COLOR 定义"

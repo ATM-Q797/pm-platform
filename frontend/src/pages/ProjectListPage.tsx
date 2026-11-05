@@ -1,16 +1,17 @@
 import { useEffect, useState } from 'react'
 import { useNavigate } from 'react-router-dom'
-import { Table, Card, Select, Input, Button, Space, Tag, Upload, Modal, Form, DatePicker, message, Spin, Popconfirm, Radio, Segmented } from 'antd'
-import { DownloadOutlined, ReloadOutlined, UploadOutlined, PlusOutlined, EditOutlined, DeleteOutlined, StarFilled, StarOutlined, ClearOutlined } from '@ant-design/icons'
-import type { ColumnsType } from 'antd/es/table'
+import { Table, Card, Select, Input, Button, Space, Tag, Modal, Form, DatePicker, message, Spin, Segmented } from 'antd'
+import { ReloadOutlined, UploadOutlined, PlusOutlined, ClearOutlined } from '@ant-design/icons'
 import { listProjects, createProject, deleteProject, applyTemplate, setFavorite } from '../api/projects'
 import ProjectEditModal from '../components/ProjectEditModal'
+import { buildColumns, buildFavoriteColumns } from '../components/ProjectList/columns'
+import { ImportExcelButton, ImportExcelModal, useImportExcel } from '../components/ProjectList/ImportExcelModal'
 import { listTemplates } from '../api/templates'
 import { listUsers } from '../api/users'
 import { requestDeleteProject } from '../api/audit'
 import { getMe } from '../api/auth'
 import { MARKET_OPTION_ITEMS, MARKET_OPTIONS, PROJECT_LIST_FILTERS_KEY as FILTERS_KEY, PROJECT_LIST_SEARCH_KEY as SEARCH_KEY, PROJECT_LIST_VIEW_KEY as VIEW_KEY } from '../types'
-import type { ImportPreview, Project, ImportReport, Template, UserInfo } from '../types'
+import type { Project, Template, UserInfo } from '../types'
 
 // 列表筛选持久化（用户 2026-10-26：返回列表不重置、刷新才重置）：
 // sessionStorage 保存筛选，组件重挂时恢复；刷新页面由 App.tsx 统一清除（键名常量在 types/index.ts）。
@@ -24,15 +25,6 @@ const _readFilters = (): typeof _DEFAULT_FILTERS => {
   } catch {
     return { ..._DEFAULT_FILTERS }
   }
-}
-
-// 状态 → Tag 颜色（PROJECT_SHELVE §2.1；旧值「已搁置」兼容已移除——2026-08-28）
-const STATUS_COLOR: Record<string, string> = {
-  进行中: 'processing',
-  已完成: 'success',
-  未开始: 'default',
-  搁置: 'warning',
-  延期: 'error',
 }
 
 export default function ProjectListPage() {
@@ -70,12 +62,6 @@ export default function ProjectListPage() {
   const [myRole, setMyRole] = useState<string>('viewer')
   const [deleteReasonOpen, setDeleteReasonOpen] = useState<Project | null>(null)
   const [deleteReason, setDeleteReason] = useState('')
-  // 导入预检（差异报告确认后执行导入）
-  const [importPreview, setImportPreview] = useState<ImportPreview | null>(null)
-  const [pendingImportFile, setPendingImportFile] = useState<File | null>(null)
-  const [previewLoading, setPreviewLoading] = useState(false)
-  const [importing, setImporting] = useState(false)
-  const [importMode, setImportMode] = useState<'merge' | 'replace'>('merge')
   const [form] = Form.useForm()
 
   const load = async () => {
@@ -115,135 +101,8 @@ export default function ProjectListPage() {
     load()
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [filters])
-
-
-  // 第一步：选择文件 → 只解析生成差异报告（不导入）
-  const handleImport = async (file: File) => {
-    const formData = new FormData()
-    formData.append('file', file)
-    setPreviewLoading(true)
-    setImportMode('merge') // 每次选择文件默认合并模式
-    try {
-      const resp = await fetch('/api/import/preview', { method: 'POST', body: formData })
-      if (!resp.ok) {
-        const err = await resp.json().catch(() => null)
-        throw new Error(err?.detail || `预览失败 (HTTP ${resp.status})`)
-      }
-      const preview: ImportPreview = await resp.json()
-      setImportPreview(preview)
-      setPendingImportFile(file)
-    } catch (e) {
-      message.error('解析失败：' + (e as Error).message)
-    } finally {
-      setPreviewLoading(false)
-    }
-    return false // 阻止 antd Upload 默认上传行为
-  }
-
-  // 第二步：确认后真正导入（按当前模式）
-  const confirmImport = async () => {
-    if (!pendingImportFile) return
-    const hide = message.loading('正在导入 Excel...', 0)
-    const formData = new FormData()
-    formData.append('file', pendingImportFile)
-    setImporting(true)
-    try {
-      const resp = await fetch(`/api/import/excel?mode=${importMode}`, { method: 'POST', body: formData })
-      if (!resp.ok) {
-        const err = await resp.json().catch(() => null)
-        throw new Error(err?.detail || `导入失败 (HTTP ${resp.status})`)
-      }
-      const report: ImportReport = await resp.json()
-      hide()
-      setImportPreview(null)
-      setPendingImportFile(null)
-      showImportResult(report)
-      load()
-    } catch (e) {
-      hide()
-      message.error('导入失败：' + (e as Error).message)
-    } finally {
-      setImporting(false)
-    }
-  }
-
-  const showImportResult = (report: ImportReport) => {
-    const isMerge = report.projects_created > 0 || report.projects_updated > 0
-    Modal.info({
-      title: isMerge ? '导入完成（合并）' : '导入完成（替换）',
-      width: 640,
-      content: (
-        <div>
-          {isMerge ? (
-            <>
-              <p>
-                📥 新增 <b>{report.projects_created}</b> 个项目 / 📝 更新{' '}
-                <b>{report.projects_updated}</b> 个项目
-              </p>
-              <p>
-                阶段：新增 <b>{report.phases_created}</b> 个 / 更新 <b>{report.phases_updated}</b> 个
-                {report.resources_created > 0 && <> / 新人员 {report.resources_created} 个</>}
-              </p>
-              <p>
-                错误 {(report.errors || []).length} 条，警告 {(report.warnings || []).length} 条
-              </p>
-              {report.pending_link_phases.length > 0 && (
-                <div style={{ background: 'var(--alert-info-bg)', padding: '8px 12px', borderRadius: 6, marginBottom: 8 }}>
-                  <b style={{ color: '#d48806', fontSize: 13 }}>
-                    ⚠️ 新增阶段待关联依赖（{report.pending_link_phases.length} 个）：
-                  </b>
-                  <p style={{ margin: '4px 0', fontSize: 12, color: 'var(--text-secondary)' }}>
-                    以下阶段未自动关联依赖，请到对应项目甘特图中拖拽连线：
-                  </p>
-                  <ul style={{ maxHeight: 120, overflow: 'auto', fontSize: 12, margin: 0, paddingLeft: 20 }}>
-                    {report.pending_link_phases.map((p, i) => (
-                      <li key={i}>
-                        {p.project_name} · {p.phase_name}
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
-            </>
-          ) : (
-            <>
-              <p>
-                导入 <b>{report.projects_imported}</b> 个项目 / {report.phases_imported} 个阶段 /{' '}
-                {report.resources_created} 个人员
-              </p>
-              <p>
-                错误 {(report.errors || []).length} 条，警告 {(report.warnings || []).length} 条
-              </p>
-            </>
-          )}
-          {(report.errors || []).length > 0 && (
-            <>
-              <b>错误：</b>
-              <ul style={{ maxHeight: 120, overflow: 'auto', fontSize: 12 }}>
-                {report.errors.map((e, i) => (
-                  <li key={i}>
-                    [{e.sheet} R{e.row}] {e.message}
-                  </li>
-                ))}
-              </ul>
-            </>
-          )}
-          {(report.warnings || []).length > 0 && (
-            <>
-              <b>警告：</b>
-              <ul style={{ maxHeight: 120, overflow: 'auto', fontSize: 12 }}>
-                {report.warnings.map((w, i) => (
-                  <li key={i}>
-                    [{w.sheet} R{w.row}] {w.message}
-                  </li>
-                ))}
-              </ul>
-            </>
-          )}
-        </div>
-      ),
-    })
-  }
+  // Excel 导入两步流（预检 → 确认导入）：状态与逻辑在 ImportExcelModal 内（原样搬移），成功后回调刷新列表
+  const excel = useImportExcel(load)
 
   const handleCreate = async () => {
     try {
@@ -350,82 +209,9 @@ export default function ProjectListPage() {
   const favoriteProjects = projects.filter((p) => p.is_favorite)
   const viewProjects = viewMode === 'favorites' ? favoriteProjects : projects
 
-  const columns: ColumnsType<Project> = [
-    {
-      title: '★',
-      width: 50,
-      align: 'center',
-      render: (_, r) => (
-        <a
-          onClick={(e) => { e.stopPropagation(); toggleFavorite(r) }}
-          style={{ fontSize: 16, color: r.is_favorite ? '#fadb14' : '#d9d9d9' }}
-          title={r.is_favorite ? '取消关注' : '关注'}
-        >
-          {r.is_favorite ? <StarFilled /> : <StarOutlined />}
-        </a>
-      ),
-    },
-    { title: '序号', width: 70, align: 'center', dataIndex: 'sequence_position',
-      // 序号 = 项目在全量有序列表中的位置（非当前页序号）：
-      // 项目列表页分页、填报页不分页，用全局位置才能两页一致（用户 2026-10-30 指令）
-      render: (_: unknown, r: Project, index: number) => {
-        const pos = projects.findIndex((p) => p.id === r.id)
-        return pos >= 0 ? pos + 1 : index + 1
-      } },
-    {
-      title: '项目名称',
-      dataIndex: 'name',
-      render: (_, r) => (
-        <a onClick={() => navigate(`/projects/${r.id}`)}>{r.name}</a>
-      ),
-    },
-    {
-      title: '状态',
-      dataIndex: 'status',
-      width: 100,
-      align: 'center',
-      render: (s: string) => <Tag color={STATUS_COLOR[s] || 'default'}>{s}</Tag>,
-    },
-    { title: '类目', dataIndex: 'category', width: 100, align: 'center' },
-    {
-      title: '市场',
-      dataIndex: 'market',
-      width: 80,
-      align: 'center',
-      render: (m: string) => <Tag color="blue">{m}</Tag>,
-    },
-    { title: '负责人', dataIndex: 'owner', width: 100 },
-    { title: '计划开始', dataIndex: 'plan_start', width: 120, align: 'center',
-      render: (v: string) => <span style={{ fontVariantNumeric: 'tabular-nums' }}>{v}</span> },
-    { title: '计划结束', dataIndex: 'plan_end', width: 120, align: 'center',
-      render: (v: string) => <span style={{ fontVariantNumeric: 'tabular-nums' }}>{v}</span> },
-    {
-      title: '操作',
-      width: 140,
-      align: 'center',
-      render: (_: unknown, r: Project) => (
-        <Space size="small">
-          <Button size="small" icon={<EditOutlined />} onClick={(e) => { e.stopPropagation(); handleEdit(r) }}>
-            编辑
-          </Button>
-          <Popconfirm
-            title={myRole === 'admin' ? `删除项目 "${r.name}"？此操作不可恢复` : `申请删除项目 "${r.name}"？`}
-            onConfirm={() => handleDelete(r)}
-            okText={myRole === 'admin' ? '删除' : '申请'}
-            okType="danger"
-            cancelText="取消"
-          >
-            <Button size="small" danger icon={<DeleteOutlined />} onClick={(e) => e.stopPropagation()} />
-          </Popconfirm>
-        </Space>
-      ),
-    },
-  ]
-
-  // 关注视图列：复用主列表列，仅去掉序号列（按 dataIndex 结构化裁剪，不依赖展示文案；
-  // ColumnGroupType 无 dataIndex，本表全部为普通列，'dataIndex' in c 守卫即可）
-  const favoriteColumns: ColumnsType<Project> = columns.filter(
-    (c) => !('dataIndex' in c) || c.dataIndex !== 'sequence_position')
+  // 列定义与关注列派生已拆至 components/ProjectList/columns.tsx（2026-11-05 拆分批次），页面仅注入行为回调
+  const columns = buildColumns({ projects, myRole, navigate, toggleFavorite, handleEdit, handleDelete })
+  const favoriteColumns = buildFavoriteColumns(columns)
 
   return (
     <>
@@ -452,9 +238,7 @@ export default function ProjectListPage() {
               新建项目
             </Button>
           )}
-          <Upload accept=".xlsx,.xls" beforeUpload={handleImport} showUploadList={false}>
-            <Button icon={<DownloadOutlined />} loading={previewLoading}>导入 Excel</Button>
-          </Upload>
+          <ImportExcelButton onImport={excel.handleImport} loading={excel.previewLoading} />
           <Button icon={<UploadOutlined />} onClick={() => window.open('/api/export/excel')}>
             导出 Excel
           </Button>
@@ -603,153 +387,14 @@ export default function ProjectListPage() {
       </Modal>
 
       {/* 导入预检：差异报告确认（确认后才真正导入） */}
-      <Modal
-        title="导入确认 — 差异报告"
-        open={!!importPreview}
-        onCancel={() => { setImportPreview(null); setPendingImportFile(null) }}
-        onOk={confirmImport}
-        okText={importMode === 'merge' ? '确认合并导入' : '确认替换导入并清空现有数据'}
-        okType={importMode === 'merge' ? 'primary' : 'danger'}
-        confirmLoading={importing}
-        okButtonProps={{ disabled: !!importPreview && importPreview.errors.length > 0 }}
-        width={680}
-      >
-        {importPreview && (
-          <div>
-            {/* 模式切换 */}
-            <Radio.Group
-              value={importMode}
-              onChange={(e) => setImportMode(e.target.value)}
-              style={{ marginBottom: 12 }}
-            >
-              <Radio.Button value="merge">合并导入（新增+更新，不删除）</Radio.Button>
-              <Radio.Button value="replace">替换导入（清空重建）</Radio.Button>
-            </Radio.Group>
-
-            {importMode === 'merge' ? (
-              <>
-                {/* 合并差异：新增 / 更新 / 保留 */}
-                <div style={{ background: 'var(--alert-ok-bg)', padding: '12px 16px', borderRadius: 6, marginBottom: 12 }}>
-                  <p style={{ margin: 0, color: '#389e0d', fontWeight: 600 }}>
-                    📥 新增 {importPreview.created_projects.length} 个项目 / 📝 更新{' '}
-                    {importPreview.updated_projects.length} 个项目 / 🔒 保留{' '}
-                    {importPreview.kept_count} 个项目（不在文件中，不做改动）
-                  </p>
-                  <p style={{ margin: '4px 0 0', color: 'var(--text-secondary)', fontSize: 13 }}>
-                    阶段：新增 {importPreview.phases_created} 个 / 更新 {importPreview.phases_updated} 个
-                    （任何现有数据都不会被删除）
-                  </p>
-                </div>
-
-                {/* 新增项目列表 */}
-                {importPreview.created_projects.length > 0 && (
-                  <div style={{ marginBottom: 8 }}>
-                    <b style={{ fontSize: 13 }}>📥 将新增项目：</b>
-                    <ul style={{ maxHeight: 100, overflow: 'auto', fontSize: 12, margin: '4px 0 0', paddingLeft: 20 }}>
-                      {importPreview.created_projects.map((p, i) => (
-                        <li key={i}>
-                          {p.name} <Tag style={{ fontSize: 11 }}>{p.market}</Tag>
-                          <span style={{ color: 'var(--text-tertiary)' }}>（{p.phases} 阶段）</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-
-                {/* 更新项目列表 */}
-                {importPreview.updated_projects.length > 0 && (
-                  <div style={{ marginBottom: 8 }}>
-                    <b style={{ fontSize: 13 }}>📝 将合并更新：</b>
-                    <ul style={{ maxHeight: 100, overflow: 'auto', fontSize: 12, margin: '4px 0 0', paddingLeft: 20 }}>
-                      {importPreview.updated_projects.map((p, i) => (
-                        <li key={i}>
-                          {p.name} <Tag style={{ fontSize: 11 }}>{p.market}</Tag>
-                          <span style={{ color: 'var(--text-tertiary)' }}>（{p.phases} 阶段）</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-
-                {/* 新增阶段待关联依赖提示 */}
-                {importPreview.pending_link_phases.length > 0 && (
-                  <div style={{ background: 'var(--alert-info-bg)', padding: '8px 12px', borderRadius: 6, marginBottom: 12 }}>
-                    <b style={{ color: '#d48806', fontSize: 13 }}>
-                      ⚠️ 新增阶段将提示待关联依赖（{importPreview.pending_link_phases.length} 个）：
-                    </b>
-                    <p style={{ margin: '4px 0', fontSize: 12, color: 'var(--text-secondary)' }}>
-                      导入后需到对应项目甘特图中手动拖拽连线
-                    </p>
-                  </div>
-                )}
-              </>
-            ) : (
-              <>
-                {/* 替换模式：红色警示 */}
-                <div style={{ background: 'var(--alert-warn-bg)', padding: '12px 16px', borderRadius: 6, marginBottom: 12 }}>
-                  <p style={{ margin: 0, color: '#fa8c16', fontWeight: 600 }}>
-                    ⚠️ 本次导入将【清空现有 {importPreview.existing.projects} 个项目
-                    （{importPreview.existing.phases} 个阶段 / {importPreview.existing.resources} 个人员）】
-                  </p>
-                  <p style={{ margin: '4px 0 0', color: '#389e0d', fontWeight: 600 }}>
-                    ✅ 文件包含 {importPreview.incoming.projects} 个项目 / {importPreview.incoming.phases} 个阶段
-                  </p>
-                </div>
-                <p style={{ margin: '0 0 8px', fontSize: 13 }}>
-                  项目对比：
-                  <Tag color="green">{importPreview.match.matched} 个与现有同名</Tag>
-                  <Tag color="blue">{importPreview.match.new} 个新增</Tag>
-                  <Tag color={importPreview.match.missing > 0 ? 'red' : 'default'}>
-                    {importPreview.match.missing} 个现有项目不在文件中
-                  </Tag>
-                  {importPreview.match.missing > 0 && (
-                    <span style={{ color: '#ff4d4f', fontSize: 12, marginLeft: 4 }}>
-                      （文件可能不完整，请确认）
-                    </span>
-                  )}
-                </p>
-                {importPreview.projects_preview.length > 0 && (
-                  <div style={{ marginBottom: 12 }}>
-                    <b style={{ fontSize: 13 }}>文件内项目：</b>
-                    <ul style={{ maxHeight: 140, overflow: 'auto', fontSize: 12, margin: '4px 0 0', paddingLeft: 20 }}>
-                      {importPreview.projects_preview.map((p, i) => (
-                        <li key={i}>
-                          {p.name} <Tag style={{ fontSize: 11 }}>{p.market}</Tag>
-                          <span style={{ color: 'var(--text-tertiary)' }}>（{p.phases} 阶段）</span>
-                        </li>
-                      ))}
-                    </ul>
-                  </div>
-                )}
-              </>
-            )}
-
-            {/* 错误（存在则禁用确认） */}
-            {importPreview.errors.length > 0 && (
-              <div style={{ marginBottom: 12 }}>
-                <b style={{ color: '#ff4d4f', fontSize: 13 }}>❌ 错误 {importPreview.errors.length} 条（请修正后重新上传）：</b>
-                <ul style={{ maxHeight: 120, overflow: 'auto', fontSize: 12, color: '#ff4d4f', margin: '4px 0 0', paddingLeft: 20 }}>
-                  {importPreview.errors.map((e, i) => (
-                    <li key={i}>[{e.sheet} R{e.row}] {e.message}</li>
-                  ))}
-                </ul>
-              </div>
-            )}
-
-            {/* 警告 */}
-            {importPreview.warnings.length > 0 && (
-              <div>
-                <b style={{ fontSize: 13 }}>⚠️ 警告 {importPreview.warnings.length} 条：</b>
-                <ul style={{ maxHeight: 120, overflow: 'auto', fontSize: 12, color: '#faad14', margin: '4px 0 0', paddingLeft: 20 }}>
-                  {importPreview.warnings.map((w, i) => (
-                    <li key={i}>[{w.sheet} R{w.row}] {w.message}</li>
-                  ))}
-                </ul>
-              </div>
-            )}
-          </div>
-        )}
-      </Modal>
+      <ImportExcelModal
+        importPreview={excel.importPreview}
+        importMode={excel.importMode}
+        importing={excel.importing}
+        onModeChange={excel.setImportMode}
+        onCancel={excel.cancelImport}
+        onConfirm={excel.confirmImport}
+      />
     </>
   )
 }
