@@ -70,6 +70,10 @@ export default function DashboardPage() {
   // 8-1：快照采集进行中标记
   const [snapshotRunning, setSnapshotRunning] = useState(false)
 
+  // 风险队列守卫（评审 #59 🔵：版本偏斜时旧后端不返回 risk_queue，
+  // 2026-11-05 本地白屏事故的根因模式——所有读取点统一走这份空数组兜底）
+  const riskQueue = stats?.risk_queue ?? []
+
   useEffect(() => {
     // 甘特消除后同步刷新本抽屉（用户 2026-08-28 决策 ③：消除统一在甘特，其他视图只同步）
     const onConflictChanged = () => {
@@ -255,7 +259,7 @@ export default function DashboardPage() {
       </Row>
       <Row gutter={[16, 16]} style={{ alignItems: 'stretch' }}>
         {renderCard('due', '即将到期', stats.due_soon_count, <FieldTimeOutlined />, () => openDrawer('due'), true, deltaOf('due_soon_phases'))}
-        {renderCard('conflict', '资源冲突', stats.risk_queue.filter((r) => r.type === 'conflict').length, <ThunderboltOutlined />, () => openDrawer('conflict'), true, deltaOf('conflict_pairs'))}
+        {renderCard('conflict', '资源冲突', riskQueue.filter((r) => r.type === 'conflict').length, <ThunderboltOutlined />, () => openDrawer('conflict'), true, deltaOf('conflict_pairs'))}
         {renderCard('rework', '返工次数', stats.total_rework_count, <ToolOutlined />, () => openDrawer('rework'), true, null)}
       </Row>
 
@@ -264,7 +268,7 @@ export default function DashboardPage() {
         title={
           <span>
             <AlertOutlined style={{ color: '#e11d48', marginRight: 8 }} />
-            今日风险（{stats.risk_queue.length}）
+            今日风险（{riskQueue.length}）
             <Tooltip title={CARD_CALIBER.risk}>
               <QuestionCircleOutlined style={{ marginLeft: 4, fontSize: 12, color: 'var(--text-secondary)', cursor: 'help' }} />
             </Tooltip>
@@ -275,12 +279,12 @@ export default function DashboardPage() {
         footer={null}
         width={720}
       >
-        {stats.risk_queue.length > 0 ? (
+        {riskQueue.length > 0 ? (
           <div style={{ maxHeight: '60vh', overflowY: 'auto' }}>
             {/* 全量展示（用户 2026-11-05 指令 ③「一页显示完」：不做截断，弹窗内滚动） */}
             <List
               size="small"
-              dataSource={stats.risk_queue}
+              dataSource={riskQueue}
               locale={{ emptyText: <Empty description="暂无" image={Empty.PRESENTED_IMAGE_SIMPLE} /> }}
               renderItem={(item) => (
                 <List.Item
@@ -301,7 +305,7 @@ export default function DashboardPage() {
               )}
             />
             <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 8 }}>
-              共 {stats.risk_queue.length} 条（合并去重后总数），按紧急度排序（逾期 → 冲突 → 到期）
+              共 {riskQueue.length} 条（合并去重后总数），按紧急度排序（逾期 → 冲突 → 到期）
             </div>
           </div>
         ) : (
