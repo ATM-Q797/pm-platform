@@ -42,7 +42,7 @@ const CARD_CALIBER: Record<string, string> = {
   active: '进行中 = 状态为「进行中」的非专项项目数',
   delayed: '延期 = 阶段 plan_end < 今天 且状态 ∉ {已完成, 搁置}，排除专项；延期项目 = 名下存在此类逾期阶段的项目',
   due: '即将到期 = 阶段 plan_end 在未来 7 天内（含今天）且状态 ∈ {未开始, 进行中}，所属项目未搁置，排除专项',
-  conflict: '资源冲突 = 今日风险队列中的冲突行数（同一冲突对跨资源去重为 1 行）；冲突明细抽屉按资源计对数（两人任务重叠计 1 对）',
+  conflict: '卡面数字 = 今日风险队列中的冲突行数（同一冲突对跨资源去重为 1 行）；「较上周」小字 = 冲突对数口径（快照 conflict_pairs，按资源计对，含跨资源重复）；冲突明细抽屉按资源计对数。三处口径不同，以此为准',
   rework: '返工次数 = 各阶段返工次数之和（阶段每返工一次记 1），排除专项',
   risk: '今日风险 = 延期阶段 + 即将到期阶段 + 资源冲突三源合并去重，按紧急度排序（逾期 → 冲突 → 到期）',
 }
@@ -53,7 +53,7 @@ const RISK_TAG: Record<RiskQueueItem['type'], string> = { overdue: 'error', due_
 const riskDaysText = (item: RiskQueueItem) =>
   item.type === 'overdue' ? `逾期 ${item.days} 天` : item.type === 'due_soon' ? `${item.days} 天后到期` : `重叠 ${item.days} 天`
 
-// 今日风险弹窗（用户 2026-11-05 指令 ③：版面简洁，列表收进弹窗；按钮在头部操作区）
+// 今日风险弹窗（用户 2026-11-05 指令 ③）：列表收进弹窗，按钮在头部操作区；见 return 区 Modal 节点
 
 export default function DashboardPage() {
   const navigate = useNavigate()
@@ -246,16 +246,17 @@ export default function DashboardPage() {
       )}
 
       {/* 统计卡片：6 卡等高（用户 2026-11-05 指令 ④：带环比小字的卡比不带的高——
-          对齐 antd 网格，整行拉伸同高、卡片纵向铺满；环比未定义的卡传 0 占位，保持结构同构） */}
+          对齐 antd 网格，整行拉伸同高、卡片纵向铺满；无环比指标的卡传 null 占位（显示「较上周 —」不捏造事实，
+          与后端「不用 0 冒充无变化」原则同源，snapshot.py build_weekly_delta 注释），高度与真实环比行一致） */}
       <Row gutter={[16, 16]} style={{ marginBottom: 32, alignItems: 'stretch' }}>
         {renderCard('total', '项目总数', stats.total_projects, <ProjectOutlined />, () => navigate('/projects'), false, deltaOf('projects_total'))}
-        {renderCard('active', '进行中', stats.active_projects, <ClockCircleOutlined />, () => navigate('/projects'), false, 0)}
+        {renderCard('active', '进行中', stats.active_projects, <ClockCircleOutlined />, () => navigate('/projects'), false, null)}
         {renderCard('delayed', '延期项目', stats.delayed_count, <WarningOutlined />, () => openDrawer('delayed'), true, deltaOf('delayed_projects'))}
       </Row>
       <Row gutter={[16, 16]} style={{ alignItems: 'stretch' }}>
         {renderCard('due', '即将到期', stats.due_soon_count, <FieldTimeOutlined />, () => openDrawer('due'), true, deltaOf('due_soon_phases'))}
         {renderCard('conflict', '资源冲突', stats.risk_queue.filter((r) => r.type === 'conflict').length, <ThunderboltOutlined />, () => openDrawer('conflict'), true, deltaOf('conflict_pairs'))}
-        {renderCard('rework', '返工次数', stats.total_rework_count, <ToolOutlined />, () => openDrawer('rework'), true, 0)}
+        {renderCard('rework', '返工次数', stats.total_rework_count, <ToolOutlined />, () => openDrawer('rework'), true, null)}
       </Row>
 
       {/* 今日风险弹窗（用户 2026-11-05 指令 ③：头部按钮 → 弹窗展示，版面简洁一页显示） */}
@@ -275,10 +276,11 @@ export default function DashboardPage() {
         width={720}
       >
         {stats.risk_queue.length > 0 ? (
-          <>
+          <div style={{ maxHeight: '60vh', overflowY: 'auto' }}>
+            {/* 全量展示（用户 2026-11-05 指令 ③「一页显示完」：不做截断，弹窗内滚动） */}
             <List
               size="small"
-              dataSource={stats.risk_queue.slice(0, 10)}
+              dataSource={stats.risk_queue}
               locale={{ emptyText: <Empty description="暂无" image={Empty.PRESENTED_IMAGE_SIMPLE} /> }}
               renderItem={(item) => (
                 <List.Item
@@ -298,12 +300,10 @@ export default function DashboardPage() {
                 </List.Item>
               )}
             />
-            {stats.risk_queue.length > 10 && (
-              <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 8 }}>
-                共 {stats.risk_queue.length} 条（合并去重后总数），显示最紧急的前 10 条
-              </div>
-            )}
-          </>
+            <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 8 }}>
+              共 {stats.risk_queue.length} 条（合并去重后总数），按紧急度排序（逾期 → 冲突 → 到期）
+            </div>
+          </div>
         ) : (
           <Empty description="暂无风险 🎉" image={Empty.PRESENTED_IMAGE_SIMPLE} />
         )}
