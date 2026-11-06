@@ -143,6 +143,30 @@ def test_update_phase_records_events(
     assert "sequence" not in fields
 
 
+def test_unchanged_fields_produce_zero_events(db_session, client, project, admin_user):
+    """回归锁（#101 修复）：未改白名单字段零事件——旧 bug 会为每个未改字段产生伪事件。"""
+    # 先记一笔，拿 before 快照（code/name/owner 等字段有值）
+    resp = client.put(f"/api/projects/{project.id}", json={"status": "搁置"})
+    assert resp.status_code == 200, resp.text
+    rows = db_session.query(DataChangeEvent).all()
+    fields = [r.field for r in rows]
+    # 只应有 status 一条，不能有 code/name/owner/market/plan_start/plan_end/managed_by 等未改字段的伪事件
+    assert fields == ["status"], f"预期仅 status 一条，实际: {fields}"
+
+
+def test_date_resubmit_same_value_zero_events(db_session, client, project, admin_user):
+    """回归锁（#101 修复）：date 对象 vs 字符串重提同值零事件。"""
+    # 先设一个计划日期
+    resp = client.put(f"/api/projects/{project.id}", json={"plan_start": "2026-02-01"})
+    assert resp.status_code == 200, resp.text
+    n1 = db_session.query(DataChangeEvent).count()
+    # 用相同值再提一次（before 是 date 对象，after 是字符串）
+    resp = client.put(f"/api/projects/{project.id}", json={"plan_start": "2026-02-01"})
+    assert resp.status_code == 200, resp.text
+    n2 = db_session.query(DataChangeEvent).count()
+    assert n2 == n1, f"同值重提不应新增事件，{n1} → {n2}"
+
+
 def test_rework_records_events(db_session: Session, client: TestClient, project: Project):
     ph = _phase(db_session, project, status="已完成", progress=100, rework_count=1)
     resp = client.post(f"/api/phases/{ph.id}/rework", json={

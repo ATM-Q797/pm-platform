@@ -59,8 +59,8 @@ export function HealthFactList({ health }: { health: HealthStatus }) {
         {health.band === 'green' ? '🟢' : health.band === 'yellow' ? '🟡' : health.band === 'red' ? '🔴' : '⚪'}{' '}
         {BAND_LABEL[health.band] || health.band}
       </span>
-      {health.facts.map((f: HealthFact) => (
-        <span key={f.kind + f.detail} style={{ fontSize: 12, color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
+      {health.facts.map((f: HealthFact, i: number) => (
+        <span key={f.kind + f.detail + i} style={{ fontSize: 12, color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
           {f.detail}
         </span>
       ))}

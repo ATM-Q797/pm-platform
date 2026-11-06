@@ -270,6 +270,11 @@ export default function ProjectDetailPage() {
         width={640}
       >
         <ChangeTimeline events={events} />
+        {events.length >= 50 && (
+          <div style={{ textAlign: 'center', color: 'var(--text-tertiary)', fontSize: 12, marginTop: 8 }}>
+            仅显示最近 50 条
+          </div>
+        )}
       </Modal>
 
       <Card
