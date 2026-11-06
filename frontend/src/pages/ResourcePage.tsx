@@ -62,26 +62,15 @@ export default function ResourcePage() {
             onChange={(val) => setTab(val as ViewTab)}
           />
         ) : (
-          <Space>
-            <Segmented
-              options={[
-                { label: '热力图', value: 'heatmap' },
-                { label: '甘特', value: 'gantt' },
-                { label: '效率分析', value: 'efficiency' },
-              ]}
-              value={tab}
-              onChange={(val) => setTab(val as ViewTab)}
-            />
-            <Segmented
-              options={[
-                { label: '日', value: 'day' },
-                { label: '周', value: 'week' },
-                { label: '月', value: 'month' },
-              ]}
-              value={scale}
-              onChange={(val) => setScale(val as 'day' | 'week' | 'month')}
-            />
-          </Space>
+          <Segmented
+            options={[
+              { label: '热力图', value: 'heatmap' },
+              { label: '甘特', value: 'gantt' },
+              { label: '效率分析', value: 'efficiency' },
+            ]}
+            value={tab}
+            onChange={(val) => setTab(val as ViewTab)}
+          />
         )
       }
     >
@@ -91,7 +80,7 @@ export default function ResourcePage() {
         <TeamEfficiencyPage />
       ) : (
         <>
-          <div style={{ marginBottom: 8 }}>
+          <div style={{ marginBottom: 8, display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: 8 }}>
             <Space size="middle" wrap>
               <span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>图例：</span>
               {[
@@ -119,6 +108,15 @@ export default function ResourcePage() {
                 </span>
               ))}
             </Space>
+            <Segmented
+              options={[
+                { label: '日', value: 'day' },
+                { label: '周', value: 'week' },
+                { label: '月', value: 'month' },
+              ]}
+              value={scale}
+              onChange={(val) => setScale(val as 'day' | 'week' | 'month')}
+            />
           </div>
           <ResourceView scale={scale} onPhaseClick={setEditingPhase} conflictVersion={conflictVersion} onConflictChanged={bumpConflict} />
           <div style={{ marginTop: 8, fontSize: 12, color: 'var(--text-tertiary)' }}>
