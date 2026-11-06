@@ -4,6 +4,7 @@ import ResourceView from '../components/Resource/ResourceView'
 import HeatmapView from '../components/Resource/HeatmapView'
 import PhaseEditor from '../components/PhaseEditor/PhaseEditor'
 import TeamEfficiencyPage from './TeamEfficiencyPage'
+import { getMe } from '../api/auth'
 
 type ViewTab = 'heatmap' | 'gantt' | 'efficiency'
 
@@ -25,6 +26,9 @@ export default function ResourcePage() {
   // 热力图随 prop 变化自动重载；同时广播 'conflict-changed' 事件供其他页面（Dashboard
   // 抽屉/审核中心）联动。
   const [conflictVersion, setConflictVersion] = useState(0)
+  const [userRole, setUserRole] = useState('')
+  useEffect(() => { getMe().then(u => setUserRole(u.role)).catch(() => {}) }, [])
+  const canEfficiency = userRole === 'admin' || userRole === 'manager'
   const bumpConflict = () => {
     setConflictVersion((v) => v + 1)
     window.dispatchEvent(new Event('conflict-changed'))
@@ -56,7 +60,7 @@ export default function ResourcePage() {
             options={[
               { label: '热力图', value: 'heatmap' },
               { label: '甘特', value: 'gantt' },
-              { label: '效率分析', value: 'efficiency' },
+              ...(canEfficiency ? [{ label: '效率分析', value: 'efficiency' }] : []),
             ]}
             value={tab}
             onChange={(val) => setTab(val as ViewTab)}
@@ -66,7 +70,7 @@ export default function ResourcePage() {
             options={[
               { label: '热力图', value: 'heatmap' },
               { label: '甘特', value: 'gantt' },
-              { label: '效率分析', value: 'efficiency' },
+              ...(canEfficiency ? [{ label: '效率分析', value: 'efficiency' }] : []),
             ]}
             value={tab}
             onChange={(val) => setTab(val as ViewTab)}

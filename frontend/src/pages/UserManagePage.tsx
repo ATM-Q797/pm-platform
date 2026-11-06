@@ -83,6 +83,7 @@ export default function UserManagePage() {
       role: u.role,
       resource_id: u.resource_id,
       is_active: u.is_active,
+      position: u.position,
     })
     setModalOpen(true)
   }
@@ -97,6 +98,7 @@ export default function UserManagePage() {
           role: values.role,
           is_active: values.is_active,
           resource_id: values.resource_id || null,
+          position: values.position || null,
         })
         message.success('已更新')
       } else {
@@ -107,6 +109,7 @@ export default function UserManagePage() {
           role: values.role,
           password: values.password || '123456',
           resource_id: values.resource_id || null,
+          position: values.position || null,
         }
         await createUser(payload)
         message.success('已创建，初始密码：' + (values.password || '123456'))

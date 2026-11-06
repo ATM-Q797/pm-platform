@@ -9,7 +9,7 @@
 3. 按期完成率 = actual_end ≤ plan_end 的已完成阶段 ÷ 有 actual_end 的已完成阶段（显样本数）
 4. 返工率 = rework_count > 0 的阶段 ÷ 已完成阶段
 5. 平均阶段周期 = avg(actual_end − actual_start)，缺一头不计
-6. 负荷分布 = 按 Resource.role 聚合在办项目数（看瓶颈岗）
+6. 负荷分布 = 按 User.position 岗位聚合在办项目数（回退 Resource.role，看瓶颈岗）
 
 排除规则：is_special=true 项目（一律排除）；无 assignees 的阶段（不计入个人指标）；
 非活跃阶段（已完成/搁置）不计入峰值并行。搁置项目按指标分别处理。

@@ -307,20 +307,6 @@ export default function App() {
                <Route path="/users" element={<Navigate to="/admin-center" replace />} />
                <Route path="/review" element={<Navigate to="/admin-center" replace />} />
                <Route path="/team-efficiency" element={<Navigate to="/resources" replace />} />
-               <Route path="/users" element={
-                user.role === 'admin'
-                  ? <UserManagePage />
-                  : user.role === 'reporter'
-                  ? <Navigate to="/report" replace />
-                  : <Navigate to="/" replace />
-              } />
-              <Route path="/review" element={
-                user.role === 'admin' || user.role === 'manager'
-                  ? <ReviewPage userRole={user.role} />
-                  : user.role === 'reporter'
-                  ? <Navigate to="/report" replace />
-                  : <Navigate to="/" replace />
-              } />
               {/* 我的任务仅 manager + engineer */}
               <Route path="/my-tasks" element={
                 user.role === 'manager' || user.role === 'engineer'

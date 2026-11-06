@@ -7,6 +7,7 @@ export interface UserCreatePayload {
   role: string
   password?: string
   resource_id?: number | null
+  position?: string | null
 }
 
 export async function listUsers(): Promise<UserInfo[]> {
@@ -21,7 +22,7 @@ export async function createUser(payload: UserCreatePayload): Promise<UserInfo> 
 
 export async function updateUser(
   id: number,
-  payload: Partial<{ name: string; role: string; is_active: boolean; resource_id: number | null }>
+  payload: Partial<{ name: string; role: string; is_active: boolean; resource_id: number | null; position: string | null }>
 ): Promise<UserInfo> {
   const { data } = await client.put<UserInfo>(`/users/${id}`, payload)
   return data

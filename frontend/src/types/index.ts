@@ -473,6 +473,7 @@ export interface UserInfo {
   is_active: boolean
   must_change_password: boolean
   resource_id?: number | null
+  position?: string | null
   created_at?: string | null
 }
 
