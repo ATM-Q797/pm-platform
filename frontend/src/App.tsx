@@ -36,6 +36,7 @@ const ReviewPage = lazy(() => import('./pages/ReviewPage'))
 const MyTasksPage = lazy(() => import('./pages/MyTasksPage'))
 const SpecialProjectsPage = lazy(() => import('./pages/SpecialProjectsPage'))
 const TeamEfficiencyPage = lazy(() => import('./pages/TeamEfficiencyPage'))
+const AdminCenterPage = lazy(() => import('./pages/AdminCenterPage'))
 
 const { Header, Content } = Layout
 
@@ -136,8 +137,8 @@ export default function App() {
     ? 'report'
     : location.pathname.startsWith('/resources')
     ? 'resources'
-    : location.pathname.startsWith('/team-efficiency')
-    ? 'team-efficiency'
+    : location.pathname.startsWith('/admin-center')
+    ? 'admin-center'
     : location.pathname.startsWith('/special-projects')
     ? 'special-projects' // 专项列表/详情（含 /special-projects/:id）都高亮「专项项目」——须在 /projects 判定之前
     : location.pathname.startsWith('/projects')
@@ -170,9 +171,7 @@ export default function App() {
     { key: 'projects', icon: <ProjectOutlined />, label: '项目列表' },
     { key: 'special-projects', icon: <StarOutlined />, label: '专项项目' },
     { key: 'resources', icon: <TeamOutlined />, label: '资源负载' },
-    { key: 'team-efficiency', icon: <BarChartOutlined />, label: '团队效率' },
-    { key: 'users', icon: <UserOutlined />, label: '用户管理' },
-    { key: 'review', icon: <AuditOutlined />, label: '审核中心' },
+    { key: 'admin-center', icon: <AuditOutlined />, label: '审核管理中心' },
     { key: 'report', icon: <FormOutlined />, label: '信息填报' },
   ]
   const navItems = user.role === 'reporter'
@@ -216,10 +215,7 @@ export default function App() {
                 else if (key === 'projects') navigate('/projects')
                 else if (key === 'special-projects') navigate('/special-projects')
                 else if (key === 'resources') navigate('/resources')
-                else if (key === 'team-efficiency') navigate('/team-efficiency')
-                else if (key === 'users') navigate('/users')
-                else if (key === 'review') navigate('/review')
-                else if (key === 'my-tasks') navigate('/my-tasks')
+                else if (key === 'admin-center') navigate('/admin-center')
                 else if (key === 'report') navigate('/report')
               }}
               items={navItems}
@@ -299,6 +295,18 @@ export default function App() {
                      ? <Navigate to="/report" replace />
                      : <Navigate to="/projects" replace />
                } />
+               {/* 审核管理中心（用户管理+审核中心双板块） */}
+               <Route path="/admin-center" element={
+                 user.role === 'admin'
+                   ? <AdminCenterPage />
+                   : user.role === 'reporter'
+                     ? <Navigate to="/report" replace />
+                     : <Navigate to="/projects" replace />
+               } />
+               {/* 旧路径重定向 */}
+               <Route path="/users" element={<Navigate to="/admin-center" replace />} />
+               <Route path="/review" element={<Navigate to="/admin-center" replace />} />
+               <Route path="/team-efficiency" element={<Navigate to="/resources" replace />} />
                <Route path="/users" element={
                 user.role === 'admin'
                   ? <UserManagePage />

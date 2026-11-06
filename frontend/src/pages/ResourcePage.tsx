@@ -3,8 +3,9 @@ import { Card, Segmented, Space, Tag } from 'antd'
 import ResourceView from '../components/Resource/ResourceView'
 import HeatmapView from '../components/Resource/HeatmapView'
 import PhaseEditor from '../components/PhaseEditor/PhaseEditor'
+import TeamEfficiencyPage from './TeamEfficiencyPage'
 
-type ViewTab = 'heatmap' | 'gantt'
+type ViewTab = 'heatmap' | 'gantt' | 'efficiency'
 
 /**
  * 资源负载页面：双 Tab（热力图 | 甘特，默认热力图，RESOURCE_HEATMAP §3.1）。
@@ -65,6 +66,7 @@ export default function ResourcePage() {
               options={[
                 { label: '热力图', value: 'heatmap' },
                 { label: '甘特', value: 'gantt' },
+                { label: '效率分析', value: 'efficiency' },
               ]}
               value={tab}
               onChange={(val) => setTab(val as ViewTab)}
@@ -84,6 +86,8 @@ export default function ResourcePage() {
     >
       {tab === 'heatmap' ? (
         <HeatmapView conflictVersion={conflictVersion} />
+      ) : tab === 'efficiency' ? (
+        <TeamEfficiencyPage />
       ) : (
         <>
           <div style={{ marginBottom: 8 }}>
