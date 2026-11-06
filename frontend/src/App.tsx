@@ -10,6 +10,7 @@ import {
   KeyOutlined,
   DownOutlined,
   AuditOutlined,
+  BarChartOutlined,
   StarOutlined,
   MoonOutlined,
   SunOutlined,
@@ -135,6 +136,8 @@ export default function App() {
     ? 'report'
     : location.pathname.startsWith('/resources')
     ? 'resources'
+    : location.pathname.startsWith('/team-efficiency')
+    ? 'team-efficiency'
     : location.pathname.startsWith('/special-projects')
     ? 'special-projects' // 专项列表/详情（含 /special-projects/:id）都高亮「专项项目」——须在 /projects 判定之前
     : location.pathname.startsWith('/projects')
@@ -167,6 +170,7 @@ export default function App() {
     { key: 'projects', icon: <ProjectOutlined />, label: '项目列表' },
     { key: 'special-projects', icon: <StarOutlined />, label: '专项项目' },
     { key: 'resources', icon: <TeamOutlined />, label: '资源负载' },
+    { key: 'team-efficiency', icon: <BarChartOutlined />, label: '团队效率' },
     { key: 'users', icon: <UserOutlined />, label: '用户管理' },
     { key: 'review', icon: <AuditOutlined />, label: '审核中心' },
     { key: 'report', icon: <FormOutlined />, label: '信息填报' },
@@ -212,6 +216,7 @@ export default function App() {
                 else if (key === 'projects') navigate('/projects')
                 else if (key === 'special-projects') navigate('/special-projects')
                 else if (key === 'resources') navigate('/resources')
+                else if (key === 'team-efficiency') navigate('/team-efficiency')
                 else if (key === 'users') navigate('/users')
                 else if (key === 'review') navigate('/review')
                 else if (key === 'my-tasks') navigate('/my-tasks')
