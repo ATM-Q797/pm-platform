@@ -63,6 +63,7 @@ def create_user(
         username=payload.username,
         name=payload.name,
         role=payload.role,
+        position=payload.position,
         password_hash=hash_password(payload.password or DEFAULT_PASSWORD),
         resource_id=resource_id,
         must_change_password=True,

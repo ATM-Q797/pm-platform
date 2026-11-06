@@ -145,6 +145,15 @@ async def _startup_security_check():
     from app.database import Base, engine
     Base.metadata.create_all(engine)
     logger.info("数据库表已确认/创建（Base.metadata.create_all）")
+    # 幂等 ALTER：user_account.position（岗位，8-4/导航简化批次）
+    from sqlalchemy import text
+    with engine.connect() as conn:
+        try:
+            conn.execute(text("ALTER TABLE user_account ADD COLUMN position VARCHAR(50)"))
+            conn.commit()
+            logger.info("已添加 user_account.position 列")
+        except Exception:
+            pass  # 列已存在则跳过
     if APP_ENV == "production":
         if SECRET_KEY == _DEV_FALLBACK_SECRET or len(SECRET_KEY) < 32:
             raise RuntimeError(

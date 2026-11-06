@@ -10,6 +10,7 @@ class UserBase(BaseModel):
     username: str
     name: str
     role: str = "engineer"  # admin/manager/engineer/viewer
+    position: str | None = None  # 岗位：工业设计/结构设计/测试/项目管理/线缆设计
 
 
 class UserCreate(UserBase):
@@ -22,6 +23,7 @@ class UserUpdate(BaseModel):
     role: str | None = None
     is_active: bool | None = None
     resource_id: int | None = None
+    position: str | None = None
 
 
 class PasswordChange(BaseModel):
@@ -36,6 +38,7 @@ class UserRead(UserBase):
     is_active: bool
     must_change_password: bool
     resource_id: int | None = None
+    position: str | None = None
     created_at: datetime | None = None
 
 

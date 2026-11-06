@@ -177,6 +177,7 @@ export default function UserManagePage() {
     { title: 'ID', dataIndex: 'id', width: 60, align: 'center' },
     { title: '用户名', dataIndex: 'username', width: 120 },
     { title: '姓名', dataIndex: 'name', width: 120 },
+    { title: '岗位', dataIndex: 'position', width: 110, render: (v: string) => v || '—' },
     {
       title: '角色',
       dataIndex: 'role',
@@ -272,6 +273,19 @@ export default function UserManagePage() {
                 { value: 'engineer', label: '工程师（更新分配的阶段）' },
                 { value: 'viewer', label: '观察者（只读）' },
                 { value: 'reporter', label: '填报人（信息填报页，过渡期角色）' },
+              ]}
+            />
+          </Form.Item>
+          <Form.Item name="position" label="岗位">
+            <Select
+              placeholder="选择岗位"
+              allowClear
+              options={[
+                { value: '工业设计', label: '工业设计' },
+                { value: '结构设计', label: '结构设计' },
+                { value: '测试', label: '测试' },
+                { value: '项目管理', label: '项目管理' },
+                { value: '线缆设计', label: '线缆设计' },
               ]}
             />
           </Form.Item>

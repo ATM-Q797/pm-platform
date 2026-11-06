@@ -23,7 +23,7 @@ from datetime import date, timedelta
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models import Phase, Project, Resource, phase_assignee
+from app.models import Phase, Project, Resource, User, phase_assignee
 
 
 @dataclass
@@ -107,10 +107,14 @@ def compute_team_efficiency(db: Session, window_days: int = 7) -> TeamEfficiency
     # 峰值并行的 12 周固定窗
     peak_window_start = today - timedelta(weeks=12)
 
-    # 拉取所有资源
+    # 拉取所有资源 + 用户岗位（User.position 按姓名匹配，回退 Resource.role）
     resources = db.scalars(select(Resource).order_by(Resource.name)).all()
     if not resources:
         return TeamEfficiency(window_days=window_days)
+    # 用户岗位映射（姓名 → position）
+    user_positions: dict[str, str | None] = {}
+    for u in db.scalars(select(User).where(User.position.isnot(None))):
+        user_positions[u.name] = u.position
 
     # 拉取所有阶段（含项目信息）
     all_phases = db.scalars(
@@ -157,7 +161,7 @@ def compute_team_efficiency(db: Session, window_days: int = 7) -> TeamEfficiency
         if not my_phases:
             continue  # 无阶段的人不列入
 
-        pm = PersonMetrics(resource_id=r.id, name=r.name, role=r.role)
+        pm = PersonMetrics(resource_id=r.id, name=r.name, role=user_positions.get(r.name) or r.role)
 
         # --- 指标 1: 在办项目数（排除 is_special + 搁置） ---
         my_active_projects = set()
@@ -202,12 +206,13 @@ def compute_team_efficiency(db: Session, window_days: int = 7) -> TeamEfficiency
         if cycle_days:
             pm.avg_cycle_days = sum(cycle_days) / len(cycle_days)
 
-        # --- 指标 6: 负荷分布（按岗位聚合在办项目数） ---
-        if r.role:
-            if r.role not in role_project_count:
-                role_project_count[r.role] = set()
-            role_project_count[r.role].update(my_active_projects)
-            role_phase_count[r.role] = role_phase_count.get(r.role, 0) + len(
+        # --- 指标 6: 负荷分布（按 User.position 岗位聚合在办项目数，回退 Resource.role） ---
+        _pos = user_positions.get(r.name) or r.role
+        if _pos:
+            if _pos not in role_project_count:
+                role_project_count[_pos] = set()
+            role_project_count[_pos].update(my_active_projects)
+            role_phase_count[_pos] = role_phase_count.get(_pos, 0) + len(
                 [ph for ph in my_phases if ph.status not in ("已完成", "搁置")]
             )
 

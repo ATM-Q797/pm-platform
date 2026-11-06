@@ -40,3 +40,5 @@ class User(Base):
     # 关联的 resource（一一对应，可空——管理员可能不对应具体资源）
     resource_id: Mapped[int | None] = mapped_column(ForeignKey("resource.id"))
     resource: Mapped["Resource | None"] = relationship(back_populates="user")
+    # 岗位（工业设计/结构设计/测试/项目管理/线缆设计，可空）——团队效率负荷分布/完成率 Top 分组依据
+    position: Mapped[str | None] = mapped_column(String(50))
