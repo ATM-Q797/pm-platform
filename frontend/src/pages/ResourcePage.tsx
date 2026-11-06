@@ -56,6 +56,7 @@ export default function ResourcePage() {
             options={[
               { label: '热力图', value: 'heatmap' },
               { label: '甘特', value: 'gantt' },
+              { label: '效率分析', value: 'efficiency' },
             ]}
             value={tab}
             onChange={(val) => setTab(val as ViewTab)}
