@@ -20,11 +20,13 @@ from app.schemas import (
     DelayedPhase,
     DelayedProject,
     DueSoonPhase,
+    ProjectHealthSummary,
     ResourceConflict,
     ReworkPhase,
     RiskQueueItem,
     StatusCount,
 )
+from app.services.health_score import assess_projects, longest_overdue_days
 from app.services.resource_conflicts import detect_conflicts
 
 router = APIRouter(prefix="/api/dashboard", tags=["看板"])
@@ -280,7 +282,7 @@ def build_risk_queue(stats: DashboardStats, conflicts: Sequence[ResourceConflict
 
 @router.get("/stats", response_model=DashboardStats)
 def get_dashboard_stats(db: Session = Depends(get_db)):
-    """首页看板聚合统计：分布/预警/返工 + 今日风险队列、数据截至日期与 4 卡环比。"""
+    """首页看板聚合统计：分布/预警/返工 + 今日风险队列、数据截至日期与 4 卡环比、风险项目（8-2）。"""
     # 函数内导入：app.services.snapshot 顶部 import 本模块，顶层互引会成循环导入
     from app.services.snapshot import build_weekly_delta
 
@@ -289,8 +291,35 @@ def get_dashboard_stats(db: Session = Depends(get_db)):
     snapshot_date = db.scalar(
         select(StatusSnapshot.snapshot_date).order_by(StatusSnapshot.snapshot_date.desc()).limit(1)
     )
+
+    # 风险项目（8-2）：健康度 red/yellow 升序（最危险在前）；搁置不评；专项在下方查询已排除
+    risk_rows = db.scalars(
+        select(Project).where(
+            Project.is_special.is_(False),
+            Project.status.not_in(_SHELVED_PROJECT_STATUSES),
+        )
+    ).all()
+    health_map = assess_projects(risk_rows, conflicts, date.today())
+    risk_projects = sorted(
+        (
+            ProjectHealthSummary(
+                project_id=p.id,
+                project_name=p.name,
+                owner=p.owner,
+                status=p.status,
+                band=h.band,
+                reason=h.reason,
+                overdue_days=longest_overdue_days(list(p.phases), date.today()),
+            )
+            for p, h in ((pr, health_map[pr.id]) for pr in risk_rows if pr.id in health_map)
+            if h.band in ("red", "yellow")  # 绿/灰不上卡（弹窗只关注需要处理的）
+        ),
+        key=lambda r: (0 if r.band == "red" else 1, -r.overdue_days, r.project_id),
+    )
+
     return stats.model_copy(update={
         "risk_queue": build_risk_queue(stats, conflicts),
         "snapshot_date": snapshot_date.isoformat() if snapshot_date else None,
         "weekly_delta": build_weekly_delta(db, _CARD_DELTA_KEYS),
+        "risk_projects": risk_projects,
     })

@@ -2,9 +2,10 @@ import { useEffect, useState, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { Card, Descriptions, Tag, Button, Space, Segmented, Spin, message, Switch, Result } from 'antd'
 import { ArrowLeftOutlined, PlusOutlined, StarFilled, StarOutlined, EditOutlined } from '@ant-design/icons'
-import { getProject, setFavorite, getCriticalPath } from '../api/projects'
+import { getProject, setFavorite, getCriticalPath, getProjectHealth } from '../api/projects'
 import { getMe } from '../api/auth'
-import type { ProjectDetail } from '../types'
+import type { ProjectDetail, HealthStatus } from '../types'
+import { HealthFactList } from '../components/ProjectList/HealthStatusCell'
 import GanttChart from '../components/Gantt/GanttChart'
 import PhaseEditor from '../components/PhaseEditor/PhaseEditor'
 import ProjectEditModal from '../components/ProjectEditModal'
@@ -35,6 +36,8 @@ export default function ProjectDetailPage() {
   const [userRole, setUserRole] = useState<string>('viewer')
   // 顶部"编辑"弹窗(与项目列表共享同一 ProjectEditModal,免回列表改主状态)
   const [editOpen, setEditOpen] = useState(false)
+  // 健康度（8-2）：列表随行字段不进详情接口（ProjectDetail 不含 health），单独拉取；搁置 409 → null 显示「—」
+  const [health, setHealth] = useState<HealthStatus | null>(null)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -53,6 +56,9 @@ export default function ProjectDetailPage() {
     } finally {
       setLoading(false)
     }
+    // 健康度失败不阻塞页面（据置 409 / 专项 403 → 隐藏区块）；放 try 外——评审 #80：
+    // 原在 try 内，若 fetch 异常会误报主加载错误；失败仅隐藏区块（catch 置 null）
+    getProjectHealth(projectId).then(setHealth).catch(() => setHealth(null))
   }, [projectId])
 
   useEffect(() => {
@@ -185,6 +191,21 @@ export default function ProjectDetailPage() {
             )}
           </Descriptions.Item>
         </Descriptions>
+
+        {/* 健康度区（8-2 规则灯）：档位徽章 + 事实清单（带对象名）+ 固定文案；搁置/无评级 → 不渲染 */}
+        {health && (
+          <div
+            style={{
+              marginTop: 16,
+              padding: '12px 16px',
+              borderRadius: 8,
+              background: 'rgba(255,255,255,.03)',
+            }}
+          >
+            <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 4 }}>项目健康度</div>
+            <HealthFactList health={health} />
+          </div>
+        )}
       </Card>
 
       <Card

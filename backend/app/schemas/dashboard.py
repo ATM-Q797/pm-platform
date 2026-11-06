@@ -88,3 +88,17 @@ class DashboardStats(BaseModel):
     risk_queue: list[RiskQueueItem] = []  # 今日风险队列（三源合并去重，严重度优先）
     snapshot_date: str | None = None  # 最新快照日期（数据截至；无快照 → None，前端显示空态）
     weekly_delta: dict[str, int] | None = None  # 4 卡环比（与 build_trend 同一周差分公式；不足两周无基期 → None）
+    # 8-2 健康度（2026-11-05）：风险项目卡（分数升序；搁置不评 → 不在列表）
+    risk_projects: list["ProjectHealthSummary"] = []
+
+
+class ProjectHealthSummary(BaseModel):
+    """风险分析弹窗行（8-2 规则灯）：主因短语随行，点击行跳项目详情。"""
+
+    project_id: int
+    project_name: str
+    owner: str
+    status: str
+    band: str  # red（红档·立即处理）| yellow（黄档·需要关注）
+    reason: str  # 主因短语（如 1个阶段逾期16天）
+    overdue_days: int = 0  # 最长逾期天数（排序键：红档在前、逾期久在前）

@@ -67,6 +67,26 @@ class ProjectUpdate(BaseModel):
         return v
 
 
+# ---------- 项目健康度（8-2 规则灯，PHASE8_PLAN §二；口径唯一来源 services/health_score.py） ----------
+
+class HealthFact(BaseModel):
+    """一条风险事实（2026-11-06 用户裁定规则灯：只认事实，不合成分数）。"""
+
+    kind: str  # delay（阶段逾期）| conflict（资源冲突）| nodata（无法判定）| clear（无风险）
+    phrase: str  # 主因短语（列表列/弹窗行直接显示）：1个阶段逾期16天 / 资源冲突3对
+    detail: str  # 事实清单（详情页）：带对象名——阶段「XX」逾期 N 天（plan_end YYYY-MM-DD）
+    severity: int  # 2=红（逾期 ≥7 天）1=黄（逾期 1–6 天 / 冲突 ≥3 对）0=不触发档位
+
+
+class HealthStatus(BaseModel):
+    """项目健康度（规则灯档位，无分数）：事实直接触发档位，当场可核验。"""
+
+    band: str  # red（风险）| yellow（关注）| green（正常）| gray（未评估，无计划日期）
+    reason: str  # 主因短语（取最严重事实；多事实同现只显示最严重一条）
+    facts: list[HealthFact]
+    disclaimer: str = "本评级为项目状态参考，不构成绩效考核"
+
+
 class ProjectRead(ProjectBase):
     model_config = ConfigDict(from_attributes=True)
 
@@ -77,6 +97,7 @@ class ProjectRead(ProjectBase):
     template: TemplateBrief | None = None
     phases: list[PhaseRead] = []
     is_favorite: bool = False  # 当前用户是否关注（列表接口填充）
+    health: HealthStatus | None = None  # 健康度随行（8-2 规则灯，仅列表接口填充；搁置/专项 → None）
 
 
 class ProjectDetail(ProjectRead):

@@ -12,3 +12,4 @@
 | RT-5 | reporter 登录 → 打既有任意 /api/* 接口 | 全部 403（封锁矩阵：projects/phases/resources/users/imports/audit/analysis…） | 直敲 API | 设计方案 §3.1（过渡期角色隔离） | 信息填报一期 |
 | RT-6 | reporter 登录 → 前端任意非 /report 路由 | 重定向 /report，导航仅一项 | 浏览器地址栏 | 设计方案 §3.1（过渡期角色隔离） | 信息填报一期 |
 | RT-7 | 项目列表页卡片标题 Segmented（全部项目 / 我的关注）→ GET /api/projects 的 is_favorite 过滤 → Table 列集裁剪 | 关注视图仅显示已关注项目、无「序号」列、底栏「共 N 个关注项目」；视图内取消关注后该行即时移出且计数同步减；刷新后仍停留在原视图 | 项目列表页 · 卡片标题 Segmented | 批次 §4 用户 2026-11-04 批复：副板块「我的关注」显示关注项目、不显示序号 | 我的关注副板块 |
+| RT-8 | 列表 health 随行字段 / GET /api/projects/{id}/health / dashboard stats.risk_projects 三处同一 assess_health 规则灯 | 同一项目三处档位与主因短语一致；无计划日期项目显「未评估」不冒充绿；据置项目列表显「—」、详情区隐藏、不上风险清单；风险分析弹窗红/黄 2 分板块行点击跳详情 | 项目列表健康度列 · 项目详情健康度区 · 看板风险分析弹窗 | docs/PHASE8_PLAN.md §二验收（三处档位与短语一致）；批档 §2 | 健康度评级（规则灯） |

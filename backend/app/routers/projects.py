@@ -4,6 +4,8 @@
 """
 from __future__ import annotations
 
+from datetime import date
+
 from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import or_, select
 from sqlalchemy.exc import IntegrityError
@@ -21,6 +23,7 @@ from app.routers.audit import log_operation
 from app.schemas import (
     CriticalPathResult,
     GanttData,
+    HealthStatus,
     ProjectCreate,
     ProjectDetail,
     ProjectRead,
@@ -28,7 +31,9 @@ from app.schemas import (
 )
 from app.services import apply_template, build_gantt
 from app.services.critical_path import compute_critical_path
+from app.services.health_score import assess_projects
 from app.services.project_code import next_project_code, next_special_code
+from app.services.resource_conflicts import detect_conflicts
 
 router = APIRouter(prefix="/api/projects", tags=["项目"])
 
@@ -90,9 +95,17 @@ def list_projects(
     favorite_ids = set(db.scalars(
         select(UserFavorite.project_id).where(UserFavorite.user_id == user.id)
     ).all())
-    projects = [ProjectRead.model_validate(p) for p in db.scalars(stmt)]
+    rows = db.scalars(stmt).all()
+    projects = [ProjectRead.model_validate(p) for p in rows]
     for item in projects:
         item.is_favorite = item.id in favorite_ids
+
+    # 健康度批量随行（8-2 规则灯）：一次冲突检测全项目复用。
+    # 搁置项目不在评级结果中 → health=None（前端显示「—」）。
+    today = date.today()
+    health_map = assess_projects(rows, detect_conflicts(db), today)
+    for item in projects:
+        item.health = health_map.get(item.id)
     return projects
 
 
@@ -218,6 +231,32 @@ def get_project(
     detail = ProjectDetail.model_validate(project)
     detail.dependencies = deps  # type: ignore[assignment]
     return detail
+
+
+@router.get("/{project_id}/health", response_model=HealthStatus)
+def get_project_health(
+    project_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """单项目健康度（8-2 规则灯）：详情页刷新用，口径与列表随行字段同一函数。
+
+    搁置项目不评（409 明示拒绝，不用默认值冒充）——批次 §2 裁定。
+    """
+    project = db.get(Project, project_id)
+    if project is None:
+        raise HTTPException(404, "项目不存在")
+    # 读端点与同族一致（get_project/gantt/critical-path 仅专项隔离）——评审 #80 线索实锤修复：
+    # 此前误用写级 check_project_access，viewer（看板主力用户）点风险卡/详情页必 403。
+    check_special_project_access(project, user)
+    if project.status == "搁置":
+        raise HTTPException(
+            status.HTTP_409_CONFLICT,
+            "搁置项目不评健康度（暂停评估语义，批次 §2 裁定）",
+        )
+    from app.services.health_score import assess_health
+
+    return assess_health(project, list(project.phases), detect_conflicts(db), date.today())
 
 
 @router.put("/{project_id}", response_model=ProjectRead)

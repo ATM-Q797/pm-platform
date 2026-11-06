@@ -6,6 +6,7 @@ import { EditOutlined, DeleteOutlined, StarFilled, StarOutlined } from '@ant-des
 import type { ColumnsType } from 'antd/es/table'
 import type { NavigateFunction } from 'react-router-dom'
 import type { Project } from '../../types'
+import { HealthStatusCell } from './HealthStatusCell'
 
 // 状态 → Tag 颜色（PROJECT_SHELVE §2.1；旧值「已搁置」兼容已移除——2026-08-28）
 export const STATUS_COLOR: Record<string, string> = {
@@ -70,6 +71,14 @@ export function buildColumns(options: {
       render: (m: string) => <Tag color="blue">{m}</Tag>,
     },
     { title: '负责人', dataIndex: 'owner', width: 100 },
+    {
+      title: '健康度',
+      dataIndex: 'health',
+      width: 90,
+      align: 'center',
+      // 8-2 规则灯：色点+主因短语（搁置/专项 health=null → 「—」）；口径唯一来源后端，前端零计算
+      render: (_, r) => <HealthStatusCell health={r.health} />,
+    },
     { title: '计划开始', dataIndex: 'plan_start', width: 120, align: 'center',
       render: (v: string) => <span style={{ fontVariantNumeric: 'tabular-nums' }}>{v}</span> },
     { title: '计划结束', dataIndex: 'plan_end', width: 120, align: 'center',

@@ -40,6 +40,7 @@ export interface Project {
   template?: { id: number; name: string; category: string } | null
   phases?: Phase[]
   is_favorite?: boolean // 当前用户是否关注（置顶）
+  health?: HealthStatus | null // 健康度随行（8-2 规则灯，仅列表接口填充；搁置/专项 → null，显示「—」）
 }
 
 export interface ProjectDetail extends Project {
@@ -63,6 +64,33 @@ export interface ProjectCreate {
 }
 
 export type ProjectUpdate = Partial<ProjectCreate>
+
+// ---------- 项目健康度（8-2 规则灯，PHASE8_PLAN §二；口径唯一来源 backend health_score.py，前端零计算只展示） ----------
+
+export interface HealthFact {
+  kind: string // delay（阶段逾期）| conflict（资源冲突）| nodata（无法判定）| clear（无风险）
+  phrase: string // 主因短语：1个阶段逾期16天 / 资源冲突3对
+  detail: string // 事实清单行（带对象名）：阶段「XX」逾期 N 天（plan_end YYYY-MM-DD）
+  severity: number // 2=红（逾期 ≥7 天）1=黄（逾期 1–6 天 / 冲突 ≥3 对）0=不触发档位
+}
+
+export interface HealthStatus {
+  band: 'green' | 'yellow' | 'red' | 'gray' // 绿正常/黄关注/红风险/灰未评估（规则灯，无分数）
+  reason: string // 主因短语（取最严重事实；列表列/弹窗行直接显示）
+  facts: HealthFact[]
+  disclaimer?: string // 固定文案「本评级为项目状态参考，不构成绩效考核」（考核防火墙）
+}
+
+// 风险分析弹窗行（8-2 规则灯）：主因短语随行，点击行跳项目详情
+export interface ProjectHealthSummary {
+  project_id: number
+  project_name: string
+  owner: string
+  status: string
+  band: 'red' | 'yellow'
+  reason: string // 主因短语（如 1个阶段逾期16天）
+  overdue_days: number // 最长逾期天数（排序键：红档在前、逾期久在前）
+}
 
 // ---------- 阶段 ----------
 export interface Phase {
@@ -361,6 +389,7 @@ export interface DashboardStats {
   risk_queue: RiskQueueItem[]
   snapshot_date: string | null // 数据截至（最新快照日期）；null = 无快照空态
   weekly_delta: WeeklyDelta | null // 4 卡环比（与 build_trend 同一周差分公式）；null = 无对比基期
+  risk_projects?: ProjectHealthSummary[] // 8-2 风险项目（黄/红档升序；旧版后端不返回 → undefined，读点统一走空数组兜底）
 }
 
 // 8-1 今日风险队列项（延期/即将到期/资源冲突三源合并去重，一行 = 一个风险事件）

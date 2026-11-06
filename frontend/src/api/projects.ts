@@ -1,5 +1,5 @@
 import client from './client'
-import type { Project, ProjectCreate, ProjectUpdate, ProjectDetail, GanttData } from '../types'
+import type { Project, ProjectCreate, ProjectUpdate, ProjectDetail, GanttData, HealthStatus } from '../types'
 
 export async function listProjects(params?: {
   status?: string
@@ -62,4 +62,10 @@ export async function setFavorite(id: number, favorited: boolean): Promise<void>
   } else {
     await client.delete(`/projects/${id}/favorite`)
   }
+}
+
+/** 单项目健康度（8-2）：详情页用；搁置项目后端 409（前端 catch 后隐藏区块） */
+export async function getProjectHealth(id: number): Promise<HealthStatus> {
+  const { data } = await client.get<HealthStatus>(`/projects/${id}/health`)
+  return data
 }

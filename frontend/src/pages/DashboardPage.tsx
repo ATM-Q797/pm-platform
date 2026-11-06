@@ -18,7 +18,7 @@ import {
 import { getDashboardStats } from '../api/dashboard'
 import { getResourceConflicts } from '../api/resources'
 import { runSnapshot } from '../api/analysis'
-import type { DashboardStats, ResourceConflict, RiskQueueItem } from '../types'
+import type { DashboardStats, ResourceConflict, ProjectHealthSummary } from '../types'
 
 // 项目分析弹窗懒加载（含 ECharts，避免影响看板首屏）
 const AnalysisModal = lazy(() => import('../components/Analysis/AnalysisModal'))
@@ -44,16 +44,10 @@ const CARD_CALIBER: Record<string, string> = {
   due: '即将到期 = 阶段 plan_end 在未来 7 天内（含今天）且状态 ∈ {未开始, 进行中}，所属项目未搁置，排除专项',
   conflict: '卡面数字 = 今日风险队列中的冲突行数（同一冲突对跨资源去重为 1 行）；「较上周」小字 = 冲突对数口径（快照 conflict_pairs，按资源计对，含跨资源重复）；冲突明细抽屉按资源计对数。三处口径不同，以此为准',
   rework: '返工次数 = 各阶段返工次数之和（阶段每返工一次记 1），排除专项',
-  risk: '今日风险 = 延期阶段 + 即将到期阶段 + 资源冲突三源合并去重，按紧急度排序（逾期 → 冲突 → 到期）',
 }
 
-// 今日风险队列（8-1 ②）：类型标签与天数文案
-const RISK_LABEL: Record<RiskQueueItem['type'], string> = { overdue: '延期', due_soon: '到期', conflict: '冲突' }
-const RISK_TAG: Record<RiskQueueItem['type'], string> = { overdue: 'error', due_soon: 'warning', conflict: 'volcano' }
-const riskDaysText = (item: RiskQueueItem) =>
-  item.type === 'overdue' ? `逾期 ${item.days} 天` : item.type === 'due_soon' ? `${item.days} 天后到期` : `重叠 ${item.days} 天`
-
-// 今日风险弹窗（用户 2026-11-05 指令 ③）：列表收进弹窗，按钮在头部操作区；见 return 区 Modal 节点
+// 风险分析弹窗（2026-11-06 用户指令：今日风险内容去除——今日聚焦/即将到期卡已覆盖，不分散注意力；
+// 只留红/黄档风险项目 2 分板块，精简聚焦决策）；见 return 区 Modal 节点
 
 export default function DashboardPage() {
   const navigate = useNavigate()
@@ -65,7 +59,7 @@ export default function DashboardPage() {
   const [conflictsLoading, setConflictsLoading] = useState(false)
   // 项目分析弹窗开关（裁定 ②：看板按钮 → 弹窗）
   const [analysisOpen, setAnalysisOpen] = useState(false)
-  // 今日风险弹窗（用户 2026-11-05 指令 ③）
+  // 风险分析弹窗（合并版）：红/黄档风险项目 2 分板块，行点击跳项目详情
   const [riskOpen, setRiskOpen] = useState(false)
   // 8-1：快照采集进行中标记
   const [snapshotRunning, setSnapshotRunning] = useState(false)
@@ -73,6 +67,8 @@ export default function DashboardPage() {
   // 风险队列守卫（评审 #59 🔵：版本偏斜时旧后端不返回 risk_queue，
   // 2026-11-05 本地白屏事故的根因模式——所有读取点统一走这份空数组兜底）
   const riskQueue = stats?.risk_queue ?? []
+  // 风险项目（8-2）：同模式兜底——旧后端不返回 risk_projects → 空数组，不报错
+  const riskProjects: ProjectHealthSummary[] = stats?.risk_projects ?? []
 
   useEffect(() => {
     // 甘特消除后同步刷新本抽屉（用户 2026-08-28 决策 ③：消除统一在甘特，其他视图只同步）
@@ -263,13 +259,15 @@ export default function DashboardPage() {
         {renderCard('rework', '返工次数', stats.total_rework_count, <ToolOutlined />, () => openDrawer('rework'), true, null)}
       </Row>
 
-      {/* 今日风险弹窗（用户 2026-11-05 指令 ③：头部按钮 → 弹窗展示，版面简洁一页显示） */}
+      {/* 风险分析弹窗（2026-11-06 合并重设计）：2 分板块（红档·立即处理 / 黄档·需要关注），
+          只列需要处理的风险项目，行点击跳项目详情；今日风险内容不在此展示（今日聚焦/即将到期卡已覆盖）；
+          绿/灰不上卡，搁置不评；底部固定文案（考核防火墙） */}
       <Modal
         title={
           <span>
             <AlertOutlined style={{ color: '#e11d48', marginRight: 8 }} />
-            风险分析（{riskQueue.length}）
-            <Tooltip title={CARD_CALIBER.risk}>
+            风险分析（{riskProjects.length}）
+            <Tooltip title="红档 = 阶段逾期 ≥7 天；黄档 = 逾期 1–6 天或资源冲突 ≥3 对；按严重度排序，点行进详情">
               <QuestionCircleOutlined style={{ marginLeft: 4, fontSize: 12, color: 'var(--text-secondary)', cursor: 'help' }} />
             </Tooltip>
           </span>
@@ -279,38 +277,69 @@ export default function DashboardPage() {
         footer={null}
         width={720}
       >
-        {riskQueue.length > 0 ? (
-          <div style={{ maxHeight: '60vh', overflowY: 'auto' }}>
-            {/* 全量展示（用户 2026-11-05 指令 ③「一页显示完」：不做截断，弹窗内滚动） */}
-            <List
-              size="small"
-              dataSource={riskQueue}
-              locale={{ emptyText: <Empty description="暂无" image={Empty.PRESENTED_IMAGE_SIMPLE} /> }}
-              renderItem={(item) => (
-                <List.Item
-                  style={{ cursor: 'pointer', padding: '6px 0' }}
-                  onClick={() => navigate(`/projects/${item.project_id}`)}
+        <div style={{ maxHeight: '60vh', overflowY: 'auto' }}>
+          {(['red', 'yellow'] as const).map((band) => {
+            const rows = riskProjects.filter((r) => r.band === band)
+            return (
+              <div key={band} style={{ marginBottom: 16 }}>
+                <div
+                  style={{
+                    fontSize: 13,
+                    fontWeight: 600,
+                    color: band === 'red' ? '#e11d48' : '#d48806',
+                    marginBottom: 8,
+                  }}
                 >
-                  <List.Item.Meta
-                    title={
-                      <span style={{ fontSize: 13 }}>
-                        <Tag color={RISK_TAG[item.type]}>{RISK_LABEL[item.type]}</Tag>
-                        {item.project_name} · {item.phase_name}
-                      </span>
-                    }
-                    description={<span style={{ fontSize: 12, color: 'var(--text-secondary)' }}>{item.detail}</span>}
+                  {band === 'red' ? '🔴 红档 · 立即处理' : '🟡 黄档 · 需要关注'}（{rows.length}）
+                </div>
+                {rows.length > 0 ? (
+                  <List
+                    size="small"
+                    dataSource={rows}
+                    renderItem={(item) => (
+                      <List.Item
+                        style={{ cursor: 'pointer', padding: '8px 0' }}
+                        onClick={() => navigate(`/projects/${item.project_id}`)}
+                      >
+                        <span style={{ fontSize: 13 }}>
+                          <span
+                            style={{
+                              display: 'inline-block', width: 8, height: 8, borderRadius: '50%',
+                              background: band === 'red' ? '#ff4d4f' : '#faad14',
+                              marginRight: 8, verticalAlign: 'middle',
+                            }}
+                          />
+                          {item.project_name}
+                          <span style={{ color: 'var(--text-secondary)', fontSize: 12 }}>
+                            （{item.owner || '—'}）
+                          </span>
+                          <span style={{ color: 'var(--text-secondary)', fontSize: 12, marginLeft: 8 }}>
+                            {item.reason}
+                          </span>
+                        </span>
+                      </List.Item>
+                    )}
                   />
-                  <Tag color={RISK_TAG[item.type]}>{riskDaysText(item)}</Tag>
-                </List.Item>
-              )}
-            />
-            <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginTop: 8 }}>
-              共 {riskQueue.length} 条（合并去重后总数），按紧急度排序（逾期 → 冲突 → 到期）
-            </div>
+                ) : (
+                  <div style={{ fontSize: 12, color: 'var(--text-tertiary)', padding: '8px 0' }}>
+                    无{band === 'red' ? '红档' : '黄档'}项目
+                  </div>
+                )}
+              </div>
+            )
+          })}
+          <div
+            style={{
+              fontSize: 12,
+              color: 'var(--text-secondary)',
+              marginTop: 8,
+              paddingTop: 8,
+              borderTop: '1px solid var(--border-color, #333)',
+            }}
+          >
+            本评级为项目状态参考，不构成绩效考核
           </div>
-        ) : (
-          <Empty description="暂无风险 🎉" image={Empty.PRESENTED_IMAGE_SIMPLE} />
-        )}
+        </div>
       </Modal>
 
       {/* 今日聚焦：延期项目 + 即将到期 各前 5 */}
