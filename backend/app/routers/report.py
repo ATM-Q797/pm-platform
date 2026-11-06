@@ -293,8 +293,17 @@ def patch_report_project(
         if manager.force_deleted_at is not None:
             raise HTTPException(400, "该用户已强制删除，不可指派为项目负责人")  # 评审 #4
         project.owner = manager.name
+    # 过程事件（P1）：setattr 前取白名单字段快照
+    from app.services.change_events import PROJECT_FIELD_COLUMNS, record_field_diffs, snapshot_model
+    _before = snapshot_model(project, PROJECT_FIELD_COLUMNS)
     for k, v in payload.items():
         setattr(project, k, v)
+    # 过程事件（P1）：白名单字段 diff 落事件（填报页项目级直改，source=report_edit）
+    record_field_diffs(
+        db, user=user, before=_before, after=payload,
+        columns=PROJECT_FIELD_COLUMNS, source="report_edit",
+        project_id=project.id, project_name=project.name,
+    )
     log_operation(db, user, "update_project", "project", project.id, project.name,
                   detail=f"填报页修改字段：{', '.join(payload.keys())}")
     db.commit()
