@@ -74,6 +74,7 @@ from app.schemas.analysis import (
     WeeklyPoint,
 )
 from app.schemas.audit import (
+    DataChangeEventRead,
     DeleteRequestCreate,
     DeleteRequestRead,
     DeleteReview,
@@ -111,7 +112,7 @@ __all__ = [
     "DashboardStats", "DelayedProject", "ReworkPhase", "StatusCount",
     "DelayedPhase", "DueSoonPhase", "RiskQueueItem", "ProjectHealthSummary",
     "UserCreate", "UserRead", "UserUpdate", "LoginRequest", "LoginResponse", "PasswordChange",
-    "DeleteRequestCreate", "DeleteRequestRead", "DeleteReview", "OperationLogRead",
+    "DeleteRequestCreate", "DeleteRequestRead", "DeleteReview", "OperationLogRead", "DataChangeEventRead",
     "PhaseChangeRequestCreate", "PhaseChangeRequestRead", "PhaseChangeReview",
     "ReportChangeRequestCreate", "ReportChangeRequestItem", "ReportChangeReview",
     "ReportMeta", "ReportPhaseOut", "ReportPhasePatch",

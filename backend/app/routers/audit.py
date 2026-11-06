@@ -15,9 +15,10 @@ from sqlalchemy.orm import Session
 
 from app.core.deps import get_current_user, require_role, check_project_access
 from app.database import get_db
-from app.models import OperationLog, Phase, PhaseChangeRequest, Project, ProjectDeleteRequest, User
+from app.models import DataChangeEvent, OperationLog, Phase, PhaseChangeRequest, Project, ProjectDeleteRequest, User
 from app.services.notification import notify, project_owner_user_ids
 from app.schemas import (
+    DataChangeEventRead,
     DeleteRequestCreate,
     DeleteRequestRead,
     DeleteReview,
@@ -372,5 +373,40 @@ def list_operation_logs(
                     name_cache[row.user_id] = u.name if u else None
             if name_cache[row.user_id]:
                 item.user_name = name_cache[row.user_id]
+        out.append(item)
+    return out
+
+
+# ---------- 过程事件（P1 过程事件地基，PHASE8_PLAN §九） ----------
+
+@router.get("/api/data-change-events", response_model=list[DataChangeEventRead])
+def list_data_change_events(
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+    project_id: int | None = Query(None, description="按项目过滤"),
+    phase_id: int | None = Query(None, description="按阶段过滤"),
+    field: str | None = Query(None, description="按字段过滤（白名单 field 名）"),
+    source: str | None = Query(None, description="按来源过滤 direct_edit|report_edit|approval|rework"),
+    limit: int = Query(50, ge=1, le=200),
+):
+    """过程事件时间线（登录即可查——审计透明，不限 admin；§9.4 P1 查看入口）。
+
+    按 created_at 倒序；field_label 为读取侧中文映射（不入库）。
+    """
+    from app.services.change_events import FIELD_LABELS
+    q = select(DataChangeEvent).order_by(DataChangeEvent.created_at.desc(), DataChangeEvent.id.desc())
+    if project_id is not None:
+        q = q.where(DataChangeEvent.project_id == project_id)
+    if phase_id is not None:
+        q = q.where(DataChangeEvent.phase_id == phase_id)
+    if field is not None:
+        q = q.where(DataChangeEvent.field == field)
+    if source is not None:
+        q = q.where(DataChangeEvent.source == source)
+    rows = db.scalars(q.limit(limit)).all()
+    out: list[DataChangeEventRead] = []
+    for row in rows:
+        item = DataChangeEventRead.model_validate(row)
+        item.field_label = FIELD_LABELS.get(row.field)
         out.append(item)
     return out

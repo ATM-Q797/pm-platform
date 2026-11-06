@@ -22,6 +22,11 @@ from app.services.change_request import (
     invalidate_pending_on_direct_edit,
     plan_fields_really_changed,
 )
+from app.services.change_events import (
+    PHASE_FIELD_COLUMNS,
+    record_change_event,
+    snapshot_model,
+)
 from app.services.notification import notify
 
 router = APIRouter(tags=["阶段"])
@@ -36,6 +41,38 @@ def _phase_project_special_guard(phase: Phase, user: User, db: Session) -> None:
     project = db.get(Project, phase.project_id)
     if project is not None:
         check_special_project_access(project, user)
+
+
+def _record_rework_events(
+    db: Session, phase: Phase, project: Project | None, user: User,
+    from_status: str, payload,  # ReworkRequest
+) -> None:
+    """返工的过程事件（setattr 前调用，old 取现值）：状态 / actual_end / progress / rework_count。"""
+    new_progress = 0 if payload.to_status == "未开始" else phase.progress
+    diffs = [
+        ("phase_status", from_status, payload.to_status),
+        ("actual_end", phase.actual_end, None),
+    ]
+    if new_progress != phase.progress:
+        diffs.append(("progress", phase.progress, new_progress))
+    for field, old, new in diffs:
+        record_change_event(
+            db, user=user, field=field, old=old, new=new, source="rework",
+            project_id=phase.project_id, phase_id=phase.id,
+            project_name=project.name if project else None,
+            phase_name=phase.name,
+            reason=payload.reason,
+        )
+    # rework_count 自身 +1 也记一条（从 N 到 N+1，审计「返工了几次」的累计口径）
+    record_change_event(
+        db, user=user, field="rework_count",
+        old=phase.rework_count, new=(phase.rework_count or 0) + 1,
+        source="rework",
+        project_id=phase.project_id, phase_id=phase.id,
+        project_name=project.name if project else None,
+        phase_name=phase.name,
+        reason=payload.reason,
+    )
 
 
 def _sync_assignees(db: Session, phase: Phase, assignee_ids: list[int]) -> None:
@@ -216,6 +253,8 @@ def update_phase(
     data = payload.model_dump(exclude_unset=True)
 
     assignee_ids = data.pop("assignee_ids", None)
+    # 过程事件（P1）：setattr 前取白名单字段快照
+    before_snapshot = snapshot_model(phase, PHASE_FIELD_COLUMNS)
     # 如果改了 sequence，先将 >= 新值的同项目其他阶段后移，再设置新值
     if "sequence" in data and data["sequence"] != phase.sequence:
         new_seq = data["sequence"]
@@ -255,6 +294,15 @@ def update_phase(
                    link="/report?tab=my-requests")
     # 重排 sequence 保证连续无空洞
     _normalize_sequence(db, phase.project_id)
+    # 过程事件（P1）：白名单字段 diff 落事件（detail 页直改，source=direct_edit）
+    if project is not None:
+        from app.services.change_events import record_field_diffs
+        record_field_diffs(
+            db, user=user, before=before_snapshot, after=data,
+            columns=PHASE_FIELD_COLUMNS, source="direct_edit",
+            project_id=phase.project_id, phase_id=phase.id,
+            project_name=project.name, phase_name=phase.name,
+        )
     db.commit()
     log_operation(db, user, "update_phase", "phase", phase.id, phase.name,
                   detail=f"项目#{phase.project_id}，修改字段：{', '.join(data.keys())}")
@@ -369,6 +417,8 @@ def rework_phase(
         to_status=payload.to_status,
         reason=payload.reason,
     )
+    # 过程事件（P1）：返工触发状态/actual_end/progress/rework_count 变化，逐条落事件
+    _record_rework_events(db, phase, project, user, from_status, payload)
     phase.status = payload.to_status
     phase.rework_count = (phase.rework_count or 0) + 1
     phase.actual_end = None

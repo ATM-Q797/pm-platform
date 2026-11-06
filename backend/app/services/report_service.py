@@ -224,6 +224,7 @@ def apply_change_proposal(db: Session, req: PhaseChangeRequest, user: User) -> N
     phase = db.get(Phase, req.phase_id)
     if phase is None:
         raise HTTPException(404, "阶段不存在")
+    project = db.get(Project, req.project_id)
     changes = parse_change_proposal(req.proposed_changes)
     # 倒挂区间防护（批准门）：提交与批准之间现值可能漂移（负责人直改未作废的旧流申请），落库前再校验一次
     ps = phase.plan_start if "plan_start" not in changes else (
@@ -232,6 +233,20 @@ def apply_change_proposal(db: Session, req: PhaseChangeRequest, user: User) -> N
         date.fromisoformat(changes["plan_end"]["new"]) if changes["plan_end"]["new"] else None)
     if ps and pe and pe < ps:
         raise HTTPException(400, "计划结束不得早于计划开始，请驳回后重新申请")
+    # 过程事件（P1）：审批路径 old 取提案快照（proposed_changes.old）——
+    # 批准时现值可能已被直改漂移，事件要记录「提案人当时看到什么」；setattr 前先落事件
+    from app.services.change_events import PHASE_PROPOSAL_FIELD_MAP, record_change_event
+    for field, payload in changes.items():
+        if field not in PHASE_PROPOSAL_FIELD_MAP:
+            continue  # 非白名单字段（name/assignee_ids/sequence 不入审计，§9.3）
+        record_change_event(
+            db, user=user, field=PHASE_PROPOSAL_FIELD_MAP[field],
+            old=payload.get("old"), new=payload.get("new"), source="approval",
+            project_id=req.project_id, phase_id=req.phase_id,
+            project_name=project.name if project else None,
+            phase_name=phase.name,
+            reason=getattr(req, "review_comment", None),  # 改期申请无 reason 字段——审批意见兜底
+        )
     for field, payload in changes.items():
         new = payload.get("new")
         if field in ("plan_start", "plan_end"):

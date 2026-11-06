@@ -85,3 +85,30 @@ class PhaseChangeRequest(Base):
     phase: Mapped["Phase"] = relationship()
     project: Mapped["Project"] = relationship()
     requester: Mapped["User"] = relationship(foreign_keys=[requested_by])
+
+
+class DataChangeEvent(Base):
+    """过程事件（P1 过程事件地基，PHASE8_PLAN §九 方案 B）。
+
+    字段级审计：谁/何时/项目/字段/原值→新值/来源/理由。
+    白名单 8+1 字段（计划时间/状态/进度/负责人/实际时间/返工计数）；
+    is_special 用户裁定不入（权限管理维度，非过程数据）。
+    边界三条（§9.3）：不做绩效评分排名 · 只捕白名单 · 历史不回填。
+    冗余三字段（changed_by_name/project_name/phase_name）：删号可追溯。
+    """
+    __tablename__ = "data_change_events"
+
+    id: Mapped[int] = mapped_column(Integer, primary_key=True, autoincrement=True)
+    project_id: Mapped[int | None] = mapped_column(ForeignKey("project.id", ondelete="SET NULL"), index=True)
+    phase_id: Mapped[int | None] = mapped_column(ForeignKey("phase.id", ondelete="SET NULL"), index=True)
+    field: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    old_value: Mapped[str | None] = mapped_column(Text)
+    new_value: Mapped[str | None] = mapped_column(Text)
+    source: Mapped[str] = mapped_column(String, nullable=False, index=True)
+    # direct_edit | report_edit | approval | rework
+    changed_by: Mapped[int | None] = mapped_column(ForeignKey("user_account.id", ondelete="SET NULL"))
+    changed_by_name: Mapped[str | None] = mapped_column(String)
+    project_name: Mapped[str | None] = mapped_column(String)
+    phase_name: Mapped[str | None] = mapped_column(String)
+    reason: Mapped[str | None] = mapped_column(Text)
+    created_at: Mapped[datetime] = mapped_column(DateTime, server_default=func.current_timestamp(), index=True)

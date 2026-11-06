@@ -47,6 +47,7 @@ from app.schemas.report import (
 )
 from app.services import report_service as svc
 from app.services.change_request import INVALIDATION_COMMENT, plan_fields_really_changed
+from app.services.change_events import PHASE_FIELD_COLUMNS, record_field_diffs, snapshot_model
 from app.services.notification import notify, project_owner_user_ids
 
 router = APIRouter(prefix="/api/report", tags=["信息填报"])
@@ -348,6 +349,8 @@ def patch_report_phase(
     if ps and pe and pe < ps:
         raise HTTPException(400, "计划结束不得早于计划开始")
     assignee_ids = data.pop("assignee_ids", None)
+    # 过程事件（P1）：setattr 前取白名单字段快照（填报页改，source=report_edit）
+    before_snapshot = snapshot_model(phase, PHASE_FIELD_COLUMNS)
     # 直改计划时间 → 作废待审申请（放在全部校验通过之后：非法请求不得产生副作用）
     if plan_fields_really_changed(phase, data):
         svc.apply_direct_edit_invalidation(db, phase, user)
@@ -365,6 +368,13 @@ def patch_report_phase(
     if "sequence" in data:
         from app.routers.phases import _normalize_sequence
         _normalize_sequence(db, phase.project_id)
+    # 过程事件（P1）：白名单字段 diff 落事件（填报页改，source=report_edit）
+    record_field_diffs(
+        db, user=user, before=before_snapshot, after=data,
+        columns=PHASE_FIELD_COLUMNS, source="report_edit",
+        project_id=phase.project_id, phase_id=phase.id,
+        project_name=project.name, phase_name=phase.name,
+    )
     db.commit()
     db.refresh(phase)
     e = svc.phase_editable_map(project, phase, user)

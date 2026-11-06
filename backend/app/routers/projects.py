@@ -30,6 +30,7 @@ from app.schemas import (
     ProjectUpdate,
 )
 from app.services import apply_template, build_gantt
+from app.services.change_events import PROJECT_FIELD_COLUMNS, record_field_diffs, snapshot_model
 from app.services.critical_path import compute_critical_path
 from app.services.health_score import assess_projects
 from app.services.project_code import next_project_code, next_special_code
@@ -280,10 +281,18 @@ def update_project(
         dup = db.scalars(select(Project).where(Project.code == data["code"])).first()
         if dup:
             raise HTTPException(400, f"项目编号 {data['code']} 已存在")
+    # 过程事件（P1）：setattr 前取白名单字段快照
+    before_snapshot = snapshot_model(project, PROJECT_FIELD_COLUMNS)
     for k, v in data.items():
         setattr(project, k, v)
     db.commit()
     db.refresh(project)
+    # 过程事件（P1）：白名单字段 diff 落事件（source=direct_edit——项目编辑仅详情页/列表入口）
+    record_field_diffs(
+        db, user=user, before=before_snapshot, after=data,
+        columns=PROJECT_FIELD_COLUMNS, source="direct_edit",
+        project_id=project.id, project_name=project.name,
+    )
     log_operation(db, user, "update_project", "project", project.id, project.name,
                   detail=f"修改字段：{', '.join(data.keys())}")
     db.commit()

@@ -1,9 +1,11 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { Card, Descriptions, Tag, Button, Space, Segmented, Spin, message, Switch, Result } from 'antd'
+import { Card, Descriptions, Tag, Button, Space, Segmented, Spin, message, Switch, Result, Timeline, Empty } from 'antd'
 import { ArrowLeftOutlined, PlusOutlined, StarFilled, StarOutlined, EditOutlined } from '@ant-design/icons'
 import { getProject, setFavorite, getCriticalPath, getProjectHealth } from '../api/projects'
 import { getMe } from '../api/auth'
+import { listDataChangeEvents } from '../api/audit'
+import type { DataChangeEvent } from '../api/audit'
 import type { ProjectDetail, HealthStatus } from '../types'
 import { HealthFactList } from '../components/ProjectList/HealthStatusCell'
 import GanttChart from '../components/Gantt/GanttChart'
@@ -15,6 +17,50 @@ const STATUS_COLOR: Record<string, string> = {
   已完成: 'success',
   未开始: 'default',
   搁置: 'warning',
+}
+
+// 过程事件来源中文标签（P1 时间线）
+const SOURCE_LABEL: Record<string, string> = {
+  direct_edit: '详情页直改',
+  report_edit: '填报页修改',
+  approval: '审批通过',
+  rework: '返工',
+}
+const SOURCE_COLOR: Record<string, string> = {
+  direct_edit: 'blue',
+  report_edit: 'cyan',
+  approval: 'green',
+  rework: 'orange',
+}
+
+function ChangeTimeline({ events }: { events: DataChangeEvent[] }) {
+  if (events.length === 0) {
+    return <Empty image={Empty.PRESENTED_IMAGE_SIMPLE} description="暂无变更记录（自上线日起记录）" />
+  }
+  return (
+    <Timeline
+      items={events.map((e) => ({
+        color: SOURCE_COLOR[e.source] || 'gray',
+        children: (
+          <div style={{ fontSize: 12.5, lineHeight: 1.7 }}>
+            <span style={{ fontWeight: 600 }}>{e.field_label || e.field}</span>
+            {'  '}
+            <span style={{ color: 'var(--text-secondary)' }}>
+              {e.old_value === null ? '（空）' : e.old_value} → {e.new_value === null ? '（空）' : e.new_value}
+            </span>
+            <div style={{ color: 'var(--text-tertiary)' }}>
+              {e.changed_by_name || '（已注销）'} · {e.created_at ? new Date(e.created_at).toLocaleString('zh-CN') : ''}
+              {e.phase_name ? ` · ${e.phase_name}` : ''} ·{' '}
+              <Tag color={SOURCE_COLOR[e.source] || 'default'} style={{ marginInlineEnd: 0 }}>
+                {SOURCE_LABEL[e.source] || e.source}
+              </Tag>
+              {e.reason ? ` · 理由：${e.reason}` : ''}
+            </div>
+          </div>
+        ),
+      }))}
+    />
+  )
 }
 
 export default function ProjectDetailPage() {
@@ -38,6 +84,8 @@ export default function ProjectDetailPage() {
   const [editOpen, setEditOpen] = useState(false)
   // 健康度（8-2）：列表随行字段不进详情接口（ProjectDetail 不含 health），单独拉取；搁置 409 → null 显示「—」
   const [health, setHealth] = useState<HealthStatus | null>(null)
+  // 变更时间线（P1 过程事件地基）：本项目的字段级变更历史，最近 50 条
+  const [events, setEvents] = useState<DataChangeEvent[]>([])
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -59,6 +107,8 @@ export default function ProjectDetailPage() {
     // 健康度失败不阻塞页面（据置 409 / 专项 403 → 隐藏区块）；放 try 外——评审 #80：
     // 原在 try 内，若 fetch 异常会误报主加载错误；失败仅隐藏区块（catch 置 null）
     getProjectHealth(projectId).then(setHealth).catch(() => setHealth(null))
+    // 变更时间线同样不阻塞主加载（接口失败仅隐藏区块）
+    listDataChangeEvents({ project_id: projectId, limit: 50 }).then(setEvents).catch(() => setEvents([]))
   }, [projectId])
 
   useEffect(() => {
@@ -206,6 +256,12 @@ export default function ProjectDetailPage() {
             <HealthFactList health={health} />
           </div>
         )}
+
+        {/* 变更时间线（P1 过程事件地基）：字段级审计历史，最近 50 条，倒序 */}
+        <div style={{ marginTop: 16 }}>
+          <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 8 }}>变更时间线</div>
+          <ChangeTimeline events={events} />
+        </div>
       </Card>
 
       <Card

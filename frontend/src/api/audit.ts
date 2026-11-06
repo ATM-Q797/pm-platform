@@ -1,5 +1,36 @@
 import client from './client'
 
+// ---------- 过程事件（P1 过程事件地基，PHASE8_PLAN §九） ----------
+export interface DataChangeEvent {
+  id: number
+  project_id: number | null
+  phase_id: number | null
+  field: string
+  field_label: string | null
+  old_value: string | null
+  new_value: string | null
+  source: string  // direct_edit | report_edit | approval | rework
+  changed_by: number | null
+  changed_by_name: string | null
+  project_name: string | null
+  phase_name: string | null
+  reason: string | null
+  created_at: string | null
+}
+
+export interface DataChangeEventQuery {
+  project_id?: number
+  phase_id?: number
+  field?: string
+  source?: string
+  limit?: number
+}
+
+export async function listDataChangeEvents(params?: DataChangeEventQuery): Promise<DataChangeEvent[]> {
+  const { data } = await client.get<DataChangeEvent[]>('/data-change-events', { params })
+  return data
+}
+
 // ---------- 删除申请 ----------
 export interface DeleteRequest {
   id: number
