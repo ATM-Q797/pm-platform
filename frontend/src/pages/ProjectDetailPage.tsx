@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
-import { Card, Descriptions, Tag, Button, Space, Segmented, Spin, message, Switch, Result, Timeline, Empty } from 'antd'
-import { ArrowLeftOutlined, PlusOutlined, StarFilled, StarOutlined, EditOutlined } from '@ant-design/icons'
+import { Card, Descriptions, Tag, Button, Space, Segmented, Spin, message, Switch, Result, Modal, Timeline, Empty } from 'antd'
+import { ArrowLeftOutlined, PlusOutlined, StarFilled, StarOutlined, EditOutlined, HistoryOutlined } from '@ant-design/icons'
 import { getProject, setFavorite, getCriticalPath, getProjectHealth } from '../api/projects'
 import { getMe } from '../api/auth'
 import { listDataChangeEvents } from '../api/audit'
@@ -84,8 +84,9 @@ export default function ProjectDetailPage() {
   const [editOpen, setEditOpen] = useState(false)
   // 健康度（8-2）：列表随行字段不进详情接口（ProjectDetail 不含 health），单独拉取；搁置 409 → null 显示「—」
   const [health, setHealth] = useState<HealthStatus | null>(null)
-  // 变更时间线（P1 过程事件地基）：本项目的字段级变更历史，最近 50 条
+  // 变更时间线（P1 过程事件地基）：弹窗显示，数据同时作为分析板块数据源
   const [events, setEvents] = useState<DataChangeEvent[]>([])
+  const [timelineOpen, setTimelineOpen] = useState(false)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -196,6 +197,9 @@ export default function ProjectDetailPage() {
               <Button size="small" type="link" icon={<EditOutlined />} onClick={() => setEditOpen(true)}>
                 编辑
               </Button>
+              <Button size="small" type="link" icon={<HistoryOutlined />} onClick={() => setTimelineOpen(true)}>
+                变更情况
+              </Button>
             </Space>
           }
         >
@@ -242,27 +246,31 @@ export default function ProjectDetailPage() {
           </Descriptions.Item>
         </Descriptions>
 
-        {/* 健康度区（8-2 规则灯）：档位徽章 + 事实清单（带对象名）+ 固定文案；搁置/无评级 → 不渲染 */}
+        {/* 健康度区（8-2 规则灯）：横向铺开，档位徽章 + 事实清单 + 固定文案同一行 */}
         {health && (
           <div
             style={{
-              marginTop: 16,
-              padding: '12px 16px',
-              borderRadius: 8,
+              marginTop: 12,
+              padding: '8px 12px',
+              borderRadius: 6,
               background: 'rgba(255,255,255,.03)',
             }}
           >
-            <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 4 }}>项目健康度</div>
             <HealthFactList health={health} />
           </div>
         )}
-
-        {/* 变更时间线（P1 过程事件地基）：字段级审计历史，最近 50 条，倒序 */}
-        <div style={{ marginTop: 16 }}>
-          <div style={{ fontWeight: 600, fontSize: 13, marginBottom: 8 }}>变更时间线</div>
-          <ChangeTimeline events={events} />
-        </div>
       </Card>
+
+      {/* 变更情况弹窗（P1）：字段级审计历史，数据同时作为分析板块数据源 */}
+      <Modal
+        title="变更情况"
+        open={timelineOpen}
+        onCancel={() => setTimelineOpen(false)}
+        footer={null}
+        width={640}
+      >
+        <ChangeTimeline events={events} />
+      </Modal>
 
       <Card
         className="pm-no-blur"

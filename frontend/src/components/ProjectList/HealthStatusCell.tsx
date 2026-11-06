@@ -44,32 +44,29 @@ export function HealthStatusCell({ health }: { health?: HealthStatus | null }) {
 // 事实清单（详情页）：档位徽章 + 事实行（带对象名）+ 固定文案
 export function HealthFactList({ health }: { health: HealthStatus }) {
   return (
-    <div>
-      <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
-        <span
-          style={{
-            padding: '2px 10px',
-            borderRadius: 6,
-            fontSize: 13,
-            fontWeight: 600,
-            background: (BAND_COLOR[health.band] || '#8c8c8c') + '22',
-            color: BAND_COLOR[health.band] || '#8c8c8c',
-          }}
-        >
-          {health.band === 'green' ? '🟢' : health.band === 'yellow' ? '🟡' : health.band === 'red' ? '🔴' : '⚪'}{' '}
-          {BAND_LABEL[health.band] || health.band}
+    <div style={{ display: 'flex', alignItems: 'center', gap: 12, flexWrap: 'wrap' }}>
+      <span
+        style={{
+          padding: '2px 10px',
+          borderRadius: 6,
+          fontSize: 13,
+          fontWeight: 600,
+          whiteSpace: 'nowrap',
+          background: (BAND_COLOR[health.band] || '#8c8c8c') + '22',
+          color: BAND_COLOR[health.band] || '#8c8c8c',
+        }}
+      >
+        {health.band === 'green' ? '🟢' : health.band === 'yellow' ? '🟡' : health.band === 'red' ? '🔴' : '⚪'}{' '}
+        {BAND_LABEL[health.band] || health.band}
+      </span>
+      {health.facts.map((f: HealthFact) => (
+        <span key={f.kind + f.detail} style={{ fontSize: 12, color: 'var(--text-secondary)', whiteSpace: 'nowrap' }}>
+          {f.detail}
         </span>
-      </div>
-      <div style={{ marginTop: 8 }}>
-        {health.facts.map((f: HealthFact) => (
-          <div key={f.kind + f.detail} style={{ fontSize: 12, color: 'var(--text-secondary)', padding: '2px 0' }}>
-            {f.detail}
-          </div>
-        ))}
-      </div>
-      <div style={{ fontSize: 11, color: 'var(--text-tertiary)', marginTop: 6 }}>
+      ))}
+      <span style={{ fontSize: 11, color: 'var(--text-tertiary)', whiteSpace: 'nowrap' }}>
         {health.disclaimer || '本评级为项目状态参考，不构成绩效考核'}
-      </div>
+      </span>
     </div>
   )
 }

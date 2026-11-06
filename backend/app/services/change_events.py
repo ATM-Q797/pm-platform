@@ -137,15 +137,17 @@ def record_field_diffs(
     """对 before/after diff 命中白名单的字段逐条记事件，返回条数。
 
     columns：field 名 → 模型列名映射（PROJECT_FIELD_COLUMNS / PHASE_FIELD_COLUMNS）。
-    before/after 的 key 用模型列名（与 update_project/update_phase 的 data dict 同形）。
+    before = snapshot_model() 全量快照；after = payload.model_dump(exclude_unset=True) 仅含改的字段。
+    只 diff after 里有的字段（用户实际改的），避免未改字段产生伪事件。
+    比较前统一 _serialize，消除 date 对象 vs 字符串类型不一致导致的误判。
     """
     n = 0
     for field, col in columns.items():
-        if col not in before and col not in after:
-            continue
+        if col not in after:
+            continue  # 只 diff 用户实际改动的字段
         old = before.get(col)
         new = after.get(col)
-        if old != new:
+        if _serialize(old) != _serialize(new):
             record_change_event(
                 db, user=user, field=field, old=old, new=new, source=source,
                 project_id=project_id, phase_id=phase_id,
