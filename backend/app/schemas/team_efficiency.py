@@ -30,8 +30,10 @@ class RoleLoad(BaseModel):
 
 
 class ReworkTopItem(BaseModel):
-    role: str
-    count: int
+    phase_type: str
+    name: str
+    on_time_rate: float | None = None
+    on_time_sample: str = "0/0"
 
 
 class TeamEfficiency(BaseModel):

@@ -237,17 +237,30 @@ def compute_team_efficiency(db: Session, window_days: int = 7) -> TeamEfficiency
     # 岗位负荷分布（项目数）
     role_load = {role: len(projects) for role, projects in role_project_count.items()}
 
-    # 返工率 Top（按环节/岗位聚合，非人维度）
-    rework_by_role: dict[str, int] = {}
+    # 完成率 Top（按环节 phase_type 聚合按期完成率，非人维度——防火墙同源）
+    type_stats: dict[str, dict] = {}  # phase_type → {name, on_time, with_date, total}
     for ph in valid_phases:
-        if ph.rework_count > 0 and ph.status == "已完成":
-            for ra in ph.assignees:
-                if ra.role:
-                    rework_by_role[ra.role] = rework_by_role.get(ra.role, 0) + 1
-    rework_top = sorted(
-        [{"role": k, "count": v} for k, v in rework_by_role.items()],
-        key=lambda x: -x["count"],
-    )[:10]
+        if ph.status != "已完成":
+            continue
+        pt = ph.phase_type or "未知"
+        if pt not in type_stats:
+            type_stats[pt] = {"name": ph.name, "on_time": 0, "with_date": 0, "total": 0}
+        type_stats[pt]["total"] += 1
+        if ph.actual_end is not None:
+            type_stats[pt]["with_date"] += 1
+            if ph.plan_end is not None and ph.actual_end <= ph.plan_end:
+                type_stats[pt]["on_time"] += 1
+    rework_top = []
+    for pt, st in type_stats.items():
+        if st["with_date"] > 0:
+            rework_top.append({
+                "phase_type": pt,
+                "name": st["name"],
+                "on_time_rate": st["on_time"] / st["with_date"],
+                "on_time_sample": f"{st['on_time']}/{st['with_date']}",
+            })
+    rework_top.sort(key=lambda x: -(x["on_time_rate"] or 0))
+    rework_top = rework_top[:10]
 
     return TeamEfficiency(
         window_days=window_days,

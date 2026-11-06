@@ -56,8 +56,9 @@ def _make_resource(db: Session, name: str, role: str = "工业设计") -> Resour
 def _make_phase(db: Session, project: Project, assignees: list[Resource],
                 status: str = "已完成", plan_start: date | None = None,
                 plan_end: date | None = None, actual_start: date | None = None,
-                actual_end: date | None = None, rework_count: int = 0) -> Phase:
-    ph = Phase(project_id=project.id, name=f"阶段-{project.name}", phase_type="P1",
+                actual_end: date | None = None, rework_count: int = 0,
+                phase_type: str = "P1") -> Phase:
+    ph = Phase(project_id=project.id, name=f"阶段-{project.name}", phase_type=phase_type,
                sequence=1,
                status=status, plan_start=plan_start, plan_end=plan_end,
                actual_start=actual_start, actual_end=actual_end,
@@ -132,6 +133,22 @@ def test_avg_cycle_days_skips_missing(db_session: Session):
     db_session.commit()
     result = compute_team_efficiency(db_session)
     assert result.persons[0].avg_cycle_days == pytest.approx(7.5)  # (10+5)/2
+
+
+def test_completion_rate_top(db_session: Session):
+    """完成率 Top：按环节 phase_type 聚合按期完成率（非人维度）。"""
+    proj = _make_project(db_session, "P")
+    res = _make_resource(db_session, "张三")
+    today = date.today()
+    _make_phase(db_session, proj, [res], status="已完成", phase_type="P1",
+                plan_end=today, actual_end=today)
+    _make_phase(db_session, proj, [res], status="已完成", phase_type="P1",
+                plan_end=today - timedelta(days=5), actual_end=today)
+    db_session.commit()
+    result = compute_team_efficiency(db_session)
+    assert len(result.rework_top) == 1
+    assert result.rework_top[0]["phase_type"] == "P1"
+    assert result.rework_top[0]["on_time_rate"] == pytest.approx(0.5)
 
 
 def test_role_load_distribution(db_session: Session):

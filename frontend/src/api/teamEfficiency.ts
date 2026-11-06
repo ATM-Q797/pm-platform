@@ -21,8 +21,10 @@ export interface EfficiencySummary {
 }
 
 export interface ReworkTopItem {
-  role: string
-  count: number
+  phase_type: string
+  name: string
+  on_time_rate: number | null
+  on_time_sample: string
 }
 
 export interface TeamEfficiency {
