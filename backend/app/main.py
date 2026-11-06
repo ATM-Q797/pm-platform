@@ -140,7 +140,10 @@ async def _reporter_lockdown(request, call_next):
 # ---------------------------------------------------------------------------
 @app.on_event("startup")
 async def _startup_security_check():
-    """生产环境启动前校验关键安全配置。"""
+    """启动时自动建表（幂等，只建缺失的表）+ 生产环境安全校验。"""
+    from app.database import Base, engine
+    Base.metadata.create_all(engine)
+    logger.info("数据库表已确认/创建（Base.metadata.create_all）")
     if APP_ENV == "production":
         if SECRET_KEY == _DEV_FALLBACK_SECRET or len(SECRET_KEY) < 32:
             raise RuntimeError(
