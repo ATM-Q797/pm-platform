@@ -73,6 +73,12 @@ from app.schemas.analysis import (
     TrendPoint,
     WeeklyPoint,
 )
+from app.schemas.team_efficiency import (
+    TeamEfficiency as TeamEfficiencySchema,
+    PersonMetrics as PersonMetricsSchema,
+    EfficiencySummary as EfficiencySummarySchema,
+    ReworkTopItem as ReworkTopItemSchema,
+)
 from app.schemas.audit import (
     DataChangeEventRead,
     DeleteRequestCreate,

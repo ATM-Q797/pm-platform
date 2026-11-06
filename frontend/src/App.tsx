@@ -34,6 +34,7 @@ const UserManagePage = lazy(() => import('./pages/UserManagePage'))
 const ReviewPage = lazy(() => import('./pages/ReviewPage'))
 const MyTasksPage = lazy(() => import('./pages/MyTasksPage'))
 const SpecialProjectsPage = lazy(() => import('./pages/SpecialProjectsPage'))
+const TeamEfficiencyPage = lazy(() => import('./pages/TeamEfficiencyPage'))
 
 const { Header, Content } = Layout
 
@@ -286,7 +287,14 @@ export default function App() {
                   : <ResourcePage />
               } />
               {/* 用户管理/审核中心仅 admin */}
-              <Route path="/users" element={
+               <Route path="/team-efficiency" element={
+                 user.role === 'admin' || user.role === 'manager'
+                   ? <TeamEfficiencyPage />
+                   : user.role === 'reporter'
+                     ? <Navigate to="/report" replace />
+                     : <Navigate to="/projects" replace />
+               } />
+               <Route path="/users" element={
                 user.role === 'admin'
                   ? <UserManagePage />
                   : user.role === 'reporter'

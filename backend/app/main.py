@@ -32,6 +32,7 @@ from app.routers import (
     projects,
     report,
     resources,
+    team_efficiency,
     templates,
     users,
 )
@@ -86,7 +87,7 @@ async def _no_cache_for_api(request, call_next):
     return response
 
 
-for r in (auth, users, audit, projects, phases, dependencies, resources, templates, imports, exports, dashboard, analysis, report):
+for r in (auth, users, audit, projects, phases, dependencies, resources, templates, imports, exports, dashboard, analysis, report, team_efficiency):
     app.include_router(r.router)
 
 
