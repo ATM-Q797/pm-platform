@@ -280,21 +280,13 @@ export default function App() {
                   ? <Navigate to="/report" replace />
                   : <Navigate to="/" replace />
               } />
-              <Route path="/resources" element={
-                user.role === 'manager' || user.role === 'engineer'
+               <Route path="/resources" element={
+                 user.role === 'engineer'
                   ? <Navigate to="/projects" replace />
                   : user.role === 'reporter'
                   ? <Navigate to="/report" replace />
                   : <ResourcePage />
               } />
-              {/* 用户管理/审核中心仅 admin */}
-               <Route path="/team-efficiency" element={
-                 user.role === 'admin' || user.role === 'manager'
-                   ? <TeamEfficiencyPage />
-                   : user.role === 'reporter'
-                     ? <Navigate to="/report" replace />
-                     : <Navigate to="/projects" replace />
-               } />
                {/* 审核管理中心（用户管理+审核中心双板块） */}
                <Route path="/admin-center" element={
                  user.role === 'admin'

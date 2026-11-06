@@ -49,6 +49,8 @@ export default function ResourcePage() {
           <span>资源负载视图</span>
           {tab === 'heatmap' ? (
             <Tag color="blue">人员 × 时间负载矩阵 · 谁忙/谁闲/谁撞车</Tag>
+          ) : tab === 'efficiency' ? (
+            <Tag color="blue">六指标 · 完成率 Top · 岗位负荷分布</Tag>
           ) : (
             <Tag color="blue">每人一行 · 显示所有参与项目</Tag>
           )}
