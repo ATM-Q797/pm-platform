@@ -387,14 +387,19 @@ def list_data_change_events(
     phase_id: int | None = Query(None, description="按阶段过滤"),
     field: str | None = Query(None, description="按字段过滤（白名单 field 名）"),
     source: str | None = Query(None, description="按来源过滤 direct_edit|report_edit|approval|rework"),
+    days: int = Query(7, ge=1, le=365, description="只看最近 N 天（默认 7，数据永久留存后台）"),
     limit: int = Query(50, ge=1, le=200),
 ):
     """过程事件时间线（登录即可查——审计透明，不限 admin；§9.4 P1 查看入口）。
 
     按 created_at 倒序；field_label 为读取侧中文映射（不入库）。
+    只返回最近 days 天的事件（默认 7 天滚动窗口），历史数据永久留存 DB 不删。
     """
+    from datetime import datetime, timedelta, timezone
     from app.services.change_events import FIELD_LABELS
     q = select(DataChangeEvent).order_by(DataChangeEvent.created_at.desc(), DataChangeEvent.id.desc())
+    cutoff = datetime.now(timezone.utc) - timedelta(days=days)
+    q = q.where(DataChangeEvent.created_at >= cutoff)
     if project_id is not None:
         q = q.where(DataChangeEvent.project_id == project_id)
     if phase_id is not None:

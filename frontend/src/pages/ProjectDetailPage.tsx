@@ -84,9 +84,10 @@ export default function ProjectDetailPage() {
   const [editOpen, setEditOpen] = useState(false)
   // 健康度（8-2）：列表随行字段不进详情接口（ProjectDetail 不含 health），单独拉取；搁置 409 → null 显示「—」
   const [health, setHealth] = useState<HealthStatus | null>(null)
-  // 变更时间线（P1 过程事件地基）：弹窗显示，数据同时作为分析板块数据源
+  // 变更时间线（P1）：弹窗显示，固定 7 天滚动窗口，数据永久留存后台
   const [events, setEvents] = useState<DataChangeEvent[]>([])
   const [timelineOpen, setTimelineOpen] = useState(false)
+  const [eventLimit, setEventLimit] = useState(50)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -109,8 +110,8 @@ export default function ProjectDetailPage() {
     // 原在 try 内，若 fetch 异常会误报主加载错误；失败仅隐藏区块（catch 置 null）
     getProjectHealth(projectId).then(setHealth).catch(() => setHealth(null))
     // 变更时间线同样不阻塞主加载（接口失败仅隐藏区块）
-    listDataChangeEvents({ project_id: projectId, limit: 50 }).then(setEvents).catch(() => setEvents([]))
-  }, [projectId])
+    listDataChangeEvents({ project_id: projectId, days: 7, limit: eventLimit }).then(setEvents).catch(() => setEvents([]))
+  }, [projectId, eventLimit])
 
   useEffect(() => {
     load()
@@ -263,16 +264,21 @@ export default function ProjectDetailPage() {
 
       {/* 变更情况弹窗（P1）：字段级审计历史，数据同时作为分析板块数据源 */}
       <Modal
-        title="变更情况"
+        title="变更情况（最近 7 天）"
         open={timelineOpen}
         onCancel={() => setTimelineOpen(false)}
         footer={null}
         width={640}
       >
         <ChangeTimeline events={events} />
-        {events.length >= 50 && (
+        {events.length >= eventLimit && (
+          <div style={{ textAlign: 'center', marginTop: 12 }}>
+            <Button size="small" onClick={() => setEventLimit(l => l + 50)}>加载更多</Button>
+          </div>
+        )}
+        {events.length > 0 && events.length < eventLimit && (
           <div style={{ textAlign: 'center', color: 'var(--text-tertiary)', fontSize: 12, marginTop: 8 }}>
-            仅显示最近 50 条
+            共 {events.length} 条 · 仅显示最近 7 天
           </div>
         )}
       </Modal>

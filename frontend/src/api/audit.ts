@@ -23,6 +23,7 @@ export interface DataChangeEventQuery {
   phase_id?: number
   field?: string
   source?: string
+  days?: number
   limit?: number
 }
 
