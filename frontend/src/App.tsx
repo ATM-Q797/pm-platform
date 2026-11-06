@@ -31,11 +31,8 @@ import type { UserInfo } from './types'
 const ProjectListPage = lazy(() => import('./pages/ProjectListPage'))
 const ProjectDetailPage = lazy(() => import('./pages/ProjectDetailPage'))
 const ResourcePage = lazy(() => import('./pages/ResourcePage'))
-const UserManagePage = lazy(() => import('./pages/UserManagePage'))
-const ReviewPage = lazy(() => import('./pages/ReviewPage'))
 const MyTasksPage = lazy(() => import('./pages/MyTasksPage'))
 const SpecialProjectsPage = lazy(() => import('./pages/SpecialProjectsPage'))
-const TeamEfficiencyPage = lazy(() => import('./pages/TeamEfficiencyPage'))
 const AdminCenterPage = lazy(() => import('./pages/AdminCenterPage'))
 
 const { Header, Content } = Layout
@@ -247,7 +244,7 @@ export default function App() {
             <Routes>
               {/* 信息填报（信息填报一期）：所有角色可达（reporter 主页面；平台角色也可协作填报） */}
               <Route path="/report" element={<ReportPage user={user} />} />
-              {/* 看板/资源负载仅 admin + viewer 可见，manager/engineer 重定向到项目列表；reporter 隔离回填报页（评审 #74） */}
+              {/* 看板仅 admin + viewer 可见，manager/engineer 重定向到项目列表；资源负载 admin/manager/viewer 可见（效率分析 Tab 仅 admin/manager）；reporter 隔离回填报页（评审 #74） */}
               <Route path="/" element={
                 user.role === 'reporter'
                   ? <Navigate to="/report" replace />
