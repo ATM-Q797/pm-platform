@@ -140,7 +140,7 @@ export default function DashboardPage() {
   }
 
   // 4 卡环比取数（8-1）：weekly_delta 为 null（无对比基期）→ 小字显示「较上周 —」
-  const deltaOf = (k: 'projects_total' | 'delayed_projects' | 'due_soon_phases' | 'conflict_pairs') =>
+   const deltaOf = (k: 'projects_total' | 'active_projects' | 'delayed_projects' | 'due_soon_phases' | 'conflict_pairs' | 'total_rework_count') =>
     stats?.weekly_delta ? stats.weekly_delta[k] : null
 
   // 统计卡片渲染：左侧着色图标块 + 右侧数值（8-1：口径 Tooltip + 环比小字）
