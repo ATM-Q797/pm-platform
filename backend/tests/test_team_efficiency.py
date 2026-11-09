@@ -183,7 +183,7 @@ def test_active_projects_breakdown_three_statuses(db_session: Session):
                 plan_start=today, plan_end=today + timedelta(days=3))
     _make_phase(db_session, p_not, [res], status="进行中",
                 plan_start=today, plan_end=today + timedelta(days=3))
-    _make_phase(db_session, p_done, [res], status="收尾中",
+    _make_phase(db_session, p_done, [res], status="进行中",
                 plan_start=today, plan_end=today + timedelta(days=3))
     db_session.commit()
     result = compute_team_efficiency(db_session)
