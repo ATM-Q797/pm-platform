@@ -87,7 +87,7 @@ class DashboardStats(BaseModel):
     # 8-1 数据看板增强（2026-11-04）
     risk_queue: list[RiskQueueItem] = []  # 今日风险队列（三源合并去重，严重度优先）
     snapshot_date: str | None = None  # 最新快照日期（数据截至；无快照 → None，前端显示空态）
-    weekly_delta: dict[str, int] | None = None  # 4 卡环比（与 build_trend 同一周差分公式；不足两周无基期 → None）
+    weekly_delta: dict[str, int | None] | None = None  # 6 卡环比（缺基期键的置 None——前端显示「—」）（与 build_trend 同一周差分公式；不足两周无基期 → None）
     # 8-2 健康度（2026-11-05）：风险项目卡（分数升序；搁置不评 → 不在列表）
     risk_projects: list["ProjectHealthSummary"] = []
 

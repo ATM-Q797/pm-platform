@@ -272,3 +272,28 @@ def test_stats_weekly_delta_and_snapshot_date(client, db_session):
         "active_projects": 0, "total_rework_count": -2,
     }
 
+
+def test_weekly_delta_missing_key_yields_none(db_session, client):
+    """基期/当期任一侧缺键 → 该键环比为 None（不用 0 冒充无变化；#126 处置）。"""
+    t = date.today()
+    last_monday = t - timedelta(days=t.weekday() + 7)
+    db_session.add(StatusSnapshot(snapshot_date=last_monday, metrics={
+        "projects_total": 10,  # 旧快照无 active_projects 键
+        "active_projects": 5,
+        "total_rework_count": 8,
+    }))
+    db_session.add(StatusSnapshot(snapshot_date=t, metrics={
+        "projects_total": 12,  # 当期缺 total_rework_count 键
+        "active_projects": 6,
+    }))
+    db_session.commit()
+    data = client.get("/api/dashboard/stats").json()
+    assert data["weekly_delta"] == {
+        "projects_total": 2,
+        "delayed_projects": None,   # 两侧都缺 → None
+        "due_soon_phases": None,    # 两侧都缺 → None
+        "conflict_pairs": None,     # 两侧都缺 → None
+        "active_projects": 1,       # 两侧都有 → 正常差分
+        "total_rework_count": None,  # 当期缺 → None
+    }
+

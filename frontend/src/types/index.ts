@@ -403,20 +403,22 @@ export interface RiskQueueItem {
   days: number // 逾期天数 / 剩余天数 / 重叠天数
 }
 
-// 8-1 看板 6 卡环比（小字与卡面大数字同指标；2026-11-09 补进行中/返工）
+// 8-1 看板环比键（2026-11-09 扩至 6 键：补进行中/返工；与后端 _CARD_DELTA_KEYS 同步）
 export interface WeeklyDelta {
-  projects_total: number
-  active_projects: number
-  delayed_projects: number
-  due_soon_phases: number
-  conflict_pairs: number
-  total_rework_count: number
+  projects_total: number | null
+  active_projects: number | null
+  delayed_projects: number | null
+  due_soon_phases: number | null
+  conflict_pairs: number | null
+  total_rework_count: number | null
 }
 
 // ---------- 项目分析（PROJECT_ANALYSIS §3.3） ----------
 // 快照存原子计数；比率/差分在前端按需计算
 
 export interface AnalysisMetrics {
+  active_projects?: number
+  total_rework_count?: number
   projects_total?: number
   projects_by_status?: Record<string, number>
   delayed_projects?: number
