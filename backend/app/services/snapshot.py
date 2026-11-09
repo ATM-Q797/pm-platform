@@ -166,6 +166,8 @@ def collect_metrics(db: Session) -> dict:
 
     return {
         "projects_total": stats.total_projects,
+        "active_projects": stats.active_projects,  # 进行中项目数（看板「进行中」卡环比）
+        "total_rework_count": stats.total_rework_count,  # 返工总次数（看板「返工次数」卡环比）
         "projects_by_status": {sc.status: sc.count for sc in stats.project_status},
         "delayed_projects": stats.delayed_count,
         "delayed_phases": len(stats.delayed_phases),

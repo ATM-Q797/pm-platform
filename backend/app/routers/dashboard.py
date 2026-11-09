@@ -39,7 +39,14 @@ _SHELVED_PROJECT_STATUSES = ("搁置",)
 # 即将到期窗口（天）
 _DUE_SOON_DAYS = 7
 # 看板 4 卡环比指标键（8-1，2026-11-04 裁定：小字与卡面大数字同指标）
-_CARD_DELTA_KEYS = ("projects_total", "delayed_projects", "due_soon_phases", "conflict_pairs")
+_CARD_DELTA_KEYS = (
+    "projects_total",
+    "active_projects",  # 进行中项目数（2026-11-09 用户：接通环比）
+    "delayed_projects",
+    "due_soon_phases",
+    "conflict_pairs",
+    "total_rework_count",  # 返工总次数（2026-11-09 用户：接通环比）
+)
 # 风险队列行分组顺序（8-1，2026-11-04 裁定：逾期 → 冲突 → 到期，紧急优先）
 _RISK_TYPE_RANK = {"overdue": 0, "conflict": 1, "due_soon": 2}
 

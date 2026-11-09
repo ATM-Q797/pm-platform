@@ -49,6 +49,9 @@ def test_snapshot_run_idempotent(client, db_session):
     assert body1["created"] is True
     assert body1["snapshot_date"] == t.isoformat()
     assert body1["metrics"]["projects_total"] == 1
+    # 看板「进行中」/「返工次数」卡环比键（2026-11-09 接通）：快照必须采集
+    assert body1["metrics"]["active_projects"] == 1
+    assert body1["metrics"]["total_rework_count"] == 0
 
     r2 = client.post("/api/analysis/snapshots/run")
     assert r2.status_code == 200

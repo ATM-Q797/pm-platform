@@ -250,13 +250,13 @@ export default function DashboardPage() {
           与后端「不用 0 冒充无变化」原则同源，snapshot.py build_weekly_delta 注释），高度与真实环比行一致） */}
       <Row gutter={[16, 16]} style={{ marginBottom: 32, alignItems: 'stretch' }}>
         {renderCard('total', '项目总数', stats.total_projects, <ProjectOutlined />, () => navigate('/projects'), false, deltaOf('projects_total'))}
-        {renderCard('active', '进行中', stats.active_projects, <ClockCircleOutlined />, () => navigate('/projects'), false, null)}
+        {renderCard('active', '进行中', stats.active_projects, <ClockCircleOutlined />, () => navigate('/projects'), false, deltaOf('active_projects'))}
         {renderCard('delayed', '延期项目', stats.delayed_count, <WarningOutlined />, () => openDrawer('delayed'), true, deltaOf('delayed_projects'))}
       </Row>
       <Row gutter={[16, 16]} style={{ alignItems: 'stretch' }}>
         {renderCard('due', '即将到期', stats.due_soon_count, <FieldTimeOutlined />, () => openDrawer('due'), true, deltaOf('due_soon_phases'))}
         {renderCard('conflict', '资源冲突', riskQueue.filter((r) => r.type === 'conflict').length, <ThunderboltOutlined />, () => openDrawer('conflict'), true, deltaOf('conflict_pairs'))}
-        {renderCard('rework', '返工次数', stats.total_rework_count, <ToolOutlined />, () => openDrawer('rework'), true, null)}
+        {renderCard('rework', '返工次数', stats.total_rework_count, <ToolOutlined />, () => openDrawer('rework'), true, deltaOf('total_rework_count'))}
       </Row>
 
       {/* 风险分析弹窗（2026-11-06 合并重设计）：2 分板块（红档·立即处理 / 黄档·需要关注），

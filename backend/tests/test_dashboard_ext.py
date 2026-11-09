@@ -6,6 +6,8 @@ from __future__ import annotations
 
 from datetime import date, timedelta
 
+from sqlalchemy import select
+
 from app.models import Phase, Project, Resource, StatusSnapshot
 from app.services.snapshot import build_trend
 
@@ -252,13 +254,21 @@ def test_stats_weekly_delta_and_snapshot_date(client, db_session):
     assert data["snapshot_date"] == last_monday.isoformat()
     assert data["weekly_delta"] is None  # 仅一周快照，无对比基期——不用 0 冒充无变化
 
+    # 基期快照已有行（上方插入过 last_monday）——更新 metrics 补新环比键
+    base_row = db_session.scalar(select(StatusSnapshot).where(StatusSnapshot.snapshot_date == last_monday))
+    base_row.metrics = {
+        "projects_total": 10, "delayed_projects": 1, "due_soon_phases": 2, "conflict_pairs": 3,
+        "active_projects": 7, "total_rework_count": 5,
+    }
     db_session.add(StatusSnapshot(snapshot_date=t, metrics={
         "projects_total": 12, "delayed_projects": 0, "due_soon_phases": 4, "conflict_pairs": 3,
+        "active_projects": 7, "total_rework_count": 3,
     }))
     db_session.commit()
     data = client.get("/api/dashboard/stats").json()
     assert data["snapshot_date"] == t.isoformat()
     assert data["weekly_delta"] == {
         "projects_total": 2, "delayed_projects": -1, "due_soon_phases": 2, "conflict_pairs": 0,
+        "active_projects": 0, "total_rework_count": -2,
     }
 
