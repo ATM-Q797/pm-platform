@@ -86,13 +86,16 @@ export default function TeamEfficiencyPage() {
       <Spin spinning={loading}>
         {/* 六卡 */}
         <Row gutter={16} style={{ marginBottom: 16 }}>
-          <Col span={4}><Statistic title="在办项目（去重）" value={summary?.active_projects_dedup ?? 0} /></Col>
+          <Col span={4}><Statistic title="有在办阶段的项目" value={summary?.active_projects_dedup ?? 0} /></Col>
           <Col span={4}><Statistic title="峰值并行（最高）" value={Math.max(0, ...(data?.persons.map(p => p.peak_parallel) ?? [0]))} /></Col>
           <Col span={4}><Statistic title="按期完成率" value={(() => { const rates = data?.persons.filter(p => p.on_time_rate != null).map(p => ({ r: p.on_time_rate!, s: p.on_time_sample })) ?? []; if (!rates.length) return '—'; const totalOn = rates.reduce((s, x) => s + parseInt(x.s.split('/')[0]), 0); const totalWith = rates.reduce((s, x) => s + parseInt(x.s.split('/')[1]), 0); return totalWith ? (totalOn / totalWith * 100).toFixed(1) + '%' : '—' })()} /></Col>
           <Col span={4}><Statistic title="返工率（均值）" value={(() => { const rates = data?.persons.filter(p => p.rework_rate != null).map(p => p.rework_rate!) ?? []; return rates.length ? (rates.reduce((a, b) => a + b, 0) / rates.length * 100).toFixed(0) + '%' : '—' })()} /></Col>
           <Col span={4}><Statistic title="平均阶段周期" value={(() => { const vals = data?.persons.filter(p => p.avg_cycle_days != null).map(p => p.avg_cycle_days!) ?? []; return vals.length ? (vals.reduce((a, b) => a + b, 0) / vals.length).toFixed(0) + ' 天' : '—' })()} /></Col>
           <Col span={4}><Statistic title="岗位数" value={Object.keys(data?.role_load ?? {}).length} /></Col>
         </Row>
+        <div style={{ fontSize: 12, color: 'var(--text-tertiary, #999)', marginBottom: 16 }}>
+          「有在办阶段的项目」＝当前有未完成且非搁置阶段的项目数（跨人只计一次，按项目编号去重）；与看板「进行中」（按项目状态字段统计）口径不同源，数字可能略有出入。
+        </div>
 
         {/* 岗位负荷分布 + 完成率 Top（两卡等高，内容分两列） */}
         <Row gutter={16} style={{ marginBottom: 16 }}>
