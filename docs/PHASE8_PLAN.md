@@ -206,15 +206,15 @@ BI 大屏、自定义报表编排、多级下钻、实时流式刷新（保持�
 | 文件 | 动作 |
 |---|---|
 | `backend/app/services/health_score.py` | 新增：健康度计算（8-2 唯一来源）；端点接线在 `routers/projects.py`（GET /{id}/health + 列表随行）与 `routers/dashboard.py`（risk_projects） |
-| `backend/app/services/team_metrics.py` | 新增：团队效率聚合（8-4） |
+ | `backend/app/services/team_efficiency.py` | 新增：团队效率聚合（8-4） |
 | `backend/app/services/snapshot.py` | 扩展：采集项目级快照（8-3 方案 A） |
 | `backend/app/models/project_snapshot.py` | 新增（8-3 方案 A）；含 `project_code`/`project_name` 冗余字段 + `ON DELETE SET NULL` |
-| `backend/app/routers/analysis.py` | 扩展：项目趋势 / 团队效率端点（8-3/8-4） |
+ | `backend/app/routers/team_efficiency.py` | 新增：GET /api/team-efficiency（8-4，admin/manager） |
 | `frontend/src/components/AnalysisModal.tsx` | 扩展：环比、口径说明、导出 |
 | `frontend/src/pages/ProjectListPage.tsx` | 新增：健康度列（8-2 接口）；列定义在 `components/ProjectList/columns.tsx`，展示组件 `HealthStatusCell.tsx` |
 | `frontend/src/pages/ProjectDetailPage.tsx` | 扩展：健康度评级区（档位徽章 + 事实清单）+ 趋势区 |
 | `frontend/src/pages/DashboardPage.tsx` | 扩展：风险分析弹窗（红/黄 2 分板块，点行跳详情；8-1 弹窗改版） |
-| `frontend/src/pages/TeamMetricsPage.tsx` | 新增（8-4） |
+ | `frontend/src/pages/TeamEfficiencyPage.tsx` | 新增（8-4） |
 | `deploy/migrate_v5.sql` | 新增（8-3：`project_snapshots` 表 + 降采样维护函数） |
 
 > ✅ **拆分已执行**（2026-11-05，commit 0934816）：`ProjectListPage.tsx` 756→401 行，拆为列表呈现 + 列定义（`columns.tsx`）/导入（`ImportExcelModal.tsx`）两层；健康度列落 `columns.tsx`。
