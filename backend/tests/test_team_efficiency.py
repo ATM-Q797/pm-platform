@@ -167,8 +167,30 @@ def test_active_projects_dedup(db_session: Session):
     result = compute_team_efficiency(db_session)
     assert result.summary.active_projects_dedup == 2
     assert sum(p.active_projects for p in result.persons) == 3
-    # 按项目状态构成（浮窗）：进行中 2 / 未开始 0 / 已完成 0
-    assert result.summary.active_projects_breakdown == {"进行中": 2}
+    # 按项目状态构成（浮窗）：固定三维度含 0 值
+    assert result.summary.active_projects_breakdown == {"进行中": 2, "未开始": 0, "已完成": 0}
+    assert sum(result.summary.active_projects_breakdown.values()) == result.summary.active_projects_dedup
+
+
+def test_active_projects_breakdown_three_statuses(db_session: Session):
+    """构成浮窗三维场景：未开始/已完成状态的项目带活跃阶段各占一行（76 vs 78 差异源回归锁）。"""
+    p_ing = _make_project(db_session, "P进行中", status="进行中")
+    p_not = _make_project(db_session, "P未开始", status="未开始")
+    p_done = _make_project(db_session, "P已完成", status="已完成")
+    res = _make_resource(db_session, "张三")
+    today = date.today()
+    _make_phase(db_session, p_ing, [res], status="进行中",
+                plan_start=today, plan_end=today + timedelta(days=3))
+    _make_phase(db_session, p_not, [res], status="进行中",
+                plan_start=today, plan_end=today + timedelta(days=3))
+    _make_phase(db_session, p_done, [res], status="收尾中",
+                plan_start=today, plan_end=today + timedelta(days=3))
+    db_session.commit()
+    result = compute_team_efficiency(db_session)
+    assert result.summary.active_projects_breakdown == {
+        "进行中": 1, "未开始": 1, "已完成": 1,
+    }
+    assert result.summary.active_projects_dedup == 3
 
 
 def test_role_load_distribution(db_session: Session):

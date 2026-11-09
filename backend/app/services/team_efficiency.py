@@ -47,7 +47,7 @@ class EfficiencySummary:
     dated_phases: int = 0
     active_projects_dedup: int = 0  # 在办项目去重总数（与看板「进行中」可比口径）
     active_projects_breakdown: dict[str, int] = field(default_factory=dict)  # 按项目状态构成（进行中/未开始/已完成，悬浮浮窗用）
-    window_label: str = "最近 7 天"
+    window_label: str = ""
 
 
 @dataclass
@@ -145,8 +145,8 @@ def compute_team_efficiency(db: Session, window_days: int = 7) -> TeamEfficiency
         and project_map[ph.project_id].status != "搁置"
     }
 
-    # 在办项目按项目状态构成（浮窗展示）：进行中/未开始/已完成（有阶段收尾）——搁置项目已排除
-    active_projects_breakdown: dict[str, int] = {}
+    # 在办项目按项目状态构成（浮窗展示）：固定三维度含 0 值，未知状态兜底——搁置项目已排除
+    active_projects_breakdown: dict[str, int] = {"进行中": 0, "未开始": 0, "已完成": 0}
     for pid in active_projects_set:
         st = project_map[pid].status or "未知"
         active_projects_breakdown[st] = active_projects_breakdown.get(st, 0) + 1
@@ -243,6 +243,7 @@ def compute_team_efficiency(db: Session, window_days: int = 7) -> TeamEfficiency
     summary.dated_phases = dated_phases
     summary.active_projects_dedup = len(active_projects_set)
     summary.active_projects_breakdown = active_projects_breakdown
+    summary.window_label = f"最近 {window_days} 天"
 
     # 岗位负荷分布（项目数）
     role_load = {role: len(projects) for role, projects in role_project_count.items()}
