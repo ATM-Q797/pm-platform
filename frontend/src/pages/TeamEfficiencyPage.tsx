@@ -94,28 +94,38 @@ export default function TeamEfficiencyPage() {
           <Col span={4}><Statistic title="岗位数" value={Object.keys(data?.role_load ?? {}).length} /></Col>
         </Row>
 
-        {/* 岗位负荷分布 + 完成率 Top */}
+        {/* 岗位负荷分布 + 完成率 Top（两卡等高，内容分两列） */}
         <Row gutter={16} style={{ marginBottom: 16 }}>
-          <Col span={12}>
-            <Card title="岗位负荷分布（在办项目数）" size="small">
-              {Object.entries(data?.role_load ?? {}).map(([role, count]) => (
-                <div key={role} style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0' }}>
-                  <Tag>{role}</Tag>
-                  <span>{count} 个项目</span>
+          <Col span={12} style={{ display: 'flex' }}>
+            <Card title="岗位负荷分布（在办项目数）" size="small" style={{ width: '100%' }}>
+              {Object.keys(data?.role_load ?? {}).length === 0 ? (
+                <div style={{ minHeight: 180, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#999' }}>暂无数据</div>
+              ) : (
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', columnGap: 24, minHeight: 180, alignContent: 'start' }}>
+                  {Object.entries(data?.role_load ?? {}).map(([role, count]) => (
+                    <div key={role} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 0' }}>
+                      <Tag>{role}</Tag>
+                      <span>{count} 个项目</span>
+                    </div>
+                  ))}
                 </div>
-              ))}
-              {Object.keys(data?.role_load ?? {}).length === 0 && <div style={{ color: '#999' }}>暂无数据</div>}
+              )}
             </Card>
           </Col>
-          <Col span={12}>
-            <Card title="完成率 Top（按环节）" size="small">
-              {(data?.rework_top ?? []).map((item, i) => (
-                <div key={i} style={{ display: 'flex', justifyContent: 'space-between', padding: '4px 0' }}>
-                  <Tag color={i < 3 ? 'green' : 'default'}>{item.name}</Tag>
-                  <span>{(item.on_time_rate * 100).toFixed(0)}%（{item.on_time_sample}）</span>
+          <Col span={12} style={{ display: 'flex' }}>
+            <Card title="完成率 Top（按环节）" size="small" style={{ width: '100%' }}>
+              {(data?.rework_top ?? []).length === 0 ? (
+                <div style={{ minHeight: 180, display: 'flex', alignItems: 'center', justifyContent: 'center', color: '#999' }}>暂无完成阶段</div>
+              ) : (
+                <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', columnGap: 24, minHeight: 180, alignContent: 'start' }}>
+                  {(data?.rework_top ?? []).map((item, i) => (
+                    <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 0' }}>
+                      <Tag color={i < 3 ? 'green' : 'default'}>{item.name}</Tag>
+                      <span>{(item.on_time_rate * 100).toFixed(0)}%（{item.on_time_sample}）</span>
+                    </div>
+                  ))}
                 </div>
-              ))}
-              {(data?.rework_top ?? []).length === 0 && <div style={{ color: '#999' }}>暂无完成阶段</div>}
+              )}
             </Card>
           </Col>
         </Row>
