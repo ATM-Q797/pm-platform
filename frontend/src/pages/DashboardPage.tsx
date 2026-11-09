@@ -246,7 +246,7 @@ export default function DashboardPage() {
       )}
 
       {/* 统计卡片：6 卡等高（用户 2026-11-05 指令 ④：带环比小字的卡比不带的高——
-          对齐 antd 网格，整行拉伸同高、卡片纵向铺满；无环比指标的卡传 null 占位（显示「较上周 —」不捏造事实，
+          对齐 antd 网格，整行拉伸同高、卡片纵向铺满；环比缺基期或基期缺键时 deltaOf 返 null 占位（显示「较上周 —」不捏造事实，
           与后端「不用 0 冒充无变化」原则同源，snapshot.py build_weekly_delta 注释），高度与真实环比行一致） */}
       <Row gutter={[16, 16]} style={{ marginBottom: 32, alignItems: 'stretch' }}>
         {renderCard('total', '项目总数', stats.total_projects, <ProjectOutlined />, () => navigate('/projects'), false, deltaOf('projects_total'))}

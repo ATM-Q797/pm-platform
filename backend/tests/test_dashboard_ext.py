@@ -236,7 +236,7 @@ def test_weekly_delta_new_keys():
 
 
 def test_stats_weekly_delta_and_snapshot_date(client, db_session):
-    """8-1：stats 返回 4 卡环比（与 build_trend 同一周差分公式）与数据截至日期；无快照/无基期 → None。"""
+    """8-1：stats 返回 6 卡环比（与 build_trend 同一周差分公式）与数据截至日期；无快照/无基期 → None。"""
     t = _today()
     monday0 = t - timedelta(days=t.weekday())
     last_monday = monday0 - timedelta(days=7)
