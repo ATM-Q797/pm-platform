@@ -266,7 +266,7 @@ def build_trend(rows: Sequence[StatusSnapshot], days: int, today: date | None = 
     return {"days": days, "daily": daily, "weekly": weekly}
 
 
-def build_weekly_delta(db: Session, keys: Sequence[str], days: int = 30) -> dict[str, int] | None:
+def build_weekly_delta(db: Session, keys: Sequence[str], days: int = 30) -> dict[str, int | None] | None:
     """看板环比取数（8-1）：最新周点与上一周点的 metrics 相减（与 build_trend 周差分同一公式、同一快照源）。
 
     任意指标键均按公式现算；任一侧周点缺键 → 该键视为不可比，输出 None（不用 0 冒充「无变化」，与下方周点不足的同源原则）。
@@ -280,5 +280,5 @@ def build_weekly_delta(db: Session, keys: Sequence[str], days: int = 30) -> dict
     # 任一侧周点缺键（如历史快照早于指标接入）→ 该键环比不可知，置 None 不冒充 0
     for k in keys:
         if k not in cur or k not in prev:
-            delta[k] = None  # type: ignore[assignment]
+            delta[k] = None
     return delta

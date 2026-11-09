@@ -388,7 +388,7 @@ export interface DashboardStats {
   // 8-1 数据看板增强（2026-11-04）
   risk_queue: RiskQueueItem[]
   snapshot_date: string | null // 数据截至（最新快照日期）；null = 无快照空态
-  weekly_delta: WeeklyDelta | null // 4 卡环比（与 build_trend 同一周差分公式）；null = 无对比基期
+  weekly_delta: WeeklyDelta | null // 6 卡环比（每周差分公式；null=无基期，键值 null=基期缺键——前端均显示「—」）
   risk_projects?: ProjectHealthSummary[] // 8-2 风险项目（黄/红档升序；旧版后端不返回 → undefined，读点统一走空数组兜底）
 }
 
@@ -451,7 +451,7 @@ export interface TrendPoint {
 export interface WeeklyPoint {
   week_start: string // YYYY-MM-DD（周一锚点）
   metrics: AnalysisMetrics
-  delta: Record<string, number> // 仅累计量键（项目级：started/completed_projects_total、shelved_total）；首周为 0
+  delta: Record<string, number> // _WEEKLY_DELTA_KEYS 5 键（3 累计量 + delayed_phases/conflict_pairs）；首周为 0
 }
 
 export interface AnalysisTrend {

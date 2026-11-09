@@ -278,7 +278,7 @@ def test_weekly_delta_missing_key_yields_none(db_session, client):
     t = date.today()
     last_monday = t - timedelta(days=t.weekday() + 7)
     db_session.add(StatusSnapshot(snapshot_date=last_monday, metrics={
-        "projects_total": 10,  # 旧快照无 active_projects 键
+        "projects_total": 10,  # 旧快照缺 delayed/due_soon/conflict 键（active_projects/rework 已有）
         "active_projects": 5,
         "total_rework_count": 8,
     }))

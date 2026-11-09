@@ -38,7 +38,7 @@ _ACTIVE_STATUSES = ("未开始", "进行中")
 _SHELVED_PROJECT_STATUSES = ("搁置",)
 # 即将到期窗口（天）
 _DUE_SOON_DAYS = 7
-# 看板 4 卡环比指标键（8-1，2026-11-04 裁定：小字与卡面大数字同指标）
+# 看板 6 卡环比指标键（8-1；2026-11-09 扩至 6 键补进行中/返工，裁定：小字与卡面大数字同指标）
 _CARD_DELTA_KEYS = (
     "projects_total",
     "active_projects",  # 进行中项目数（2026-11-09 用户：接通环比）
@@ -289,7 +289,7 @@ def build_risk_queue(stats: DashboardStats, conflicts: Sequence[ResourceConflict
 
 @router.get("/stats", response_model=DashboardStats)
 def get_dashboard_stats(db: Session = Depends(get_db)):
-    """首页看板聚合统计：分布/预警/返工 + 今日风险队列、数据截至日期与 4 卡环比、风险项目（8-2）。"""
+    """首页看板聚合统计：分布/预警/返工 + 今日风险队列、数据截至日期与 6 卡环比、风险项目（8-2）。"""
     # 函数内导入：app.services.snapshot 顶部 import 本模块，顶层互引会成循环导入
     from app.services.snapshot import build_weekly_delta
 
