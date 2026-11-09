@@ -289,6 +289,7 @@ export default function UserManagePage() {
                 { value: '测试', label: '测试' },
                 { value: '项目管理', label: '项目管理' },
                 { value: '线缆设计', label: '线缆设计' },
+                { value: '模块选型', label: '模块选型' },
               ]}
             />
           </Form.Item>
