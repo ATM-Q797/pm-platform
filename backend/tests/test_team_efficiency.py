@@ -167,6 +167,8 @@ def test_active_projects_dedup(db_session: Session):
     result = compute_team_efficiency(db_session)
     assert result.summary.active_projects_dedup == 2
     assert sum(p.active_projects for p in result.persons) == 3
+    # 按项目状态构成（浮窗）：进行中 2 / 未开始 0 / 已完成 0
+    assert result.summary.active_projects_breakdown == {"进行中": 2}
 
 
 def test_role_load_distribution(db_session: Session):

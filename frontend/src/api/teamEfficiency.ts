@@ -18,6 +18,7 @@ export interface EfficiencySummary {
   total_phases: number
   dated_phases: number
   active_projects_dedup: number
+  active_projects_breakdown: Record<string, number>
   window_label: string
 }
 

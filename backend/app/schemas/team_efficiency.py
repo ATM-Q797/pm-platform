@@ -22,6 +22,7 @@ class EfficiencySummary(BaseModel):
     total_phases: int = 0
     dated_phases: int = 0
     active_projects_dedup: int = 0  # 在办项目去重总数（与看板「进行中」可比口径）
+    active_projects_breakdown: dict[str, int] = {}  # 按项目状态构成（进行中/未开始/已完成）
     window_label: str = ""
 
 
