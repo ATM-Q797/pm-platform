@@ -121,7 +121,7 @@ export default function TeamEfficiencyPage() {
                   {(data?.rework_top ?? []).map((item, i) => (
                     <div key={i} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '4px 0' }}>
                       <Tag color={i < 3 ? 'green' : 'default'}>{item.name}</Tag>
-                      <span>{(item.on_time_rate * 100).toFixed(0)}%（{item.on_time_sample}）</span>
+                      <span>{item.on_time_rate != null ? `${(item.on_time_rate * 100).toFixed(0)}%（${item.on_time_sample}）` : `—（${item.on_time_sample}）`}</span>
                     </div>
                   ))}
                 </div>
