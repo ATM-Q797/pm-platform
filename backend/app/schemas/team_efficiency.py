@@ -21,6 +21,7 @@ class EfficiencySummary(BaseModel):
     completion_date_record_rate: float | None = None
     total_phases: int = 0
     dated_phases: int = 0
+    active_projects_dedup: int = 0  # 在办项目去重总数（与看板「进行中」可比口径）
     window_label: str = ""
 
 

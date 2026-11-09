@@ -45,6 +45,7 @@ class EfficiencySummary:
     completion_date_record_rate: float | None = None
     total_phases: int = 0
     dated_phases: int = 0
+    active_projects_dedup: int = 0  # 在办项目去重总数（与看板「进行中」可比口径）
     window_label: str = "最近 7 天"
 
 
@@ -233,6 +234,7 @@ def compute_team_efficiency(db: Session, window_days: int = 7) -> TeamEfficiency
         summary.completion_date_record_rate = dated_phases / total_phases
     summary.total_phases = total_phases
     summary.dated_phases = dated_phases
+    summary.active_projects_dedup = len(active_projects_set)
 
     # 岗位负荷分布（项目数）
     role_load = {role: len(projects) for role, projects in role_project_count.items()}

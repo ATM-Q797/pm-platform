@@ -17,6 +17,7 @@ export interface EfficiencySummary {
   completion_date_record_rate: number | null
   total_phases: number
   dated_phases: number
+  active_projects_dedup: number
   window_label: string
 }
 

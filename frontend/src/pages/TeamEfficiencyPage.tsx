@@ -86,7 +86,7 @@ export default function TeamEfficiencyPage() {
       <Spin spinning={loading}>
         {/* 六卡 */}
         <Row gutter={16} style={{ marginBottom: 16 }}>
-          <Col span={4}><Statistic title="在办项目数（合计）" value={data?.persons.reduce((s, p) => s + p.active_projects, 0) ?? 0} /></Col>
+          <Col span={4}><Statistic title="在办项目（去重）" value={summary?.active_projects_dedup ?? 0} /></Col>
           <Col span={4}><Statistic title="峰值并行（最高）" value={Math.max(0, ...(data?.persons.map(p => p.peak_parallel) ?? [0]))} /></Col>
           <Col span={4}><Statistic title="按期完成率" value={(() => { const rates = data?.persons.filter(p => p.on_time_rate != null).map(p => ({ r: p.on_time_rate!, s: p.on_time_sample })) ?? []; if (!rates.length) return '—'; const totalOn = rates.reduce((s, x) => s + parseInt(x.s.split('/')[0]), 0); const totalWith = rates.reduce((s, x) => s + parseInt(x.s.split('/')[1]), 0); return totalWith ? (totalOn / totalWith * 100).toFixed(1) + '%' : '—' })()} /></Col>
           <Col span={4}><Statistic title="返工率（均值）" value={(() => { const rates = data?.persons.filter(p => p.rework_rate != null).map(p => p.rework_rate!) ?? []; return rates.length ? (rates.reduce((a, b) => a + b, 0) / rates.length * 100).toFixed(0) + '%' : '—' })()} /></Col>

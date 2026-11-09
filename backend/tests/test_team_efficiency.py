@@ -151,6 +151,24 @@ def test_completion_rate_top(db_session: Session):
     assert result.rework_top[0]["on_time_rate"] == pytest.approx(0.5)
 
 
+def test_active_projects_dedup(db_session: Session):
+    """在办项目去重总数（B 口径）：共管项目跨人不重复计，与看板「进行中」可比。"""
+    p1 = _make_project(db_session, "P1")
+    p2 = _make_project(db_session, "P2")
+    res_a = _make_resource(db_session, "张三")
+    res_b = _make_resource(db_session, "李四")
+    today = date.today()
+    # P1 两人共管（1 个活跃阶段挂两人）；P2 仅张三 → 去重 = 2（按人合计 = 3）
+    _make_phase(db_session, p1, [res_a, res_b], status="进行中",
+                plan_start=today, plan_end=today + timedelta(days=3))
+    _make_phase(db_session, p2, [res_a], status="进行中",
+                plan_start=today, plan_end=today + timedelta(days=3))
+    db_session.commit()
+    result = compute_team_efficiency(db_session)
+    assert result.summary.active_projects_dedup == 2
+    assert sum(p.active_projects for p in result.persons) == 3
+
+
 def test_role_load_distribution(db_session: Session):
     """指标 6：按岗位聚合在办项目数。"""
     proj = _make_project(db_session, "P")
