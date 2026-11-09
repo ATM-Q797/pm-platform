@@ -9,7 +9,7 @@ from pydantic import BaseModel, ConfigDict
 class UserBase(BaseModel):
     username: str
     name: str
-    role: str = "engineer"  # admin/manager/engineer/viewer
+    role: str = "engineer"  # admin/manager/engineer/viewer/reporter
     position: str | None = None  # 岗位：工业设计/结构设计/测试/项目管理/线缆设计/模块选型
 
 

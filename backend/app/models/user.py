@@ -1,7 +1,7 @@
 """user（用户）模型。
 
 对应 PHASE5_PLAN §2.1。用户登录账户，与 resource 一一对应。
-- admin/manager/engineer/viewer 四种角色
+- admin/manager/engineer/viewer/reporter 五种角色
 - bcrypt 加密密码
 - is_active 控制启用/禁用
 """
