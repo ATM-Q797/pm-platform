@@ -215,7 +215,7 @@ BI 大屏、自定义报表编排、多级下钻、实时流式刷新（保持�
 | `frontend/src/pages/ProjectDetailPage.tsx` | 扩展：健康度评级区（档位徽章 + 事实清单）+ 趋势区 |
 | `frontend/src/pages/DashboardPage.tsx` | 扩展：风险分析弹窗（红/黄 2 分板块，点行跳详情；8-1 弹窗改版） |
  | `frontend/src/pages/TeamEfficiencyPage.tsx` | 新增（8-4） |
-| `deploy/migrate_v5.sql` | 新增（8-3：`project_snapshots` 表 + 降采样维护函数） |
+| `deploy/migrate_v6.sql` | 扩展（8-3：`project_snapshots` 表 + 降采样维护函数——追加到 P1 事件表同文件，全 DDL 幂等） |
 
 > ✅ **拆分已执行**（2026-11-05，commit 0934816）：`ProjectListPage.tsx` 756→401 行，拆为列表呈现 + 列定义（`columns.tsx`）/导入（`ImportExcelModal.tsx`）两层；健康度列落 `columns.tsx`。
 
