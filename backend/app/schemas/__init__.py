@@ -69,6 +69,9 @@ from app.schemas.user import (
 )
 from app.schemas.analysis import (
     AnalysisTrend,
+    ProjectTrend,
+    ProjectTrendEvent,
+    ProjectTrendPoint,
     SnapshotRunResult,
     TrendPoint,
     WeeklyPoint,
@@ -124,4 +127,5 @@ __all__ = [
     "ReportMeta", "ReportPhaseOut", "ReportPhasePatch",
     "ReportProjectCreate", "ReportProjectCreatePhase", "ReportProjectDetail", "ReportProjectItem",
     "AnalysisTrend", "SnapshotRunResult", "TrendPoint", "WeeklyPoint",
+    "ProjectTrend", "ProjectTrendPoint", "ProjectTrendEvent",
 ]

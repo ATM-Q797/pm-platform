@@ -11,6 +11,7 @@ import { HealthFactList } from '../components/ProjectList/HealthStatusCell'
 import GanttChart from '../components/Gantt/GanttChart'
 import PhaseEditor from '../components/PhaseEditor/PhaseEditor'
 import ProjectEditModal from '../components/ProjectEditModal'
+import TrendSection from '../components/ProjectDetail/TrendSection'
 
 const STATUS_COLOR: Record<string, string> = {
   进行中: 'processing',
@@ -261,6 +262,11 @@ export default function ProjectDetailPage() {
           </div>
         )}
       </Card>
+
+      {/* 进度趋势区（8-3）：双线 + 三类事件点 + 时间窗切换；专项 403 → 区块自隐藏 */}
+      <div style={{ marginBottom: 16 }}>
+        <TrendSection projectId={projectId} />
+      </div>
 
       {/* 变更情况弹窗（P1）：字段级审计历史，数据同时作为分析板块数据源 */}
       <Modal

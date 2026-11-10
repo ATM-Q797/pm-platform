@@ -11,7 +11,7 @@ from __future__ import annotations
 
 def main() -> int:
     from app.database import session_scope  # 延迟导入：被 import 时不创建引擎
-    from app.services.snapshot import create_today_if_absent
+    from app.services.snapshot import create_today_if_absent, snapshot_projects_today
 
     try:
         # 在会话内取出标量——session_scope 退出后实例已脱离会话，出块后再读属性会报
@@ -24,7 +24,11 @@ def main() -> int:
                 f"delayed_phases={snapshot.metrics.get('delayed_phases')} "
                 f"conflict_pairs={snapshot.metrics.get('conflict_pairs')}"
             )
+            # 8-3 项目级采集（批次档 §2 设计点 2：与全局快照同一 crontab 任务内写入）
+            # upsert 幂等——crontab 重跑覆盖当日行不产生两行
+            scanned, created_rows = snapshot_projects_today(db)
         print(f"[snapshot] {summary}")
+        print(f"[snapshot] project_snapshots scanned={scanned} created={created_rows}")
         return 0
     except Exception as e:  # noqa: BLE001 —— CLI 边界：任何失败都要落日志并以非零退出
         print(f"[snapshot] FAILED: {e}")

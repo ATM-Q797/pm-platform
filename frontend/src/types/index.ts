@@ -466,6 +466,39 @@ export interface SnapshotRunResult {
   metrics: AnalysisMetrics
 }
 
+// ---------- 8-3 项目趋势（PHASE8_PLAN §三；批次档 项目趋势-2026-11-10 §2） ----------
+
+/** 项目趋势混合粒度点：日/周/月行统一形态，granularity 标记随点携带（缺口断开不补零） */
+export interface ProjectTrendPoint {
+  date: string // YYYY-MM-DD（日=快照日；周=周一锚点；月=月初）
+  granularity: 'day' | 'week' | 'month'
+  metrics: {
+    plan_cum_pct: number | null // 计划累计完成度（快照时点定格值）
+    actual_cum_pct: number | null // 实际累计完成度
+    delayed_phases: number | null // 延期阶段数
+    conflict_pairs: number | null // 冲突对数
+  }
+}
+
+/** 三类事件点：延期红 / 冲突橙 / 计划变更蓝，hover 显明细 */
+export interface ProjectTrendEvent {
+  date: string // YYYY-MM-DD
+  kind: 'delayed' | 'conflict' | 'plan_change'
+  detail: string // hover 明细（如「2 个阶段延期」/「计划开始 10-01 → 10-05（张三）」）
+}
+
+/** 单项目趋势响应：搁置项目 frozen=true + frozen_date（冻结日），返回冻结前历史 */
+export interface ProjectTrend {
+  project_id: number | null // 被删项目（by-code 追溯路径）为 null
+  project_code: string | null
+  project_name: string | null
+  days: number
+  points: ProjectTrendPoint[]
+  events: ProjectTrendEvent[]
+  frozen: boolean
+  frozen_date: string | null
+}
+
 // ---------- 用户与认证 ----------
 export type UserRole = 'admin' | 'manager' | 'engineer' | 'viewer' | 'reporter'
 

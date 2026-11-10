@@ -31,3 +31,31 @@ class AnalysisTrend(BaseModel):
     days: int
     daily: list[TrendPoint]
     weekly: list[WeeklyPoint]
+
+
+# ---------- 8-3 项目趋势（PHASE8_PLAN §三，批次档 项目趋势-2026-11-10 §2） ----------
+
+class ProjectTrendPoint(BaseModel):
+    """项目趋势混合粒度点：日/周/月行统一形态，粒度标记随点携带。"""
+    date: str  # YYYY-MM-DD（日=快照日；周=周一锚点；月=月初）
+    granularity: str  # day | week | month
+    metrics: dict[str, Any]  # 四键：plan_cum_pct / actual_cum_pct / delayed_phases / conflict_pairs
+
+
+class ProjectTrendEvent(BaseModel):
+    """趋势图事件点：延期/冲突取自快照 metrics（>0 的快照日），计划变更取自 data_change_events。"""
+    date: str  # YYYY-MM-DD（计划变更按 changed_at 对齐时间轴）
+    kind: str  # delayed | conflict | plan_change
+    detail: str  # hover 明细（如「2 个阶段延期」/「计划开始 10-01 → 10-05（张三）」）
+
+
+class ProjectTrend(BaseModel):
+    """单项目趋势响应：混合点列 + 三类事件点 + 读口径标记。"""
+    project_id: int | None  # 被删项目（by-code 追溯路径）为 None
+    project_code: str | None
+    project_name: str | None
+    days: int
+    points: list[ProjectTrendPoint]
+    events: list[ProjectTrendEvent]
+    frozen: bool = False  # 搁置项目 true（返回冻结前历史）
+    frozen_date: str | None = None  # 冻结日 = 搁置前最后一个快照日

@@ -1,5 +1,5 @@
 import client from './client'
-import type { Project, ProjectCreate, ProjectUpdate, ProjectDetail, GanttData, HealthStatus } from '../types'
+import type { Project, ProjectCreate, ProjectUpdate, ProjectDetail, GanttData, HealthStatus, ProjectTrend } from '../types'
 
 export async function listProjects(params?: {
   status?: string
@@ -67,5 +67,17 @@ export async function setFavorite(id: number, favorited: boolean): Promise<void>
 /** 单项目健康度（8-2）：详情页用；搁置项目后端 409（前端 catch 后隐藏区块） */
 export async function getProjectHealth(id: number): Promise<HealthStatus> {
   const { data } = await client.get<HealthStatus>(`/projects/${id}/health`)
+  return data
+}
+
+/** 单项目进度趋势（8-3）：搁置项目返回冻结前历史（frozen=true）；专项 403（调用方 catch 隐藏区块） */
+export async function getProjectTrend(id: number, days: 30 | 90 | 365): Promise<ProjectTrend> {
+  const { data } = await client.get<ProjectTrend>(`/projects/${id}/trend`, { params: { days } })
+  return data
+}
+
+/** 按编号查历史趋势（8-3 admin「历史项目」入口）：被删项目按编号寻址 */
+export async function getProjectTrendByCode(code: string, days: 30 | 90 | 365): Promise<ProjectTrend> {
+  const { data } = await client.get<ProjectTrend>(`/projects/by-code/${encodeURIComponent(code)}/trend`, { params: { days } })
   return data
 }

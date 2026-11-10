@@ -3,21 +3,29 @@
 - collect_metrics：= build_dashboard_stats（看板同口径单一来源）+ §二扩展指标
 - create_today_if_absent：幂等建行——当日已有即跳过（唯一约束兜底并发）
 - build_trend：日级点位 + 周级聚合（周一锚点），差分在查询时算
+- 8-3 项目级（PHASE8_PLAN §三）：collect_project_metrics（四键定格）+
+  snapshot_projects_today（只拍在办，upsert 幂等）+ build_project_trend（混合粒度读）+
+  build_project_events（延期/冲突/计划变更三类事件点）
 
 快照只存原子计数；比率/差分均由查询侧计算，未来加图不改历史快照结构。
 """
 from __future__ import annotations
 
 import math
-from datetime import date, timedelta
+from datetime import date, datetime, time, timedelta
 from typing import Sequence
 
 from sqlalchemy import func, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
-from app.models import Phase, Project, StatusSnapshot
-from app.routers.dashboard import build_dashboard_stats
+from app.models import DataChangeEvent, Phase, Project, ProjectSnapshot, StatusSnapshot
+# 函数内导入：snapshot.py 顶部 import routers.dashboard（build_dashboard_stats 看板同源口径），
+# routers/__init__ 会级联拉起 projects.py，而 projects.py 顶部又 import 本模块的 build_project_* ——
+# 顶层互引成循环导入，CLI 入口（python -m app.jobs.snapshot，生产 crontab）直接 ImportError。
+# 与 routers/dashboard.py:294 的既有同款处理（函数内导入）保持一致。
+from app.services.change_events import FIELD_LABELS
+from app.services.resource_conflicts import detect_conflicts
 from app.services.resource_heatmap import build_heatmap
 
 # 未完成阶段口径（阶段级未结束状态；与 dashboard 延期判定同族）
@@ -60,6 +68,9 @@ def collect_metrics(db: Session) -> dict:
     - 扩展指标（open/completed/shelved）查询显式排除 is_special
     - 冲突/热力图口径由 resource 服务内含排除（resource_conflicts/resource_heatmap）
     """
+    # 函数内导入（循环导入——见本文件头部 import 注释）
+    from app.routers.dashboard import build_dashboard_stats
+
     stats = build_dashboard_stats(db)
 
     # 热力图口径（resource_heatmap 已排除专项/搁置/交付族）：
@@ -282,3 +293,217 @@ def build_weekly_delta(db: Session, keys: Sequence[str], days: int = 30) -> dict
         if k not in cur or k not in prev:
             delta[k] = None
     return delta
+
+
+# ============================================================
+# 8-3 项目级快照（PHASE8_PLAN §三 方案 A + 口径③；批次档 项目趋势-2026-11-10 §2）
+# ============================================================
+
+# 项目级快照 metrics 四键（均为快照时点定格值——读时不重算，计划改动不扭曲历史）
+_PROJECT_METRIC_KEYS = ("plan_cum_pct", "actual_cum_pct", "delayed_phases", "conflict_pairs")
+# 项目级快照采集的粒度标记键（降采样后行带 day/week/month；采集侧写日行）
+_GRANULARITY_KEY = "_granularity"
+
+
+def collect_project_metrics(db: Session, project: Project, today: date | None = None) -> dict:
+    """采集单项目快照 metrics（时点值，随快照定格）。
+
+    四键口径（与看板同源，§3.5 验收①「当日末点与看板当日数字一致」）：
+    - plan_cum_pct：计划累计完成度 = 按快照当日阶段计划排期算——已完成阶段（按计划应在
+      当日或更早收尾）数 ÷ 总阶段数 ×100。按「计划进度」计而非实际进度，计划曲线随快照定格。
+    - actual_cum_pct：实际累计完成度 = 已完成阶段（actual_end ≤ 当日，未填 actual_end 的
+      已完成阶段按当日完成计）÷ 总阶段数 ×100；无阶段 → None（缺数据不冒充 0，§3.5 口径）。
+    - delayed_phases：延期阶段数 = plan_end < 当日 且状态 ∉ {已完成, 搁置}——
+      与 dashboard 延期判定同族（本文件 _OPEN_PHASE_EXCLUDED_STATUSES 同口径），排除专项由调用方保证。
+    - conflict_pairs：该项目涉入的资源冲突对数（detect_conflicts 同源检测）。
+    """
+    today = today or date.today()
+    phases = list(project.phases)
+    total = len(phases)
+    if total == 0:
+        return {k: None for k in _PROJECT_METRIC_KEYS}
+
+    # 计划累计完成度：按计划排期应已完成的阶段占比（计划当日收尾即计入——「应完成」口径）
+    plan_done = sum(
+        1 for ph in phases
+        if ph.plan_end is not None and ph.plan_end <= today and ph.status not in ("搁置",)
+    )
+    # 实际累计完成度：已完成阶段占比（actual_end ≤ 当日；未填完成日的已完成阶段按当日完成计）
+    actual_done = sum(
+        1 for ph in phases
+        if ph.status == "已完成" and (ph.actual_end is None or ph.actual_end <= today)
+    )
+
+    delayed = sum(
+        1 for ph in phases
+        if ph.plan_end is not None
+        and ph.plan_end < today
+        and ph.status not in ("已完成", "搁置")
+    )
+
+    # 该项目涉入的冲突对数：detect_conflicts 全库检测后按项目过滤（与看板/8-2 同源）
+    conflicts = detect_conflicts(db)
+    pair_count = 0
+    for rc in conflicts:
+        for pair in rc.conflicts:
+            if project.id in (pair.project_a_id, pair.project_b_id):
+                pair_count += 1
+
+    return {
+        "plan_cum_pct": round(plan_done / total * 100),
+        "actual_cum_pct": round(actual_done / total * 100),
+        "delayed_phases": delayed,
+        "conflict_pairs": pair_count,
+    }
+
+
+def snapshot_projects_today(db: Session, today: date | None = None) -> tuple[int, int]:
+    """项目级采集主入口：只拍在办项目（状态 ∈ {未开始, 进行中}，专项排除）。
+
+    幂等：同日已有行 → 重新采集覆盖（upsert 语义，同 create_today_if_absent force 模式）——
+    crontab 重跑/手动触发不产生两行（唯一约束 (project_id, snapshot_date) 兜底并发）。
+
+    返回 (采集项目数, 新建行数)——覆盖已有行不计入新建（与全局快照 created 语义对齐）。
+    """
+    today = today or date.today()
+    in_flight = db.scalars(
+        select(Project).where(
+            Project.status.in_(_IN_FLIGHT_STATUSES),
+            Project.is_special.is_(False),
+        )
+    ).all()
+
+    created_count = 0
+    for project in in_flight:
+        existing = db.scalar(
+            select(ProjectSnapshot).where(
+                ProjectSnapshot.project_id == project.id,
+                ProjectSnapshot.snapshot_date == today,
+            )
+        )
+        metrics = collect_project_metrics(db, project, today)
+        metrics[_GRANULARITY_KEY] = "day"
+        if existing is not None:
+            existing.metrics = metrics  # 同日重触发：覆盖当日行，不新增
+            continue
+        db.add(ProjectSnapshot(
+            project_id=project.id,
+            snapshot_date=today,
+            metrics=metrics,
+            project_code=project.code,
+            project_name=project.name,
+        ))
+        try:
+            db.flush()
+            created_count += 1
+        except IntegrityError:
+            # 并发兜底（多 worker 同时建行）：回滚本行，重查后按幂等覆盖语义处理
+            db.rollback()
+            existing = db.scalar(
+                select(ProjectSnapshot).where(
+                    ProjectSnapshot.project_id == project.id,
+                    ProjectSnapshot.snapshot_date == today,
+                )
+            )
+            if existing is None:
+                raise  # 约束冲突却查不到行——异常状态显式抛出，不做静默兜底
+            existing.metrics = metrics
+    db.commit()
+    return len(in_flight), created_count
+
+
+def build_project_trend(
+    rows: Sequence[ProjectSnapshot],
+    days: int,
+    today: date | None = None,
+) -> list[dict]:
+    """项目趋势混合点列（分层降采样读口径）。
+
+    行已带粒度标记（metrics._granularity：day/week/month）；窗口内行按日期升序统一透出，
+    缺失日期断开不补零（§3.5 验收②——列表只含真实快照日）。
+    降采样维护（maintain_project_snapshots）由 PG 侧函数执行；此处纯读。
+    """
+    today = today or date.today()
+    start = today - timedelta(days=days - 1)
+    points: list[dict] = []
+    for r in sorted(rows, key=lambda x: x.snapshot_date):
+        if not (start <= r.snapshot_date <= today):
+            continue
+        metrics = dict(r.metrics or {})
+        granularity = metrics.pop(_GRANULARITY_KEY, "day")
+        points.append({
+            "date": r.snapshot_date.isoformat(),
+            "granularity": granularity,
+            "metrics": {k: metrics.get(k) for k in _PROJECT_METRIC_KEYS},
+        })
+    return points
+
+
+def build_project_events(
+    db: Session,
+    *,
+    project_id: int | None,
+    project_code: str | None,
+    days: int,
+    snapshots: Sequence[ProjectSnapshot],
+    today: date | None = None,
+) -> list[dict]:
+    """三类事件点（P2 数据通道，批次档 §2 设计点 4）。
+
+    - 延期/冲突：取自快照 metrics（>0 的快照日即事件日——数据源「与看板同源计数」）
+    - 计划变更：data_change_events field ∈ {plan_start, plan_end}（项目级白名单字段名），
+      按 created_at 对齐时间轴；被删项目（project_id SET NULL）按 project_name 冗余字段匹配。
+    """
+    today = today or date.today()
+    start = today - timedelta(days=days - 1)
+    events: list[dict] = []
+
+    for r in snapshots:
+        if not (start <= r.snapshot_date <= today):
+            continue
+        m = r.metrics or {}
+        if m.get("delayed_phases"):
+            events.append({
+                "date": r.snapshot_date.isoformat(),
+                "kind": "delayed",
+                "detail": f"{m['delayed_phases']} 个阶段延期",
+            })
+        if m.get("conflict_pairs"):
+            events.append({
+                "date": r.snapshot_date.isoformat(),
+                "kind": "conflict",
+                "detail": f"{m['conflict_pairs']} 对资源冲突",
+            })
+
+    # 计划变更事件：field ∈ {plan_start, plan_end}（FIELD_LABELS 里项目级计划时间两字段）
+    plan_fields = ("plan_start", "plan_end")
+    if project_id is not None:
+        cond = DataChangeEvent.project_id == project_id
+    else:
+        # 被删项目：project_id 已 SET NULL，按冗余 project_name 匹配（同一项目名的其他行也可能命中，
+        # 但事件行 project_name 冗余的是事件时点项目名——与快照最后一次名字口径一致）
+        cond = DataChangeEvent.project_name == project_code  # 兜底：编号误存 name 时也可寻址
+        cond = cond | (DataChangeEvent.project_name == (
+            db.scalar(
+                select(ProjectSnapshot.project_name)
+                .where(ProjectSnapshot.project_code == project_code)
+                .order_by(ProjectSnapshot.snapshot_date.desc())
+                .limit(1)
+            )
+        ))
+    field_cond = DataChangeEvent.field.in_(plan_fields)
+    time_cond = DataChangeEvent.created_at >= datetime.combine(start, time.min)
+    event_rows = db.scalars(
+        select(DataChangeEvent).where(cond, field_cond, time_cond).order_by(DataChangeEvent.created_at)
+    ).all()
+    for e in event_rows:
+        label = FIELD_LABELS.get(e.field, e.field)
+        old_v = e.old_value if e.old_value is not None else "（空）"
+        new_v = e.new_value if e.new_value is not None else "（空）"
+        who = e.changed_by_name or "（已注销）"
+        events.append({
+            "date": e.created_at.date().isoformat(),
+            "kind": "plan_change",
+            "detail": f"{label} {old_v} → {new_v}（{who}）",
+        })
+    return events

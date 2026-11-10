@@ -18,7 +18,7 @@ from app.core.deps import (
     check_project_access,
 )
 from app.database import get_db
-from app.models import Dependency, Phase, Project, User, UserFavorite, phase_assignee
+from app.models import Dependency, Phase, Project, ProjectSnapshot, User, UserFavorite, phase_assignee
 from app.routers.audit import log_operation
 from app.schemas import (
     CriticalPathResult,
@@ -27,6 +27,7 @@ from app.schemas import (
     ProjectCreate,
     ProjectDetail,
     ProjectRead,
+    ProjectTrend,
     ProjectUpdate,
 )
 from app.services import apply_template, build_gantt
@@ -35,8 +36,60 @@ from app.services.critical_path import compute_critical_path
 from app.services.health_score import assess_projects
 from app.services.project_code import next_project_code, next_special_code
 from app.services.resource_conflicts import detect_conflicts
+from app.services.snapshot import build_project_events, build_project_trend
 
 router = APIRouter(prefix="/api/projects", tags=["项目"])
+
+# 项目趋势时间窗（批次档 §2 设计点 4：30/90/365）
+_TREND_DAYS = (30, 90, 365)
+
+
+def _validate_trend_days(days: int) -> None:
+    """时间窗校验（批次档 §2：30/90/365 三档）。"""
+    if days not in _TREND_DAYS:
+        raise HTTPException(400, f"days 非法：{days}（仅支持 {'|'.join(map(str, _TREND_DAYS))}）")
+
+
+@router.get("/by-code/{code}/trend", response_model=ProjectTrend)
+def get_project_trend_by_code(
+    code: str,
+    days: int = 30,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_role("admin")),
+):
+    """按项目编号查历史趋势（admin「历史项目」入口）——验收④的读路径。
+
+    被删项目：project_id 已 SET NULL，编号是唯一可寻址键（快照行冗余 project_code）。
+    在办项目按编号同样可查（同一读路径）；不存在的编号 404。
+    """
+    _validate_trend_days(days)
+    rows = db.scalars(
+        select(ProjectSnapshot)
+        .where(ProjectSnapshot.project_code == code)
+        .order_by(ProjectSnapshot.snapshot_date)
+    ).all()
+    if not rows:
+        raise HTTPException(404, f"项目编号 {code} 无任何快照（编号不存在或项目从未被采集）")
+    last = rows[-1]
+    points = build_project_trend(rows, days, today=date.today())
+    events = build_project_events(
+        db,
+        project_id=last.project_id,
+        project_code=code,
+        days=days,
+        snapshots=rows,
+        today=date.today(),
+    )
+    return ProjectTrend(
+        project_id=last.project_id,
+        project_code=code,
+        project_name=last.project_name,  # 最后一次名字（追溯口径：名字冻结在删除时刻）
+        days=days,
+        points=points,
+        events=events,
+        frozen=False,
+        frozen_date=None,
+    )
 
 
 @router.get("", response_model=list[ProjectRead])
@@ -258,6 +311,55 @@ def get_project_health(
     from app.services.health_score import assess_health
 
     return assess_health(project, list(project.phases), detect_conflicts(db), date.today())
+
+
+@router.get("/{project_id}/trend", response_model=ProjectTrend)
+def get_project_trend(
+    project_id: int,
+    days: int = 30,
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """单项目进度趋势（8-3，批次档 §2 设计点 4）。
+
+    读口径（§2 设计点 6 / RT-11）：
+    - 专项项目 403（循 health 端点先例——专项从未入拍，曲线恒空无意义）
+    - 搁置项目返回冻结前历史，frozen=true + frozen_date=最后一个快照日
+    - 未开始/进行中正常返回
+    - 缺失日期断开不补零；无任何快照 → 空点列（前端「数据积累中」空态）
+    """
+    _validate_trend_days(days)
+    project = db.get(Project, project_id)
+    if project is None:
+        raise HTTPException(404, "项目不存在")
+    check_special_project_access(project, user)
+
+    frozen = project.status == "搁置"
+    rows = db.scalars(
+        select(ProjectSnapshot)
+        .where(ProjectSnapshot.project_id == project_id)
+        .order_by(ProjectSnapshot.snapshot_date)
+    ).all()
+    points = build_project_trend(rows, days, today=date.today())
+    frozen_date = rows[-1].snapshot_date.isoformat() if (frozen and rows) else None
+    events = build_project_events(
+        db,
+        project_id=project_id,
+        project_code=project.code,
+        days=days,
+        snapshots=rows,
+        today=date.today(),
+    )
+    return ProjectTrend(
+        project_id=project_id,
+        project_code=project.code,
+        project_name=project.name,
+        days=days,
+        points=points,
+        events=events,
+        frozen=frozen,
+        frozen_date=frozen_date,
+    )
 
 
 @router.put("/{project_id}", response_model=ProjectRead)

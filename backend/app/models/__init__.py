@@ -13,6 +13,7 @@ from app.models.audit import ProjectDeleteRequest, OperationLog, PhaseChangeRequ
 from app.models.notification import Notification
 from app.models.conflict_override import ConflictOverride
 from app.models.status_snapshot import StatusSnapshot
+from app.models.project_snapshot import ProjectSnapshot
 from app.models.user_favorite import UserFavorite
 
 __all__ = [
@@ -34,4 +35,5 @@ __all__ = [
     "ConflictOverride",
     "UserFavorite",
     "StatusSnapshot",
+    "ProjectSnapshot",
 ]
