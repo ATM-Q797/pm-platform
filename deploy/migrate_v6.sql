@@ -67,6 +67,7 @@ DECLARE
     moved_weeks  INTEGER;
     moved_months INTEGER;
     deleted_rows INTEGER;
+    deleted_month INTEGER;
 BEGIN
     -- 1) 90 天前的日行（在办项目）→ 聚合为周行（周一锚点），每周取周内最后一个快照的 metrics 作代表。
     --    ON CONFLICT 走 (project_id, snapshot_date) 唯一约束 → 重跑幂等。
@@ -82,7 +83,11 @@ BEGIN
     ), upsert_week AS (
         INSERT INTO project_snapshots (project_id, snapshot_date, metrics, project_code, project_name)
         SELECT ws.project_id, ws.week_start,
-               jsonb_build_object('_granularity', 'week') || ps.metrics,
+               -- 顺序即语义：ps.metrics（源日行，含 _granularity='day'）必须在左，周标记在右——
+               -- PG jsonb || 重复键右胜（PG16 实测：build_object('week')||metrics → 保留 'day'），
+               -- 左置标记会被源行覆盖成 'day'，随后被第 3) 步 DELETE 连同源行一起删掉（历史数据丢失）
+               -- 两侧显式 ::jsonb：ORM 写入后 PG 目录里该列可能被推导为 json，裸 || 会报 json||jsonb 不存在
+               (ps.metrics::jsonb) || jsonb_build_object('_granularity', 'week'::text)::jsonb,
                ws.project_code, ws.project_name
         FROM week_src ws
         JOIN project_snapshots ps
@@ -110,7 +115,8 @@ BEGIN
     ), upsert_month AS (
         INSERT INTO project_snapshots (project_id, snapshot_date, metrics, project_code, project_name)
         SELECT ms.project_id, ms.month_start,
-               jsonb_build_object('_granularity', 'month') || ps.metrics,
+               -- 同上：源行 metrics 在左、月标记在右（jsonb || 重复键右胜）+ 显式 ::jsonb 防类型歧义
+               (ps.metrics::jsonb) || jsonb_build_object('_granularity', 'month'::text)::jsonb,
                ms.project_code, ms.project_name
         FROM month_src ms
         JOIN project_snapshots ps
@@ -137,7 +143,8 @@ BEGIN
     WHERE metrics->>'_granularity' IN ('day', 'week')
       AND project_id IS NOT NULL
       AND snapshot_date < CURRENT_DATE - INTERVAL '2 years';
-    GET DIAGNOSTICS deleted_rows = deleted_rows + ROW_COUNT;
+    GET DIAGNOSTICS deleted_month = ROW_COUNT;
+    deleted_rows := deleted_rows + deleted_month;
 
     RETURN moved_weeks + moved_months + deleted_rows;
 END;
