@@ -305,7 +305,12 @@ _PROJECT_METRIC_KEYS = ("plan_cum_pct", "actual_cum_pct", "delayed_phases", "con
 _GRANULARITY_KEY = "_granularity"
 
 
-def collect_project_metrics(db: Session, project: Project, today: date | None = None) -> dict:
+def collect_project_metrics(
+    db: Session,
+    project: Project,
+    today: date | None = None,
+    conflicts: Sequence | None = None,
+) -> dict:
     """采集单项目快照 metrics（时点值，随快照定格）。
 
     四键口径（与看板同源，§3.5 验收①「当日末点与看板当日数字一致」）：
@@ -316,6 +321,9 @@ def collect_project_metrics(db: Session, project: Project, today: date | None = 
     - delayed_phases：延期阶段数 = plan_end < 当日 且状态 ∉ {已完成, 搁置}——
       与 dashboard 延期判定同族（本文件 _OPEN_PHASE_EXCLUDED_STATUSES 同口径），排除专项由调用方保证。
     - conflict_pairs：该项目涉入的资源冲突对数（detect_conflicts 同源检测）。
+
+    conflicts：调用方可传入已算好的 detect_conflicts 结果（批量采集时避免逐项目全库重扫）；
+    缺省 None = 函数内自行检测（单项目调用路径）。
     """
     today = today or date.today()
     phases = list(project.phases)
@@ -341,8 +349,10 @@ def collect_project_metrics(db: Session, project: Project, today: date | None = 
         and ph.status not in ("已完成", "搁置")
     )
 
-    # 该项目涉入的冲突对数：detect_conflicts 全库检测后按项目过滤（与看板/8-2 同源）
-    conflicts = detect_conflicts(db)
+    # 该项目涉入的冲突对数：detect_conflicts 同源检测（与看板/8-2 同源；批量路径由调用方
+    # 传入已算好的 conflicts 避免逐项目全库重扫）
+    if conflicts is None:
+        conflicts = detect_conflicts(db)
     pair_count = 0
     for rc in conflicts:
         for pair in rc.conflicts:
@@ -373,6 +383,10 @@ def snapshot_projects_today(db: Session, today: date | None = None) -> tuple[int
         )
     ).all()
 
+    # 冲突检测一次全库跑（评审 #4：循环内逐项目调 detect_conflicts 是 N 次全库扫描——
+    # 冲突关系在一次采集运行内不变，提出循环外算一次、逐项目过滤）
+    conflicts = detect_conflicts(db)
+
     created_count = 0
     for project in in_flight:
         existing = db.scalar(
@@ -381,7 +395,7 @@ def snapshot_projects_today(db: Session, today: date | None = None) -> tuple[int
                 ProjectSnapshot.snapshot_date == today,
             )
         )
-        metrics = collect_project_metrics(db, project, today)
+        metrics = collect_project_metrics(db, project, today, conflicts=conflicts)
         metrics[_GRANULARITY_KEY] = "day"
         if existing is not None:
             existing.metrics = metrics  # 同日重触发：覆盖当日行，不新增
@@ -397,7 +411,9 @@ def snapshot_projects_today(db: Session, today: date | None = None) -> tuple[int
             db.flush()
             created_count += 1
         except IntegrityError:
-            # 并发兜底（多 worker 同时建行）：回滚本行，重查后按幂等覆盖语义处理
+            # 并发兜底（另一进程先建行）：回滚后重查、按幂等覆盖语义处理——本函数为每日
+            # 批量采集（单行 flush 无跨行事务依赖），db.rollback() 只丢当前冲突行；
+            # 若未来引入跨行事务（如同轮多行原子提交），此处须改 SAVEPOINT（begin_nested）。
             db.rollback()
             existing = db.scalar(
                 select(ProjectSnapshot).where(
@@ -408,7 +424,7 @@ def snapshot_projects_today(db: Session, today: date | None = None) -> tuple[int
             if existing is None:
                 raise  # 约束冲突却查不到行——异常状态显式抛出，不做静默兜底
             existing.metrics = metrics
-    db.commit()
+            db.commit()
     return len(in_flight), created_count
 
 
