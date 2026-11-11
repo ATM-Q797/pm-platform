@@ -795,3 +795,12 @@ def test_15_special_export_domain_and_permissions(client, db_session):
     assert resp3.status_code == 403
     resp4 = client.get("/api/export/excel")
     assert resp4.status_code == 200
+
+    # viewer（观察者）：无导出权限，常规/专项一律 403（用户 2026-11-11 权限分级需求 2/3）
+    _mk_user(db_session, "view_export", "viewer", "观察员丁")
+    db_session.commit()
+    _login(client, "view_export")
+    resp5 = client.get("/api/export/excel")
+    assert resp5.status_code == 403
+    resp6 = client.get("/api/export/excel", params={"special": True})
+    assert resp6.status_code == 403

@@ -97,11 +97,12 @@ export default function ProjectDetailPage() {
     try {
       const [data, favorites, cp] = await Promise.all([
         getProject(projectId),
-        fetch('/api/projects/favorites').then((r) => r.json()),
+        // 收藏列表失败不阻塞主加载（与关键路径同容错模式，评审 #16 🟡：误报「项目不存在」的根因）
+        fetch('/api/projects/favorites').then((r) => (r.ok ? r.json() : [])).catch(() => [] as number[]),
         getCriticalPath(projectId).catch(() => null), // 关键路径计算失败不阻塞页面
       ])
       setProject(data)
-      setFavorited((favorites as number[]).includes(data.id))
+      setFavorited(Array.isArray(favorites) && (favorites as number[]).includes(data.id))
       setCriticalDuration(cp && cp.total_duration > 0 ? cp.total_duration : null)
       setCriticalPathNames(cp?.path || [])
     } catch (e) {
@@ -198,9 +199,12 @@ export default function ProjectDetailPage() {
               >
                 {favorited ? <StarFilled /> : <StarOutlined />}
               </a>
-              <Button size="small" type="link" icon={<EditOutlined />} onClick={() => setEditOpen(true)}>
-                编辑
-              </Button>
+              {/* 编辑对观察者不显示（用户 2026-11-11 权限分级需求 4：无编辑权限）；变更情况/进度趋势是只读视图，保留 */}
+              {userRole !== 'viewer' && (
+                <Button size="small" type="link" icon={<EditOutlined />} onClick={() => setEditOpen(true)}>
+                  编辑
+                </Button>
+              )}
               <Button size="small" type="link" icon={<HistoryOutlined />} onClick={() => setTimelineOpen(true)}>
                 变更情况
               </Button>
@@ -344,6 +348,7 @@ export default function ProjectDetailPage() {
             projectId={projectId}
             scale={ganttScale}
             showCritical={showCritical}
+            readonly={userRole === 'viewer'} // 观察者只读（用户 2026-11-11 权限分级需求 4）：禁用任务拖动与依赖增删
             onPhaseClick={handlePhaseClick}
             onDepsChanged={() => {
               // 依赖连线增删成功 → 关键路径工期/路径名随依赖刷新（用户 2026-08-28）
@@ -353,7 +358,9 @@ export default function ProjectDetailPage() {
           />
         )}
         <div style={{ marginTop: 8, fontSize: 12, color: 'var(--text-tertiary)' }}>
-          提示：悬停任务条两端圆形手柄拖到另一条 = 创建依赖连线 ｜ 右键连线删除 ｜ 点击甘特条编辑阶段详情（通过编辑面板修改日期）
+          {userRole === 'viewer'
+            ? '提示：只读模式——点击甘特条查看详情（通过编辑面板查看日期）'
+            : '提示：悬停任务条两端圆形手柄拖到另一条 = 创建依赖连线 ｜ 右键连线删除 ｜ 点击甘特条编辑阶段详情（通过编辑面板修改日期）'}
         </div>
       </Card>
 

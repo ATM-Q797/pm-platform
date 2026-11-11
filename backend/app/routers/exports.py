@@ -87,7 +87,10 @@ def export_excel(special: bool = False, db: Session = Depends(get_db),
 
     - special=false（默认）：常规项目域（专项排除，SPECIAL_PROJECT §4.3）
     - special=true：专项项目域（仅 admin/manager，用户 2026-08-28）
+    - viewer 无导出权限（用户 2026-11-11 权限分级需求 2/3——按钮隐藏之外接口同步封禁）
     """
+    if user.role == "viewer":
+        raise HTTPException(status_code=403, detail="观察者角色无导出权限")
     if special and user.role not in ("admin", "manager"):
         raise HTTPException(status_code=403, detail="仅管理员/经理可导出专项项目")
     wb = openpyxl.Workbook()

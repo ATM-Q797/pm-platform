@@ -83,27 +83,30 @@ export function buildColumns(options: {
       render: (v: string) => <span style={{ fontVariantNumeric: 'tabular-nums' }}>{v}</span> },
     { title: '计划结束', dataIndex: 'plan_end', width: 120, align: 'center',
       render: (v: string) => <span style={{ fontVariantNumeric: 'tabular-nums' }}>{v}</span> },
-    {
-      title: '操作',
-      width: 140,
-      align: 'center',
-      render: (_: unknown, r: Project) => (
-        <Space size="small">
-          <Button size="small" icon={<EditOutlined />} onClick={(e) => { e.stopPropagation(); handleEdit(r) }}>
-            编辑
-          </Button>
-          <Popconfirm
-            title={myRole === 'admin' ? `删除项目 "${r.name}"？此操作不可恢复` : `申请删除项目 "${r.name}"？`}
-            onConfirm={() => handleDelete(r)}
-            okText={myRole === 'admin' ? '删除' : '申请'}
-            okType="danger"
-            cancelText="取消"
-          >
-            <Button size="small" danger icon={<DeleteOutlined />} onClick={(e) => e.stopPropagation()} />
-          </Popconfirm>
-        </Space>
-      ),
-    },
+    // 操作列对观察者整体不显示（用户 2026-11-11 权限分级需求 4：无编辑权限，全部数据只读）
+    ...(myRole === 'viewer'
+      ? []
+      : [{
+          title: '操作',
+          width: 140,
+          align: 'center' as const,
+          render: (_: unknown, r: Project) => (
+            <Space size="small">
+              <Button size="small" icon={<EditOutlined />} onClick={(e) => { e.stopPropagation(); handleEdit(r) }}>
+                编辑
+              </Button>
+              <Popconfirm
+                title={myRole === 'admin' ? `删除项目 "${r.name}"？此操作不可恢复` : `申请删除项目 "${r.name}"？`}
+                onConfirm={() => handleDelete(r)}
+                okText={myRole === 'admin' ? '删除' : '申请'}
+                okType="danger"
+                cancelText="取消"
+              >
+                <Button size="small" danger icon={<DeleteOutlined />} onClick={(e) => e.stopPropagation()} />
+              </Popconfirm>
+            </Space>
+          ),
+        }] as ColumnsType<Project>),
   ]
 }
 

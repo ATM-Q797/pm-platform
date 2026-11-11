@@ -160,6 +160,7 @@ export default function App() {
 
   // 导航项（按角色）
   // 导航标签：reporter 仅见「信息填报」（用户 2026-10-29 权限分级需求 1）；
+  // viewer 仅见「看板/项目列表」（用户 2026-11-11 权限分级需求 1）；
   // 其余角色显示全部页面标签（页面内权限仍按角色守卫）
   const ALL_NAV_ITEMS = [
     { key: 'dashboard', icon: <DashboardOutlined />, label: '看板' },
@@ -171,6 +172,8 @@ export default function App() {
   ]
   const navItems = user.role === 'reporter'
     ? ALL_NAV_ITEMS.filter((i) => i.key === 'report')
+    : user.role === 'viewer'
+    ? ALL_NAV_ITEMS.filter((i) => i.key === 'dashboard' || i.key === 'projects') // 观察者仅见「看板/项目列表」（用户 2026-11-11 权限分级需求 1）
     : ALL_NAV_ITEMS
 
   // 用户下拉菜单
@@ -240,9 +243,12 @@ export default function App() {
         <Content style={{ padding: 24 }}>
           <Suspense fallback={<Spin size="large" style={{ display: 'block', margin: '100px auto' }} />}>
             <Routes>
-              {/* 信息填报（信息填报一期）：所有角色可达（reporter 主页面；平台角色也可协作填报） */}
-              <Route path="/report" element={<ReportPage user={user} />} />
-              {/* 看板仅 admin + viewer 可见，manager/engineer 重定向到项目列表；资源负载 admin/manager/viewer 可见（效率分析 Tab 仅 admin/manager）；reporter 隔离回填报页（评审 #74） */}
+              {/* 信息填报（信息填报一期）：admin/manager/engineer/reporter 可达（reporter 主页面；平台角色也可协作填报）；
+                  viewer 只读两页不含填报（用户 2026-11-11 权限分级需求 1） */}
+              <Route path="/report" element={
+                user.role === 'viewer' ? <Navigate to="/" replace /> : <ReportPage user={user} />
+              } />
+              {/* 看板仅 admin + viewer 可见，manager/engineer 重定向到项目列表；资源负载 admin/manager 可见（效率分析 Tab 仅 admin/manager；viewer 2026-11-11 起只读两页不含资源）；reporter 隔离回填报页（评审 #74） */}
               <Route path="/" element={
                 user.role === 'reporter'
                   ? <Navigate to="/report" replace />
@@ -278,6 +284,8 @@ export default function App() {
                <Route path="/resources" element={
                  user.role === 'engineer'
                   ? <Navigate to="/projects" replace />
+                  : user.role === 'viewer'
+                  ? <Navigate to="/" replace />
                   : user.role === 'reporter'
                   ? <Navigate to="/report" replace />
                   : <ResourcePage />

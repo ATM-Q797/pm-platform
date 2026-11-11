@@ -12,11 +12,12 @@ interface Props {
   projectId: number
   scale?: 'day' | 'week' | 'month'
   showCritical?: boolean // 关键路径高亮开关（默认关）
+  readonly?: boolean // 只读模式（观察者）：禁用任务拖动与依赖连线增删（用户 2026-11-11 权限分级需求 4）
   onPhaseClick: (phaseId: number) => void
   onDepsChanged?: () => void // 依赖连线增删成功后通知父级（关键路径随依赖更新，用户 2026-08-28）
 }
 
-export default function GanttChart({ projectId, scale = 'week', showCritical = false, onPhaseClick, onDepsChanged }: Props) {
+export default function GanttChart({ projectId, scale = 'week', showCritical = false, readonly = false, onPhaseClick, onDepsChanged }: Props) {
   const containerRef = useRef<HTMLDivElement>(null)
   // 保存 gantt 实例引用，供 scale 切换 useEffect 使用
   const ganttRef = useRef<any>(null)
@@ -30,6 +31,9 @@ export default function GanttChart({ projectId, scale = 'week', showCritical = f
   // 同步关键路径开关状态（初始化/切换时读取）
   const showCriticalRef = useRef(showCritical)
   showCriticalRef.current = showCritical
+  // 同步只读开关（初始化 effect 仅依赖 projectId，经 ref 读最新值）
+  const readonlyRef = useRef(readonly)
+  readonlyRef.current = readonly
   // 缓存关键路径 phase id（避免重复请求）
   const criticalIdsRef = useRef<Set<number> | null>(null)
 
@@ -65,6 +69,9 @@ export default function GanttChart({ projectId, scale = 'week', showCritical = f
         ganttRef.current = gantt
         if (destroyed || !containerRef.current) return
         applyGanttConfig(gantt)
+        // 只读模式（观察者）：dhtmlx 级禁用任务拖动与依赖连线增删——UI 不再暴露写入口
+        // （后端 check_phase_access 对 viewer 本就 403，此处是 UI 层一致性，用户 2026-11-11 权限分级需求 4）
+        gantt.config.readonly = readonlyRef.current
         // 拖拽创建依赖连线 → 保存到后端；成功后通知父级（关键路径随依赖更新——用户 2026-08-28）
         const linkAddH = gantt.attachEvent('onAfterLinkAdd', async (_id: any, link: any) => {
           try {

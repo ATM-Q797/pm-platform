@@ -18,6 +18,7 @@ import {
 import { getDashboardStats } from '../api/dashboard'
 import { getResourceConflicts } from '../api/resources'
 import { runSnapshot } from '../api/analysis'
+import { getMe } from '../api/auth'
 import type { DashboardStats, ResourceConflict, ProjectHealthSummary } from '../types'
 
 // 项目分析弹窗懒加载（含 ECharts，避免影响看板首屏）
@@ -63,6 +64,8 @@ export default function DashboardPage() {
   const [riskOpen, setRiskOpen] = useState(false)
   // 8-1：快照采集进行中标记
   const [snapshotRunning, setSnapshotRunning] = useState(false)
+  // 观察者权限分级（用户 2026-11-11 需求 2/4）：viewer 隐藏导出/触发采集等变更动作
+  const [myRole, setMyRole] = useState<string>('viewer')
 
   // 风险队列守卫（评审 #59 🔵：版本偏斜时旧后端不返回 risk_queue，
   // 2026-11-05 本地白屏事故的根因模式——所有读取点统一走这份空数组兜底）
@@ -96,6 +99,7 @@ export default function DashboardPage() {
 
   useEffect(() => {
     load()
+    getMe().then((me) => setMyRole(me.role)).catch(() => {}) // 角色取失败按 viewer 保守处理（按钮隐藏）
   }, [])
 
   // 打开明细抽屉（冲突数据按需加载）
@@ -220,7 +224,10 @@ export default function DashboardPage() {
           数据截至 {stats.snapshot_date ?? '暂无快照'}
         </span>
         <Space>
-          <Button icon={<FileExcelOutlined />} onClick={() => window.open('/api/export/excel')}>导出 Excel</Button>
+          {/* 导出 Excel 对观察者不显示（用户 2026-11-11 权限分级需求 2） */}
+          {myRole !== 'viewer' && (
+            <Button icon={<FileExcelOutlined />} onClick={() => window.open('/api/export/excel')}>导出 Excel</Button>
+          )}
           <Button
             icon={<AlertOutlined style={{ color: '#e11d48' }} />}
             onClick={() => setRiskOpen(true)}
@@ -241,7 +248,7 @@ export default function DashboardPage() {
           style={{ marginBottom: 16 }}
           message="暂无快照数据"
           description="暂无快照数据，请在分析弹窗中触发采集；环比与数据日期将在采集后可用。"
-          action={<Button size="small" type="primary" loading={snapshotRunning} onClick={triggerSnapshot}>触发采集</Button>}
+          action={myRole !== 'viewer' ? <Button size="small" type="primary" loading={snapshotRunning} onClick={triggerSnapshot}>触发采集</Button> : undefined}
         />
       )}
 

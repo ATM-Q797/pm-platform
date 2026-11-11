@@ -238,10 +238,15 @@ export default function ProjectListPage() {
               新建项目
             </Button>
           )}
-          <ImportExcelButton onImport={excel.handleImport} loading={excel.previewLoading} />
-          <Button icon={<UploadOutlined />} onClick={() => window.open('/api/export/excel')}>
-            导出 Excel
-          </Button>
+          {/* 导入/导出对观察者不显示（用户 2026-11-11 权限分级需求 3）；新建项目守卫已含 viewer */}
+          {myRole !== 'viewer' && (
+            <>
+              <ImportExcelButton onImport={excel.handleImport} loading={excel.previewLoading} />
+              <Button icon={<UploadOutlined />} onClick={() => window.open('/api/export/excel')}>
+                导出 Excel
+              </Button>
+            </>
+          )}
           <Button icon={<ReloadOutlined />} onClick={load} />
         </Space>
       }
