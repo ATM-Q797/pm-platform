@@ -1,7 +1,8 @@
-/** 进度趋势区（8-3 按项目维度的历史趋势，PHASE8_PLAN §三；批次档 项目趋势-2026-11-10 §2 设计点 5）。
+/** 进度趋势（8-3 按项目维度的历史趋势，PHASE8_PLAN §三；批次档 项目趋势-2026-11-10 §2 设计点 5）。
  *
- * - 交互形态（用户 2026-11-11 裁定「下拉菜单式，点击即展开整个趋势卡，版面简洁」）：
- *   Collapse 折叠面板默认收起——收起时零请求零图表；每次展开重新拉取（拿最新数据）
+ * - 交互形态（用户 2026-11-11 两次裁定演进）：页头「进度趋势」入口（与变更情况并排）→
+ *   Modal 弹窗承载（ProjectDetailPage，destroyOnHidden）→ 弹窗内**直接显示**趋势卡，不再折叠
+ * - 挂载即请求（destroyOnHidden 每次打开重新挂载 → 拉最新数据；关闭即卸载回收 ECharts 实例）
  * - 两条线：计划累计完成度 vs 实际累计完成度（缺口即偏差）；四键 metrics 随快照定格
  * - 三类事件点渲染：延期红 / 冲突橙 / 计划变更蓝，hover 显明细
  * - 时间窗 30/90/365 切换（§3.4 时间窗三档）
@@ -12,7 +13,7 @@
  * - ECharts 按需引入（AnalysisModal 同款动态 import 单例，不引封装库）
  */
 import { useEffect, useRef, useState } from 'react'
-import { Card, Collapse, Segmented, Spin } from 'antd'
+import { Card, Segmented, Spin } from 'antd'
 import { getProjectTrend } from '../../api/projects'
 import { useTheme } from '../../theme'
 import type { ProjectTrend, ProjectTrendEvent } from '../../types'
@@ -64,16 +65,14 @@ interface Props {
 export default function TrendSection({ projectId }: Props) {
   const { mode } = useTheme()
   const [days, setDays] = useState<30 | 90 | 365>(30)
-  const [expanded, setExpanded] = useState(false) // 默认收起：版面简洁，点击展开才拉数据
   const [trend, setTrend] = useState<ProjectTrend | null>(null)
-  const [loading, setLoading] = useState(false) // 懒加载：展开前不请求
+  const [loading, setLoading] = useState(false) // 弹窗挂载即请求（用户 2026-11-11 二次裁定：弹窗内直接显示，不再折叠）
   const [hidden, setHidden] = useState(false) // 403（专项）等 → 面板整体隐藏
   const divRef = useRef<HTMLDivElement>(null)
   const chartRef = useRef<EChartsType | null>(null)
 
-  // 懒加载：展开才请求（每次展开重新拉取拿最新数据；收起零请求）
+  // 弹窗打开即挂载本组件（ProjectDetailPage Modal destroyOnHidden）——挂载即请求拉最新数据
   useEffect(() => {
-    if (!expanded) return
     let stale = false
     setHidden(false) // 项目切换复位：专项 403 残留不连累下一个项目（对齐 health 先例的按次重取）
     setLoading(true)
@@ -82,7 +81,7 @@ export default function TrendSection({ projectId }: Props) {
       .catch(() => { if (!stale) setHidden(true) }) // 专项 403 / 加载失败 → 隐藏区块（与 health 区块同模式）
       .finally(() => { if (!stale) setLoading(false) })
     return () => { stale = true }
-  }, [projectId, days, expanded])
+  }, [projectId, days])
 
   const points = trend?.points ?? []
   const events = trend?.events ?? []
@@ -122,13 +121,6 @@ export default function TrendSection({ projectId }: Props) {
           symbolSize: 10,
           symbolOffset: [0, -5], // 符号整体浮于轴线上方（y=0 贴网格底；y 正值向下会坠进刻度标签带——评审 #9 源码实证）
           itemStyle: { color: EVENT_COLOR[kind] },
-          tooltip: {
-            // formatter 参数按 ECharts CallbackDataParams 签名，data 经 as 收窄取自定义 tip 字段
-            formatter: (p: unknown) => {
-              const d = (p as { data?: { tip?: string } }).data
-              return d?.tip ?? ''
-            },
-          },
         }
       })
 
@@ -138,7 +130,7 @@ export default function TrendSection({ projectId }: Props) {
         tooltip: {
           // 全局 formatter（axis 联动）：系列级 formatter 在 trigger:'axis' 下不被调用
           // （echarts 源码：axis 路径 model 级联不含系列模型；item 路径 trigger≠'item' 恒返回）——
-          // 事件点明细 tip 必须在此按 seriesName 拼出（评审 #8 🔴）
+          // 事件点明细 tip 必须在此经 data.tip 拼出（评审 #8 🔴）
           trigger: 'axis',
           formatter: (params: unknown) => {
             const list = (Array.isArray(params) ? params : [params]) as {
@@ -205,73 +197,53 @@ export default function TrendSection({ projectId }: Props) {
   if (hidden) return null
 
   return (
-    <Card size="small" styles={{ body: { padding: 0 } }}>
-      <Collapse
-        activeKey={expanded ? ['trend'] : []}
-        onChange={(keys) => setExpanded(keys.includes('trend'))}
-        items={[{
-          key: 'trend',
-          label: (
-            <span style={{ display: 'inline-flex', alignItems: 'center', gap: 8 }}>
-              进度趋势
-              <span style={{ fontSize: 12, color: 'var(--text-tertiary)' }}>
-                计划 vs 实际 · 事件点 · 点击展开
-              </span>
-            </span>
-          ),
-          // 展开后 header 右侧常驻时间窗切换（stopPropagation 避免点切换误收面板）
-          extra: expanded ? (
-            <span onClick={(e) => e.stopPropagation()}>
-              <Segmented
-                size="small"
-                value={days}
-                onChange={(v) => setDays(v as 30 | 90 | 365)}
-                options={[
-                  { label: '30 天', value: 30 },
-                  { label: '90 天', value: 90 },
-                  { label: '365 天', value: 365 },
-                ]}
-              />
-            </span>
-          ) : undefined,
-          children: (
-            <div style={{ padding: '4px 4px 8px' }}>
-              {loading ? (
-                <Spin style={{ display: 'block', margin: '48px auto' }} />
-              ) : !hasData ? (
-                <div style={{ textAlign: 'center', color: 'var(--text-tertiary)', padding: '36px 0' }}>
-                  数据积累中 — 快照每日自动采集（只拍未开始/进行中项目），从上线日起算
-                </div>
-              ) : (
-                <>
-                  {points.length < ACCUMULATING_TARGET_DAYS && (
-                    <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 4 }}>
-                      数据积累中（尚需 {daysNeeded} 天）
-                    </div>
-                  )}
-                  {trend?.frozen && (
-                    <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 4 }}>
-                      项目已搁置 · 趋势冻结于 {trend.frozen_date ?? '—'}
-                    </div>
-                  )}
-                  <div ref={divRef} style={{ height: 260 }} />
-                  <div style={{ fontSize: 12, color: 'var(--text-tertiary)', marginTop: 4 }}>
-                    缺口即偏差（计划 vs 实际）· 停机/未采集日曲线断开不补零
-                    {events.length > 0 && (
-                      <>
-                        {' '}· 事件点：
-                        <span style={{ color: EVENT_COLOR.delayed }}>● 延期</span>
-                        <span style={{ color: EVENT_COLOR.conflict, marginLeft: 8 }}>● 冲突</span>
-                        <span style={{ color: EVENT_COLOR.plan_change, marginLeft: 8 }}>● 计划变更</span>
-                      </>
-                    )}
-                  </div>
-                </>
-              )}
+    <Card
+      size="small"
+      title="进度趋势"
+      extra={
+        <Segmented
+          value={days}
+          onChange={(v) => setDays(v as 30 | 90 | 365)}
+          options={[
+            { label: '30 天', value: 30 },
+            { label: '90 天', value: 90 },
+            { label: '365 天', value: 365 },
+          ]}
+        />
+      }
+    >
+      {loading ? (
+        <Spin style={{ display: 'block', margin: '48px auto' }} />
+      ) : !hasData ? (
+        <div style={{ textAlign: 'center', color: 'var(--text-tertiary)', padding: '36px 0' }}>
+          数据积累中 — 快照每日自动采集（只拍未开始/进行中项目），从上线日起算
+        </div>
+      ) : (
+        <>
+          {points.length < ACCUMULATING_TARGET_DAYS && (
+            <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 4 }}>
+              数据积累中（尚需 {daysNeeded} 天）
             </div>
-          ),
-        }]}
-      />
+          )}
+          {trend?.frozen && (
+            <div style={{ fontSize: 12, color: 'var(--text-secondary)', marginBottom: 4 }}>
+              项目已搁置 · 趋势冻结于 {trend.frozen_date ?? '—'}
+            </div>
+          )}
+          <div ref={divRef} style={{ height: 260 }} />
+          <div style={{ fontSize: 12, color: 'var(--text-tertiary)', marginTop: 4 }}>
+            缺口即偏差（计划 vs 实际）· 停机/未采集日曲线断开不补零
+            {events.length > 0 && (
+              <>
+                {' '}· 事件点：
+                <span style={{ color: EVENT_COLOR.delayed }}>● 延期</span>
+                <span style={{ color: EVENT_COLOR.conflict, marginLeft: 8 }}>● 冲突</span>
+                <span style={{ color: EVENT_COLOR.plan_change, marginLeft: 8 }}>● 计划变更</span>
+              </>
+            )}
+          </div>
+        </>
+      )}
     </Card>
   )
 }

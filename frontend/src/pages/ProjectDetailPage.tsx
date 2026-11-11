@@ -269,9 +269,9 @@ export default function ProjectDetailPage() {
         )}
       </Card>
 
-      {/* 进度趋势弹窗（8-3，用户 2026-11-11 裁定：与变更情况并排入口 + 弹窗显示）：
-          destroyOnClose 保证每次打开重新挂载 TrendSection（懒加载逻辑自洽——展开态由其内部 Collapse 维持，
-          打开即拉数据；关闭即卸载回收 ECharts 实例）。专项 403 → TrendSection 自隐藏（弹窗空内容） */}
+      {/* 进度趋势弹窗（8-3，用户 2026-11-11 两次裁定演进：与变更情况并排入口 + 弹窗直接显示，不再折叠）：
+          destroyOnHidden 保证每次打开重新挂载 TrendSection（挂载即拉最新数据；关闭即卸载回收 ECharts 实例）。
+          专项 403 / 加载失败 → TrendSection 自隐藏（弹窗空内容；瞬时故障无提示属已知取舍，与健康度区块同模式） */}
       <Modal
         title="进度趋势"
         open={trendOpen}
