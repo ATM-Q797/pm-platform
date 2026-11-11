@@ -1,7 +1,7 @@
 import { useEffect, useState, useCallback } from 'react'
 import { useParams, useNavigate } from 'react-router-dom'
 import { Card, Descriptions, Tag, Button, Space, Segmented, Spin, message, Switch, Result, Modal, Timeline, Empty } from 'antd'
-import { ArrowLeftOutlined, PlusOutlined, StarFilled, StarOutlined, EditOutlined, HistoryOutlined } from '@ant-design/icons'
+import { ArrowLeftOutlined, PlusOutlined, StarFilled, StarOutlined, EditOutlined, HistoryOutlined, LineChartOutlined } from '@ant-design/icons'
 import { getProject, setFavorite, getCriticalPath, getProjectHealth } from '../api/projects'
 import { getMe } from '../api/auth'
 import { listDataChangeEvents } from '../api/audit'
@@ -89,6 +89,8 @@ export default function ProjectDetailPage() {
   const [events, setEvents] = useState<DataChangeEvent[]>([])
   const [timelineOpen, setTimelineOpen] = useState(false)
   const [eventLimit, setEventLimit] = useState(50)
+  // 进度趋势（8-3，用户 2026-11-11 裁定改弹窗式）：入口在页头与「变更情况」并排
+  const [trendOpen, setTrendOpen] = useState(false)
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -202,6 +204,10 @@ export default function ProjectDetailPage() {
               <Button size="small" type="link" icon={<HistoryOutlined />} onClick={() => setTimelineOpen(true)}>
                 变更情况
               </Button>
+              {/* 进度趋势入口（8-3，用户 2026-11-11 裁定：与变更情况并排，点击弹窗显示） */}
+              <Button size="small" type="link" icon={<LineChartOutlined />} onClick={() => setTrendOpen(true)}>
+                进度趋势
+              </Button>
             </Space>
           }
         >
@@ -263,10 +269,19 @@ export default function ProjectDetailPage() {
         )}
       </Card>
 
-      {/* 进度趋势区（8-3）：双线 + 三类事件点 + 时间窗切换；专项 403 → 区块自隐藏 */}
-      <div style={{ marginBottom: 16 }}>
+      {/* 进度趋势弹窗（8-3，用户 2026-11-11 裁定：与变更情况并排入口 + 弹窗显示）：
+          destroyOnClose 保证每次打开重新挂载 TrendSection（懒加载逻辑自洽——展开态由其内部 Collapse 维持，
+          打开即拉数据；关闭即卸载回收 ECharts 实例）。专项 403 → TrendSection 自隐藏（弹窗空内容） */}
+      <Modal
+        title="进度趋势"
+        open={trendOpen}
+        onCancel={() => setTrendOpen(false)}
+        footer={null}
+        width={820}
+        destroyOnHidden
+      >
         <TrendSection projectId={projectId} />
-      </div>
+      </Modal>
 
       {/* 变更情况弹窗（P1）：字段级审计历史，数据同时作为分析板块数据源 */}
       <Modal
