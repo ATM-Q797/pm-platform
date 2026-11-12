@@ -1,6 +1,6 @@
 """项目分析 API（PROJECT_ANALYSIS §3.2）。
 
-- POST /api/analysis/snapshots/run  admin 手动触发/部署日建基线
+- POST /api/analysis/snapshots/run  admin/观察者 手动触发/部署日建基线
   （幂等：首次 201 建行、同日再调 200 skipped；日常积累走 jobs/snapshot.py CLI + crontab）
 - GET  /api/analysis/trend?days=30|90|180  登录即可（与看板一致）——日级点位 + 周级聚合
 """
