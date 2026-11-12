@@ -1,6 +1,6 @@
 import { useEffect, useState, lazy, Suspense } from 'react'
 import { Routes, Route, useNavigate, useLocation, Navigate } from 'react-router-dom'
-import { Layout, Menu, Spin, Dropdown, Space, Tag, Avatar, Button } from 'antd'
+import { Layout, Menu, Spin, Dropdown, Space, Avatar, Button } from 'antd'
 import {
   DashboardOutlined,
   ProjectOutlined,
@@ -35,21 +35,6 @@ const AdminCenterPage = lazy(() => import('./pages/AdminCenterPage'))
 
 const { Header, Content } = Layout
 
-// 角色显示名 + Tag 颜色
-const ROLE_LABEL: Record<string, string> = {
-  admin: '管理员',
-  manager: '项目负责人',
-  engineer: '工程师',
-  viewer: '观察者',
-  reporter: '填报人',
-}
-const ROLE_COLOR: Record<string, string> = {
-  admin: 'red',
-  manager: 'blue',
-  engineer: 'green',
-  viewer: 'default',
-  reporter: 'purple',
-}
 
 export default function App() {
   const navigate = useNavigate()
@@ -234,7 +219,6 @@ export default function App() {
               <div style={{ color: 'var(--text-primary)', display: 'flex', alignItems: 'center', gap: 8, cursor: 'pointer', padding: '4px 8px', borderRadius: 6, transition: 'background .2s' }} className="header-user">
                 <Avatar size={28} className="pm-avatar" style={{ flexShrink: 0 }}>{user.name.charAt(0)}</Avatar>
                 <span>{user.name}</span>
-                <Tag color={ROLE_COLOR[user.role] || 'default'} style={{ margin: 0 }}>{ROLE_LABEL[user.role]}</Tag>
                 <DownOutlined style={{ fontSize: 10 }} />
               </div>
             </Dropdown>

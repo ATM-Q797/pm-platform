@@ -247,17 +247,23 @@ def test_build_trend_pure_function():
 
 # ---------- 权限与校验 ----------
 
-def test_snapshot_run_requires_admin(client, db_session):
-    """run 仅 admin（403）；trend 登录即可（工程师 200）。"""
+def test_snapshot_run_permission(client, db_session):
+    """run 仅 admin/观察者（用户 2026-11-12 裁定：观察者数据刷新放行）；工程师维持 403；trend 登录即可（工程师 200）。"""
     from app.core.security import hash_password
     from app.models import User
 
     db_session.add(User(username="snapshot_eng", name="快照工程师", role="engineer",
                         password_hash=hash_password("engpass"), must_change_password=False))
+    db_session.add(User(username="snapshot_viewer", name="快照观察者", role="viewer",
+                        password_hash=hash_password("viewpass"), must_change_password=False))
     db_session.commit()
     client.post("/api/auth/login", json={"username": "snapshot_eng", "password": "engpass"})
 
     assert client.post("/api/analysis/snapshots/run").status_code == 403
+    assert client.get("/api/analysis/trend?days=30").status_code == 200
+    # 观察者：数据刷新放行（用户 2026-11-12 裁定——派生数据重采不属业务数据编辑）
+    client.post("/api/auth/login", json={"username": "snapshot_viewer", "password": "viewpass"})
+    assert client.post("/api/analysis/snapshots/run").status_code in (200, 201)
     assert client.get("/api/analysis/trend?days=30").status_code == 200
 
 

@@ -28,11 +28,13 @@ def run_snapshot(
     response: Response,
     force: bool = False,
     db: Session = Depends(get_db),
-    _user: User = Depends(require_role("admin")),
+    _user: User = Depends(require_role("admin", "viewer")),
 ) -> SnapshotRunResult:
     """手动触发当日快照（幂等：建行 201 / 当日已有 200）。
 
     force=True（分析弹窗"数据刷新"按钮）：当日已有也重新采集覆盖，立即反映最新项目数据。
+    角色门：admin/观察者（用户 2026-11-12 裁定「这个权限还是要给的」——数据刷新是派生数据重采，
+    不属业务数据编辑；工程师权限维持原状 403）。reporter 由封锁矩阵挡（/api/analysis 非放行面）。
     """
     snapshot, created = create_today_if_absent(db, force=force)
     response.status_code = 201 if created else 200
