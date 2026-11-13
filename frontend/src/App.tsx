@@ -265,14 +265,14 @@ export default function App() {
                   ? <Navigate to="/report" replace />
                   : <Navigate to="/" replace />
               } />
+               {/* 资源负载（过程审计归组后第 4 Tab 在此）：admin/manager/engineer 可见——
+                   engineer 仅见「过程审计」Tab（用户 2026-11-13 功能优化裁定 ①） */}
                <Route path="/resources" element={
-                 user.role === 'engineer'
-                  ? <Navigate to="/projects" replace />
-                  : user.role === 'viewer'
-                  ? <Navigate to="/" replace />
+                 user.role === 'admin' || user.role === 'manager' || user.role === 'engineer'
+                  ? <ResourcePage />
                   : user.role === 'reporter'
                   ? <Navigate to="/report" replace />
-                  : <ResourcePage />
+                  : <Navigate to="/" replace />
               } />
                {/* 审核管理中心（用户管理+审核中心双板块） */}
                <Route path="/admin-center" element={
@@ -282,6 +282,9 @@ export default function App() {
                      ? <Navigate to="/report" replace />
                      : <Navigate to="/projects" replace />
                } />
+               {/* 过程审计已归组进资源负载页第 4 Tab（用户 2026-11-13 功能优化）——旧路径重定向，
+                   角色守卫由 /resources 统一接管；API 层维持登录可见（审计透明，reporter 由封锁矩阵挡） */}
+               <Route path="/process-audit" element={<Navigate to="/resources" replace />} />
                {/* 旧路径重定向 */}
                <Route path="/users" element={<Navigate to="/admin-center" replace />} />
                <Route path="/review" element={<Navigate to="/admin-center" replace />} />

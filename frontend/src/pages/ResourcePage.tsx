@@ -4,16 +4,20 @@ import ResourceView from '../components/Resource/ResourceView'
 import HeatmapView from '../components/Resource/HeatmapView'
 import PhaseEditor from '../components/PhaseEditor/PhaseEditor'
 import TeamEfficiencyPage from './TeamEfficiencyPage'
+import ProcessAuditPage from './ProcessAuditPage'
 import { getMe } from '../api/auth'
 
-type ViewTab = 'heatmap' | 'gantt' | 'efficiency'
+type ViewTab = 'heatmap' | 'gantt' | 'efficiency' | 'audit'
 
 /**
- * 资源负载页面：双 Tab（热力图 | 甘特，默认热力图，RESOURCE_HEATMAP §3.1）。
+ * 资源负载页面：四 Tab（热力图 | 甘特 | 效率分析 | 过程审计，默认热力图；RESOURCE_HEATMAP §3.1）。
  *
  * - 热力图：人员 × 时间负载矩阵，谁忙/谁闲/谁撞车一眼可读（只读）
  * - 甘特：每人一行多行甘特（只读）；冲突消除唯一入口——点击黄色冲突条
  *   消除该甘特条（该阶段不计入该人员并行计算，CONFLICT_MODEL_V2 v2.1）
+ * - 效率分析：六指标 + 完成率 Top + 岗位负荷（admin/manager）
+ * - 过程审计：P3 三指标（计划稳定性/估算偏差/审批时效）——原独立页归组至此，导航不再单列
+ *   （用户 2026-11-13 功能优化）；engineer 仅见本 Tab（裁定 ①）
  * - 冲突报告与消除记录在「审核中心 → 资源冲突」（用户 2026-08-28 决策 ④）
  * 所有阶段调整请在项目管理页面操作。
  */
@@ -27,8 +31,15 @@ export default function ResourcePage() {
   // 抽屉/审核中心）联动。
   const [conflictVersion, setConflictVersion] = useState(0)
   const [userRole, setUserRole] = useState('')
-  useEffect(() => { getMe().then(u => setUserRole(u.role)).catch(() => {}) }, [])
+  const [roleLoaded, setRoleLoaded] = useState(false)
+  useEffect(() => {
+    getMe().then((u) => {
+      setUserRole(u.role)
+      if (u.role === 'engineer') setTab('audit') // 裁定 ①：engineer 仅见过程审计 Tab——落页即入
+    }).catch(() => {}).finally(() => setRoleLoaded(true))
+  }, [])
   const canEfficiency = userRole === 'admin' || userRole === 'manager'
+  const canAudit = userRole === 'admin' || userRole === 'manager' || userRole === 'engineer'
   const bumpConflict = () => {
     setConflictVersion((v) => v + 1)
     window.dispatchEvent(new Event('conflict-changed'))
@@ -44,6 +55,7 @@ export default function ResourcePage() {
   return (
     <Card
       className="pm-no-blur"
+      loading={!roleLoaded} /* 角色未就绪先骨架——防 engineer 瞬闪资源视图（裁定 ①） */
       title={
         <Space>
           <span>资源负载视图</span>
@@ -51,36 +63,33 @@ export default function ResourcePage() {
             <Tag color="blue">人员 × 时间负载矩阵 · 谁忙/谁闲/谁撞车</Tag>
           ) : tab === 'efficiency' ? (
             <Tag color="blue">六指标 · 完成率 Top · 岗位负荷分布</Tag>
+          ) : tab === 'audit' ? (
+            <Tag color="blue">三指标 · 计划稳定性 / 估算偏差 / 审批时效</Tag>
           ) : (
             <Tag color="blue">每人一行 · 显示所有参与项目</Tag>
           )}
         </Space>
       }
       extra={
-        tab === 'heatmap' ? (
-          <Segmented
-            options={[
-              { label: '热力图', value: 'heatmap' },
-              { label: '甘特', value: 'gantt' },
-              ...(canEfficiency ? [{ label: '效率分析', value: 'efficiency' }] : []),
-            ]}
-            value={tab}
-            onChange={(val) => setTab(val as ViewTab)}
-          />
-        ) : (
-          <Segmented
-            options={[
-              { label: '热力图', value: 'heatmap' },
-              { label: '甘特', value: 'gantt' },
-              ...(canEfficiency ? [{ label: '效率分析', value: 'efficiency' }] : []),
-            ]}
-            value={tab}
-            onChange={(val) => setTab(val as ViewTab)}
-          />
-        )
+        <Segmented
+          options={[
+            ...(canEfficiency
+              ? [
+                  { label: '热力图', value: 'heatmap' },
+                  { label: '甘特', value: 'gantt' },
+                  { label: '效率分析', value: 'efficiency' },
+                ]
+              : []),
+            ...(canAudit ? [{ label: '过程审计', value: 'audit' }] : []),
+          ]}
+          value={tab}
+          onChange={(val) => setTab(val as ViewTab)}
+        />
       }
     >
-      {tab === 'heatmap' ? (
+      {tab === 'audit' ? (
+        <ProcessAuditPage embedded />
+      ) : tab === 'heatmap' ? (
         <HeatmapView conflictVersion={conflictVersion} />
       ) : tab === 'efficiency' ? (
         <TeamEfficiencyPage />
@@ -137,10 +146,12 @@ export default function ResourcePage() {
         readonly
         hideExtra
       />
-      <div style={{ marginTop: 8, fontSize: 12, color: 'var(--text-tertiary)' }}>
-        冲突消除统一在甘特图：点击黄色冲突条 → 消除该甘特条（该阶段不计入该人员的并行计算）。
-        冲突报告与消除记录见「审核中心 → 资源冲突」。
-      </div>
+      {tab !== 'audit' && (
+        <div style={{ marginTop: 8, fontSize: 12, color: 'var(--text-tertiary)' }}>
+          冲突消除统一在甘特图：点击黄色冲突条 → 消除该甘特条（该阶段不计入该人员的并行计算）。
+          冲突报告与消除记录见「审核中心 → 资源冲突」。
+        </div>
+      )}
     </Card>
   )
 }

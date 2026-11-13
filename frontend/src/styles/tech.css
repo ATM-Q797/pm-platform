@@ -20,7 +20,8 @@ body {
     radial-gradient(ellipse at 20% 0%, rgba(123, 97, 255, 0.12), transparent 50%);
 }
 
-/* ---------- 2. 全局过渡（仅背景/边框/阴影，0.25s，性能红线） ---------- */
+/* ---------- 2. 全局过渡（仅 background-color/border-color/box-shadow/color，0.25s，性能红线） ---------- */
+/* 属性集含 color（文字色）：主题切换后各表面/文字/影调同步淡变、无瞬切（3.3 用户裁定 2026-11-13） */
 .ant-card,
 .ant-btn,
 .ant-menu .ant-menu-item,
@@ -29,6 +30,7 @@ body {
     background-color 0.25s,
     border-color 0.25s,
     box-shadow 0.25s,
+    color 0.25s,
     transform 0.25s;
 }
 
@@ -268,4 +270,19 @@ body {
   .ant-card:hover {
     transform: none;
   }
+}
+
+/* ---------- 信息填报页展开行高亮（用户 2026-11-13 功能优化 3） ----------
+   点击项目行展开编辑时整行高亮 + 左侧 accent 色条，一眼可辨当前编辑行。
+   作用于 rowClassName 挂的 .pm-report-row-expanded（ReportPage 两个列表同源）；
+   td 级上色（antd td 自带背景会盖 tr 背景），hover 加深一档。
+   对比度按用户 2026-11-13 反馈加强（原 0.08/0.13 差异不足）：0.18/0.28 + 5px 色条。 */
+.ant-table-tbody > tr.pm-report-row-expanded > td {
+  background: rgba(0, 212, 255, 0.18);
+}
+.ant-table-tbody > tr.pm-report-row-expanded:hover > td {
+  background: rgba(0, 212, 255, 0.28);
+}
+.ant-table-tbody > tr.pm-report-row-expanded > td:first-child {
+  box-shadow: inset 5px 0 0 var(--accent, #00d4ff);
 }

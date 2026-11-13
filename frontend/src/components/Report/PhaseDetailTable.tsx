@@ -291,10 +291,12 @@ export default function PhaseDetailTable({
     {
       title: '备注',
       dataIndex: 'remark',
+      width: 150, // 保底宽——窄屏下输入框不挤压成竖条（用户 2026-11-13 功能优化 2）
       render: (v: string | null, r) =>
         r.editable.remark ? (
-          <Input
+          <Input.TextArea
             size="small"
+            autoSize={{ minRows: 1, maxRows: 4 }}
             defaultValue={v ?? ''}
             placeholder="选填"
             onBlur={(e) => {
@@ -303,7 +305,7 @@ export default function PhaseDetailTable({
             }}
           />
         ) : (
-          <span style={{ color: 'var(--text-secondary)' }}>{v || '—'}</span>
+          <span style={{ color: 'var(--text-secondary)', whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{v || '—'}</span>
         ),
     },
     {
@@ -429,12 +431,12 @@ export default function PhaseDetailTable({
             detail.managed_by_name ?? detail.owner ?? '—'
           )}
         </span>
-        <span style={{ flex: 1, minWidth: 200 }}>
+        <span style={{ flex: 1, minWidth: 220, display: 'inline-flex', alignItems: 'center', gap: 4 }}>
           备注：
           {pe.remark ? (
-            <NameInput value={detail.remark ?? ''} onSave={(r) => patchProject({ remark: r })} placeholder="选填" />
+            <NameInput value={detail.remark ?? ''} onSave={(r) => patchProject({ remark: r })} placeholder="选填" multiline />
           ) : (
-            detail.remark || '—'
+            <span style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{detail.remark || '—'}</span>
           )}
         </span>
         {/* 删除项目（用户 2026-10-29 需求 3）：主行备注右侧；仅项目负责人及管理员；不可恢复 */}
@@ -569,11 +571,30 @@ function NameInput({
   value,
   onSave,
   placeholder,
+  multiline,
 }: {
   value: string
   onSave: (v: string) => void
   placeholder?: string
+  multiline?: boolean
 }) {
+  /* 备注类字段走 multiline：TextArea 自适应增高（1-4 行），屏幕窄时换行显示
+     （用户 2026-11-13 功能优化 2）；保存语义与单行版一致（失焦保存、不许清空） */
+  if (multiline) {
+    return (
+      <Input.TextArea
+        size="small"
+        autoSize={{ minRows: 1, maxRows: 4 }}
+        style={{ flex: 1, minWidth: 0, maxWidth: 420 }}
+        defaultValue={value}
+        placeholder={placeholder}
+        onBlur={(e) => {
+          const v = e.target.value.trim()
+          if (v && v !== value) onSave(v)
+        }}
+      />
+    )
+  }
   return (
     <Input
       size="small"

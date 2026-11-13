@@ -181,10 +181,9 @@ export default function ReportPage({ user }: { user: UserInfo }) {
     {
       title: '备注',
       dataIndex: 'remark',
-      ellipsis: true,
       render: (v: string | null) => (
         <Tooltip title={v || undefined}>
-          <Text type="secondary">{v || '—'}</Text>
+          <Text type="secondary" style={{ whiteSpace: 'pre-wrap', wordBreak: 'break-word' }}>{v || '—'}</Text>
         </Tooltip>
       ),
     },
