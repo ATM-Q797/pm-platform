@@ -9,6 +9,7 @@ import App from './App.tsx'
 import { ThemeProvider, useTheme } from './theme.tsx'
 import './index.css'
 import './styles/tech.css' // 科技感视觉层（须在 index.css 之后）
+import './styles/neu.css' // 拟态视觉层（须在 tech.css 之后）
 
 dayjs.locale('zh-cn')
 
