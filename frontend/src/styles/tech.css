@@ -150,7 +150,7 @@ body {
   color: var(--text-primary);
 }
 :root:not([data-theme='dark']) .pm-stat-value.pm-stat-danger {
-  color: var(--stat-color, #e11d48);
+  color: var(--stat-color, var(--neu-danger)); /* 兜底值改语义 token 直取（neu.css 1b；原 #e11d48 写死） */
 }
 
 /* ---------- 7. 「今日聚焦」左侧电青竖线 ---------- */
@@ -211,9 +211,10 @@ body {
 .pm-toolbar {
   background: var(--glass-bg);
   border: 1px solid var(--glass-border);
-  border-radius: 12px;
-  padding: 12px 16px;
-  margin-bottom: 16px;
+  /* 间距/圆角 token 直取（neu.css 1c 间距节奏/圆角；原 12px/16px 写死，值不变） */
+  border-radius: var(--neu-radius-lg);
+  padding: var(--neu-space-3) var(--neu-space-4);
+  margin-bottom: var(--neu-space-4);
   box-shadow: var(--glass-highlight);
 }
 

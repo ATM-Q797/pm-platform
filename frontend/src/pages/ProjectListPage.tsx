@@ -325,7 +325,7 @@ export default function ProjectListPage() {
         width={520}
         okText="创建"
       >
-        <Form form={form} layout="vertical" style={{ marginTop: 16 }}
+        <Form form={form} layout="vertical" style={{ marginTop: 'var(--neu-space-4)' }} /* 上距 token 直取（neu.css 1c；原 16 写死） */
           initialValues={{ category: '新需求', market: MARKET_OPTIONS[0], status: '未开始' }}>
           <Form.Item name="name" label="项目名称" rules={[{ required: true, message: '请输入项目名称' }]}>
             <Input placeholder="项目全称" />

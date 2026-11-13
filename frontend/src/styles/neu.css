@@ -42,6 +42,60 @@
   --neu-soft-light: rgba(255, 255, 255, 0.1);
 }
 
+/* ---------- 1b. 内页语义色 token（双模式） ----------
+   值源 = docs/UI_TECH_STYLE.md 1.2 色值体系 + 对比度纪律（浅色文字对卡面 ≥ 4.5:1；
+   括号内比值 = 对浅卡 #fcfcfe / 深浮层 #141b2d 的 WCAG 文字实测）。
+   语义色一律取「文字级」值（小字过线为准，图标同值）；图标块淡染底 --neu-*-bg 随语义色自动收敛。 */
+:root,
+[data-theme='light'] {
+  --neu-success: #15803d; /* 1.2 成功浅 #16a34a 作小字仅 3.2:1 → 下沉深绿（4.9:1） */
+  --neu-danger: #e11d48; /* 1.2 危险浅（4.6:1） */
+  --neu-warning: #b45309; /* 1.2 警告浅 #d97706 作文字仅 3.1:1 → 取深档（4.9:1；main.tsx colorWarning 同值） */
+  --neu-orange: #c2410c; /* 冲突橙浅（5.1:1） */
+}
+[data-theme='dark'] {
+  --neu-success: #22e58a; /* 1.2 成功深（10.3:1） */
+  --neu-danger: #ff4d6d; /* 1.2 危险深（5.3:1） */
+  --neu-warning: #fbbf24; /* 1.2 警告深（10.3:1） */
+  --neu-orange: #fa8c16; /* 冲突橙深（7.2:1） */
+}
+:root {
+  /* 1.2 主色/辅色：index.css 双套 token 别名直取（不另存值，单一值源） */
+  --neu-info: var(--primary); /* 1.2 主色：浅 #0369a1（5.8:1）/ 深 #00d4ff（9.7:1） */
+  --neu-violet: var(--accent-purple); /* 1.2 辅色：仅图标/渐变点缀不作文字色（图形口径 ≥ 3:1） */
+  /* 图标块淡染底（alpha = 各卡现行光学权重，与改造前同值同权重） */
+  --neu-info-bg: color-mix(in srgb, var(--neu-info) 10%, transparent);
+  --neu-success-bg: color-mix(in srgb, var(--neu-success) 12%, transparent);
+  --neu-danger-bg: color-mix(in srgb, var(--neu-danger) 12%, transparent);
+  --neu-warning-bg: color-mix(in srgb, var(--neu-warning) 14%, transparent);
+  --neu-orange-bg: color-mix(in srgb, var(--neu-orange) 12%, transparent);
+  --neu-violet-bg: color-mix(in srgb, var(--neu-violet) 12%, transparent);
+  /* 统计卡顶部渐变条（每卡不同色相——UI_TECH_STYLE 三·看板 6 卡行）：
+     渐变点缀双模式同值（1.2 辅色口径：点缀不作文字色；值 = 改造前渐变条直取） */
+  --neu-bar-total: linear-gradient(90deg, #00d4ff, #7b61ff);
+  --neu-bar-active: linear-gradient(90deg, #22e58a, #00d4ff);
+  --neu-bar-delayed: linear-gradient(90deg, #ff4d6d, #fa8c16);
+  --neu-bar-due: linear-gradient(90deg, #fbbf24, #fa8c16);
+  --neu-bar-conflict: linear-gradient(90deg, #fa8c16, #ff4d6d);
+  --neu-bar-rework: linear-gradient(90deg, #7b61ff, #00d4ff);
+}
+
+/* ---------- 1c. 间距节奏 / 圆角（内页统一体；双模式同值） ----------
+   间距 = 4px 基格 + 2px 光学微调步（级位命名同 Tailwind）；圆角对齐全局 antd borderRadius: 10（main.tsx）。 */
+:root {
+  --neu-space-0-5: 2px; /* 光学微调步（标题↔数值贴距） */
+  --neu-space-1: 4px;
+  --neu-space-1-5: 6px;
+  --neu-space-2: 8px;
+  --neu-space-3: 12px; /* 筛选栏内距（tech.css P2.1 .pm-toolbar 现值直取；级位命名同 Tailwind space-3） */
+  --neu-space-4: 16px;
+  --neu-space-8: 32px;
+  --neu-space-12: 48px;
+  --neu-radius-md: 10px; /* 图标块/控件（对齐全局 antd borderRadius: 10） */
+  --neu-radius-lg: 12px; /* 容器/筛选栏（tech.css P2.1 .pm-toolbar 现值直取；3.2 中圆角档 12-16px） */
+  --neu-radius-full: 50%; /* 圆点/圆形 */
+}
+
 /* ---------- 2. 登录页容器 + 垫底渐变兜底（3.1 兜底：图未达/加载失败不露白） ---------- */
 /* 登录页恒深色（2026-11-13 用户裁定）：色值不再随 html[data-theme] 切换，
    本容器自取深色套（data-mode="dark" 选择器自持）；换肤只在进入平台后生效。 */
@@ -53,7 +107,7 @@
   background: radial-gradient(1200px 600px at 50% -10%, #1a2332 0%, #0f1115 60%);
 }
 
-/* ---------- 3. 双壁纸层（3.1）：随 data-theme 0.25s 交叉淡变 + Ken Burns 缩放动态 ---------- */
+/* ---------- 3. 壁纸层（3.1）：深色单版恒显（登录页恒深色，无换肤交叉淡变）+ Ken Burns 缩放动态 ---------- */
 .pm-login > .neu-wall {
   position: absolute;
   inset: 0;
@@ -264,7 +318,9 @@
     border-color 0.25s ease-in-out;
 }
 .pm-login .login-field::placeholder {
-  color: #8b93a3; /* 恒深色套 --neu-text-muted */
+  /* #8b93a3（恒深色套 --neu-text-muted）对输入框合成底 rgb(52,56,67) 仅 3.78:1 < 4.5:1 → 提亮 #a3abb8（≈ 5.2:1）；
+     页脚/显隐眼同值处各自达标（页脚 6.16:1、图形 ≥3:1），不动 */
+  color: #a3abb8;
 }
 .pm-login .login-field:focus-visible {
   outline: none;

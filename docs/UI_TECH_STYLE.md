@@ -1,6 +1,6 @@
 # 科技感 UI 设计文档 —「深空驾驶舱」(Deep Space Console)
 
-> **版本**: v1.1 | **日期**: 2026-08-26 | **状态**: 待评审（评审后修订）
+> **版本**: v1.1 | **日期**: 2026-08-26（2026-11-13 增补用户裁定注记） | **状态**: 已评审处置（2026-08-26 评审处置 + 2026-11-13 批 1 注记落档）
 > **方案基础**: 五模型会诊（GLM/MiniMax/DeepSeek/Mimo/Kimi），**以 Kimi K3 方案为主**，融合共识要素
 > **实施模型**: eng-coder 使用 `kimi:kimi-k3`
 
@@ -106,8 +106,8 @@ components: {
 | **项目列表** | `ProjectListPage.tsx` | 表格 headerBg 玻璃化、行 hover 青色光晕；状态 Tag 加 `box-shadow: 0 0 6px currentColor` 微光；筛选栏包玻璃容器 |
 | **详情+甘特** | `ProjectDetailPage.tsx` + `gantt.css` | 甘特只改变量值：`--gantt-active` 系改青蓝渐变（`linear-gradient(180deg,#00d4ff,#0090c8)`）；关键路径红框发光加强 + 2s 呼吸动画；今日线加 glow；依赖连线青色 |
 | **资源负载** | `ResourcePage.tsx` + `resourceView.css` | 复用变量；冲突 ⚠ 黄框发光动画 |
-| **周报** | ~~`ReportPage.tsx` + index.css~~ | ⚠️ **2026-08-26 已整体移除**（用户决定，待重新规划；`.report-markdown` 样式随页面删除，`phase.updated_at` 列保留） |
-| **登录页** | `LoginPage.tsx` | 保持 DeepSeek 风 + **Canvas 动态网格**（`components/LoginGridCanvas.tsx`）：多层正弦叠加波场涌动（随机水波感）+ 指针扰动（高斯衰减半径 160px，方向=推开）+ 速度感知（振幅随移动速度 0.6-3× 缩放）；32px 网格、DPR 适配、`prefers-reduced-motion` 静态降级、触屏纯涌动 + 输入框 focus 发光环 `0 0 0 2px rgba(0,212,255,.3)` |
+| **周报** | （无页面） | 2026-08-26 已整体移除（用户决定，待重新规划；`.report-markdown` 样式随页面删除，`phase.updated_at` 列保留） |
+| **登录页** | `LoginPage.tsx` | **已由 docs/UI_REORG_PLAN.md 3.1 取代（2026-11-13 登录页旗舰重做）**：终态 = 恒深色星空壁纸 + 150 星恒动 Canvas（frontend/src/components/LoginStarfield.tsx）+ 拟态底栏一行；动效整体恒动豁免降级；旧 Canvas 网格设计（LoginGridCanvas）已下线闲置 |
 | **我的任务** | `MyTasksPage.tsx` | 统计卡渐变数字；Progress 渐变 `{from:'#00d4ff', to:'#7b61ff'}` |
 | **用户管理/审核** | 继承 token | 零改动自动生效 |
 
@@ -117,14 +117,14 @@ components: {
 
 | 场景 | 实现 |
 |------|------|
-| 全局过渡 | 仅 `background-color/border-color/box-shadow` 0.25s（不全量 transition） |
+| 全局过渡 | 换肤过渡属性集以 docs/UI_REORG_PLAN.md 3.3「换肤过渡集」为准（0.25s；不全量 transition） |
 | 卡片 hover | `translateY(-3px)` + 发光阴影 |
 | 关键路径/冲突 | `@keyframes pulse` 呼吸（2s / 1.4s） |
 | 加载 | Spin 换电青；首屏用 `Skeleton` |
 | 页面切换 | Suspense fallback 渐变进度条 |
-| 降级 | `@media (prefers-reduced-motion: reduce)` 关闭全部动画 |
+| 降级 | `@media (prefers-reduced-motion: reduce)` 关闭全部动画（**登录页除外**——2026-11-13 裁定：登录页动效整体恒动豁免降级，口径见 docs/UI_REORG_PLAN.md 3.3） |
 
-**性能红线**：`backdrop-filter` 只用于 Header/卡片/登录卡/Modal；表格行/列表项用实色半透明（避免大面积 blur 掉帧）。
+**性能红线**：`backdrop-filter` 只用于 Header/卡片/浮层/登录页平玻璃输入与毛玻璃浮牌（原「登录卡」对象已随去卡片裁定下线）；表格行/列表项用实色半透明（避免大面积 blur 掉帧）。
 
 ---
 
@@ -143,8 +143,8 @@ components: {
 
 - [ ] 深浅两模式全站走查：网格纹理/玻璃/发光/渐变可见，无刺眼或不可读区域
 - [ ] 甘特图：状态条青蓝渐变、关键路径红框呼吸、冲突黄框呼吸、今日线发光、连线青色（深浅均清晰）
-- [ ] 看板 6 卡渐变条 + 渐变数字；列表行 hover 青色光晕；登录页网格动画
-- [ ] `npm run build`（tsc -b）通过；`prefers-reduced-motion` 降级生效
+- [ ] 看板 6 卡渐变条 + 渐变数字；列表行 hover 青色光晕；登录页星空恒动（终态口径见 docs/UI_REORG_PLAN.md 3.1）
+- [ ] `npm run build`（tsc -b）通过；`prefers-reduced-motion` 降级生效（登录页恒动豁免除外）
 - [ ] 浅色模式文字对比度 ≥ 4.5:1（电青/紫不用作浅色文字；Menu 选中/链接/Tag 文字用 `#0369a1` 系）
 - [ ] 主题切换/刷新记忆/无闪白（FOUC 脚本保留）无回归
 
@@ -172,7 +172,7 @@ frontend/src/pages/ProjectListPage.tsx   列表表格/筛选栏
 frontend/src/pages/ProjectDetailPage.tsx 详情面板微调
 frontend/src/components/Gantt/gantt.css  甘特变量换肤 + 动画
 frontend/src/components/Resource/resourceView.css 资源负载
-frontend/src/pages/LoginPage.tsx         登录页动效
+frontend/src/pages/LoginPage.tsx         登录页动效（终态形制见 docs/UI_REORG_PLAN.md 3.1）
 frontend/src/pages/MyTasksPage.tsx       我的任务
 ```
 （不涉及后端/数据库；不新增依赖）
@@ -187,5 +187,5 @@ frontend/src/pages/MyTasksPage.tsx       我的任务
 ## 用户裁定注记（2026-11-13 · 批 1 随批落档）
 
 1. **控件材质 = 拟态（Neumorphism）**——用户 2026-11-13 给样裁定（neu-button 样例）：控件表面材质改拟态，形制与交互仍以 macOS 参照。本文档「设计语言」四件套中，发光/渐变降为点缀，玻璃拟态退守特定场景（照片背景上改半透明轻版面板 + 柔双影 + 微 blur，不依赖底色），不再作为控件默认材质。原因：拟态的柔双影与深空双模式色板相容，发光/渐变作大面积材质在浅色模式下对比度与质感均失分。拟态 token、按钮三态/输入凹陷态与状态表的唯一权威 = docs/UI_REORG_PLAN.md 3.2。
-2. **主题切换过渡纪律**——用户 2026-11-13 裁定「浅色/深色主题切换要有过渡效果、不能生硬」。全站过渡属性集 = background-color / border-color / box-shadow / color（文字色）0.25s，本文档 §四「全局过渡」行的属性集以此注记为准（原集不含 color）；支持 View Transitions API 的浏览器以 document.startViewTransition 包住换肤做整页交叉淡变，不支持自动回落基线；壁纸换图与 token 切换同节奏 0.25s；prefers-reduced-motion 直接切换（降级纪律优先于过渡）。原因：换肤瞬切在深浅大反差下刺眼，0.25s 淡变与既有动效节奏一致，color 不在过渡期会让文字先于表面跳变。
+2. **主题切换过渡纪律**——用户 2026-11-13 裁定「浅色/深色主题切换要有过渡效果、不能生硬」。换肤过渡属性集唯一权威 = docs/UI_REORG_PLAN.md 3.3「换肤过渡集」（成员表与 View Transitions/降级条款均以该处为准，本文档不复述）。壁纸不随主题切换（登录页恒深色、换图机制不启用——口径见 docs/UI_REORG_PLAN.md 3.1）。原因：换肤瞬切在深浅大反差下刺眼，0.25s 淡变与既有动效节奏一致，color 不在过渡期会让文字先于表面跳变。
 
