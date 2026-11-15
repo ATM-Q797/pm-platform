@@ -1,0 +1,498 @@
+/* ============================================================
+   液态玻璃材质层（macOS Liquid Glass · HDR 光泽态）— UI批4 ①材质基座
+   设计基准 = v4 样张（用户 2026-11-14「好，效果不错。开工」批准）：
+   胶囊 999px / 面板 24px · 透明度 36–40% · blur 30px + saturate 1.9 ·
+   发丝亮边（1px 白边/深色 .24 白）· inset 顶光 1.5px + 底厚感（inset 0 -7px 14px）·
+   HDR 辉光（0 0 14px 白晕/深色蓝晕）。
+   本档自 neu.css 迁出重挂（neu.css 800 行硬顶拆分预案，write-first 逻辑不变）：
+   ①玻璃 token 系（L1 面板档/L2 控件档）②通用基材类 .glass/.pill（供单元②③④页面件取用）
+   ③共享控件玻璃映射（原 neu.css 8.x 拟态影段，段号沿用 8.x 便于对账；选择器体系与抬权锚不动）。
+   挂载序：经 neu.css 顶部 @import 在 tech.css 之后、neu.css 正文之前——
+   对 tech.css 同权声明保持后载优势（拆前后载入序等价）。
+   效果/动效切分（UI批4 §2）：本档零 transition/animation/keyframe（动效后批）。
+   ============================================================ */
+
+/* ---------- 1. 玻璃 token（双模式） ---------- */
+/* L1/L2 面材：透明度带 36–40%（v4 直取）——面板档 36%（大面积更透）/ 控件档 40%（小件更实）。
+   走 background-image 渐变面槽（同值双停平铺）：antd hover/active 背景色沉到面下不可见（UI批3 8.1 同法）。
+   浅色面 = 白玻璃（v4「透明度 36–40%」）；深色面 = 深空面材族 rgba(20,27,45,*) 同 alpha 档
+   （底色族 = index.css --glass-bg 深 rgba(20,27,45,.72) 同源派生）。 */
+:root,
+[data-theme='light'] {
+  --glass-bg-panel: linear-gradient(rgba(255, 255, 255, 0.32), rgba(255, 255, 255, 0.32));
+  --glass-bg-control: linear-gradient(rgba(255, 255, 255, 0.36), rgba(255, 255, 255, 0.36));
+  /* 浮层壳高不透明玻璃档（B 案，用户 2026-11-15）：Modal/Drawer 壳面材——.8 面保行文可读（同表格大面 .8 白 token 面先例，非全透） */
+  --glass-bg-overlay: linear-gradient(rgba(255, 255, 255, 0.8), rgba(255, 255, 255, 0.8));
+  /* 发丝亮边：v4「1px 白边」白量取 .8 档（纯白会咬深字）——派生 */
+  --glass-edge: rgba(255, 255, 255, 0.8);
+  /* 顶光：v4 inset 0 1.5px 0 白量 .85 直取 */
+  --glass-sheen: rgba(255, 255, 255, 0.85);
+  /* 底缘透光：v4 inset 0 -7px 14px rgba(255,255,255,.35) 直取——玻璃底缘发亮（光透上来），非暗影（融合度关键） */
+  --glass-thick: rgba(255, 255, 255, 0.35);
+  /* 内 1px 亮环：v4 inset 0 0 0 1px rgba(255,255,255,.35) 直取（玻璃双缘光） */
+  --glass-ring: rgba(255, 255, 255, 0.35);
+  /* HDR 辉光：v4 0 0 14px rgba(255,255,255,.55) 色值直取（影栈内拼散度） */
+  --glass-glow: rgba(255, 255, 255, 0.55);
+  /* accent 面辉光：值直取 index.css --glow 发光色（浅 rgba(3,105,161,.25)） */
+  --glass-glow-accent: rgba(3, 105, 161, 0.25);
+  /* 外落影：v4 面板 0 8px 26px / 控件 0 2px 6px 低深影直取——面板浮起定义感（快照 .glass/.pill 两档） */
+  --glass-drop: 0 8px 26px rgba(31, 41, 71, 0.12);
+  --glass-drop-sm: 0 2px 6px rgba(31, 41, 71, 0.12);
+}
+/* 深色档双锚（验收 6「[data-mode=dark] 另组值」）：data-theme = 平台换肤真开关
+   （theme.tsx setAttribute('data-theme', mode) 逐字）；data-mode = 登录页恒深色容器
+   （LoginPage.tsx <div className="pm-login" data-mode="dark"> 逐字）——两锚并挂覆盖双场景。 */
+[data-theme='dark'],
+[data-mode='dark'] {
+  --glass-bg-panel: linear-gradient(rgba(20, 27, 45, 0.36), rgba(20, 27, 45, 0.36));
+  --glass-bg-control: linear-gradient(rgba(20, 27, 45, 0.4), rgba(20, 27, 45, 0.4));
+  --glass-bg-overlay: linear-gradient(rgba(20, 27, 45, 0.8), rgba(20, 27, 45, 0.8)); /* 浮层壳高不透明玻璃档（B 案）同浅色义 */
+  --glass-edge: rgba(255, 255, 255, 0.24); /* v4「深色 .24 白」直取 */
+  --glass-sheen: rgba(255, 255, 255, 0.3); /* v4 深色顶光直取 */
+  --glass-thick: rgba(120, 160, 255, 0.1); /* v4 深色底缘透光（蓝白 .10）直取——玻璃底缘发亮非暗影 */
+  --glass-ring: rgba(255, 255, 255, 0.1); /* v4 深色内环直取 */
+  --glass-glow: rgba(130, 180, 255, 0.22); /* v4 深色辉光 rgba(130,180,255,.22) 直取 */
+  --glass-glow-accent: rgba(0, 212, 255, 0.35); /* 值直取 index.css --glow 发光色（深 rgba(0,212,255,.35)） */
+  --glass-drop: 0 10px 30px rgba(0, 0, 0, 0.4); /* v4 深色面板影 0 10px 30px 直取 */
+  --glass-drop-sm: 0 2px 6px rgba(0, 0, 0, 0.38); /* v4 深色控件影直取 */
+}
+:root {
+  /* 玻璃滤镜：v4 直取 blur 30px + saturate 1.9（双模式同值） */
+  --glass-filter: blur(30px) saturate(1.9);
+  /* 玻璃影栈（色值随上方 token 双模式切换）——逐值对 v4 样张影栈：
+     raised = 外落影 + 顶光 1.5px + 底缘透光 + 内 1px 亮环 + HDR 辉光（样张 .glass 全套） */
+  --glass-elev-raised: var(--glass-drop), inset 0 1.5px 0 var(--glass-sheen), inset 0 -7px 14px var(--glass-thick),
+    inset 0 0 0 1px var(--glass-ring), 0 0 14px var(--glass-glow);
+  /* control = 控件凸起面（按钮/胶囊/分段/单选钮）：样张 .pill 同构（底缘 -5px 10px 小档） */
+  --glass-elev-control: var(--glass-drop-sm), inset 0 1.5px 0 var(--glass-sheen), inset 0 -5px 10px var(--glass-thick),
+    inset 0 0 0 1px var(--glass-ring), 0 0 14px var(--glass-glow);
+  /* inset = 输入系/勾选面：样张 input.demo 平玻璃无影——仅顶光 + 内亮环 */
+  --glass-elev-inset: inset 0 1.5px 0 var(--glass-sheen), inset 0 0 0 1px var(--glass-ring);
+  /* up = 悬停/焦点增辉：晕升档（拟态增凸同比 1.25 派生；悬停微升/焦点光环三态保留） */
+  --glass-elev-up: var(--glass-drop), inset 0 1.5px 0 var(--glass-sheen), inset 0 -7px 14px var(--glass-thick),
+    inset 0 0 0 1px var(--glass-ring), 0 0 18px var(--glass-glow);
+  /* press = 按压微陷：顶部暗影压入（--neu-soft-dark 直取）+ 底缘透光/亮环保留 */
+  --glass-elev-press: var(--glass-drop-sm), inset 0 2px 8px var(--neu-soft-dark), inset 0 -5px 10px var(--glass-thick),
+    inset 0 0 0 1px var(--glass-ring);
+  /* 语义实色面（#25 红面/警示面——白字 ≥4.5:1 判据取 1.2 浅值双模式同值）+ 淡档面材（原 rgba(255,255,255,.03) 直取） */
+  --glass-danger-face: #e11d48;
+  --glass-warning-face: #b45309;
+  --glass-bg-subtle: rgba(255, 255, 255, 0.03);
+}
+
+/* ---------- 2. 通用基材类（供单元②③④页面件取用） ---------- */
+/* L1 面板基材：v4 面板 24px + 面板档面材（36%）全套玻璃材质 */
+.glass {
+  border-radius: 24px;
+  background-color: transparent;
+  background-image: var(--glass-bg-panel);
+  backdrop-filter: var(--glass-filter);
+  -webkit-backdrop-filter: var(--glass-filter);
+  border: 1px solid var(--glass-edge);
+  box-shadow: var(--glass-elev-raised);
+}
+/* L2 控件胶囊基材：v4 全圆胶囊 999px + 控件档面材（40%）全套玻璃材质 */
+.pill {
+  border-radius: 999px;
+  background-color: transparent;
+  background-image: var(--glass-bg-control);
+  backdrop-filter: var(--glass-filter);
+  -webkit-backdrop-filter: var(--glass-filter);
+  border: 1px solid var(--glass-edge);
+  box-shadow: var(--glass-elev-control);
+}
+
+/* ---------- 3. 共享控件玻璃映射（自 neu.css 8.x 迁出重挂，段号沿用 8.x） ----------
+   UI批4 ①：材质基底由拟态凸起影换液态玻璃（用户 2026-11-14 三连裁定 + v4 样张批准）；
+   形制/交互三态保留（悬停微升/按压微陷/焦点光环——UI_REORG_PLAN 3.2 状态表玻璃译法）。
+   重挂口径 = 材质值/面材/形制随 v4 换档（用户「边框再圆润」：胶囊 999px/面板 24px），选择器体系与抬权锚不动。
+   发丝亮边落位：有 border 槽的换 border-color（值直取 --glass-edge）；
+   无 border 槽（Segmented/Switch）以 inset 0 0 0 1px 环等效落位（零布局影响）。
+   accent 面（primary/选中/开启）保留 --gradient-primary 渐变身份（UI批4 §2 边界）——
+   实色渐变面下 blur 采样不可见，逐条摘 backdrop-filter（性能）；辉光经作用域 --glass-glow 换 accent 档。
+   权重注（同 8.7 原注）：antd cssinjs 选择器带 :where(hash) 零加权，本段以 wrapper/组锚或元素+类锚
+   抬到 (0,2,0) 以上逐条压过 antd 同属性声明，不靠加载顺序。
+   动效注：本段零 transition/animation（状态视觉即时切换，动效随动效批）。 */
+
+/* ---------- 8.1 按钮：玻璃面材（S = 面材钮全集；危险钮影色口径未裁定不臆造——UI批4 ③随 #25 顺带裁定） ---------- */
+.ant-btn:not(.ant-btn-text):not(.ant-btn-link):not(.ant-btn-variant-text):not(.ant-btn-variant-link):not(.ant-btn-background-ghost):not(.ant-btn-dangerous),
+.ant-btn-icon-only:not(.ant-btn-dangerous):not(.ant-btn-background-ghost) {
+  /* 玻璃基态：控件档透面 + 发丝亮边 + 顶光/底厚感 + HDR 辉光（v4 逐值） */
+  background-color: transparent;
+  background-image: var(--glass-bg-control);
+  backdrop-filter: var(--glass-filter);
+  -webkit-backdrop-filter: var(--glass-filter);
+  border-color: var(--glass-edge);
+  color: var(--neu-text); /* 文字色不动（灰面族；primary 白字由 8.2 覆盖） */
+  box-shadow: var(--glass-elev-control);
+}
+/* 形制圆角不动：按钮胶囊 49px（3.2 用户给样值；49px 已足全圆，v4 999px 档由 .pill 基材类承） */
+.ant-btn:not(.ant-btn-link):not(.ant-btn-variant-link) {
+  border-radius: 49px;
+}
+/* 图标钮/圆形钮 → 正圆（形制值不动） */
+.ant-btn-icon-only:not(.ant-btn-dangerous):not(.ant-btn-background-ghost):not(.ant-btn-round),
+.ant-btn-circle:not(.ant-btn-link):not(.ant-btn-variant-link):not(.ant-btn-round) {
+  border-radius: 50%;
+}
+/* primary：保留 accent 渐变面（UI批4 §2 边界：accent 渐变身份保留，仅形制换玻璃胶囊）；
+   辉光换 accent 档（作用域 --glass-glow 重声明，影栈自 --glass-elev-* 解析时取用） */
+.ant-btn-primary:not(.ant-btn-text):not(.ant-btn-link):not(.ant-btn-variant-text):not(.ant-btn-variant-link):not(.ant-btn-background-ghost):not(.ant-btn-dangerous) {
+  --glass-glow: var(--glass-glow-accent);
+  background-image: var(--gradient-primary); /* 值直取 index.css --gradient-primary（语义色不动） */
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none; /* 实色渐变面下 blur 采样不可见——摘除（性能） */
+  color: #fff; /* antd colorTextLightSolid 同值——图标钮文字色不随 --neu-text 走 */
+}
+
+/* ---------- 8.2 按钮五态（3.2 状态表玻璃译法逐行；状态视觉即时切换，过渡随动效批） ---------- */
+/* 悬停微升：辉光升档 0 0 18px（增凸档同比派生，见 1 段影栈注） */
+.ant-btn:not(.ant-btn-text):not(.ant-btn-link):not(.ant-btn-variant-text):not(.ant-btn-variant-link):not(.ant-btn-background-ghost):not(.ant-btn-dangerous):not(:disabled):not(.ant-btn-disabled):hover,
+.ant-btn-icon-only:not(.ant-btn-dangerous):not(.ant-btn-background-ghost):not(:disabled):not(.ant-btn-disabled):hover {
+  box-shadow: var(--glass-elev-up);
+}
+/* 按压微陷：顶部内影压入 + translateY(1px)（按压形制值不动） */
+.ant-btn:not(.ant-btn-text):not(.ant-btn-link):not(.ant-btn-variant-text):not(.ant-btn-variant-link):not(.ant-btn-background-ghost):not(.ant-btn-dangerous):not(:disabled):not(.ant-btn-disabled):active,
+.ant-btn-icon-only:not(.ant-btn-dangerous):not(.ant-btn-background-ghost):not(:disabled):not(.ant-btn-disabled):active {
+  box-shadow: var(--glass-elev-press);
+  transform: translateY(1px);
+}
+/* 焦点：:focus-visible 主题色光环 2px + 影调取增辉档（状态表焦点行：光环为主） */
+.ant-btn:not(.ant-btn-text):not(.ant-btn-link):not(.ant-btn-variant-text):not(.ant-btn-variant-link):not(.ant-btn-background-ghost):not(.ant-btn-dangerous):focus-visible,
+.ant-btn-icon-only:not(.ant-btn-dangerous):not(.ant-btn-background-ghost):focus-visible {
+  outline: 2px solid var(--accent, #00d4ff);
+  outline-offset: 2px;
+  box-shadow: var(--glass-elev-up);
+}
+/* 禁用：影调压平 + opacity 0.55（状态表禁用行，形制值不动） */
+.ant-btn:disabled,
+.ant-btn.ant-btn-disabled {
+  box-shadow: none;
+  opacity: 0.55;
+}
+
+/* ---------- 8.3 输入系玻璃态（适用面：输入/数字/选择/日期——形制值直取 8.1 档，凹陷影换玻璃 inset 栈） ---------- */
+/* 注：Select 面材载体 = .ant-select 根（antd v6：.ant-select-content 仅内层内容行，不承面） */
+.ant-input,
+.ant-input-affix-wrapper,
+.ant-input-number,
+.ant-select,
+.ant-picker {
+  background-color: transparent;
+  background-image: var(--glass-bg-control);
+  backdrop-filter: var(--glass-filter);
+  -webkit-backdrop-filter: var(--glass-filter);
+  border-color: var(--glass-edge); /* 发丝亮边（原 transparent 换值） */
+  border-radius: 999px; /* 全圆胶囊档：v4「胶囊 999px」直取（形制换档：用户「边框再圆润」） */
+  box-shadow: var(--glass-elev-inset);
+}
+/* Search 组合：输入面右角补齐（antd compact 逻辑圆角把右角压平，露出面材断口） */
+.ant-input-affix-wrapper.ant-input-compact-first-item.ant-input-compact-item {
+  border-radius: 999px;
+}
+/* 内层 input 不重复铺面（Search 带前后缀输入） */
+.ant-input-affix-wrapper .ant-input {
+  background-image: none;
+  box-shadow: none;
+  border-color: transparent;
+}
+/* 聚焦：主题色光环 2px + 玻璃 inset 栈（3.2 输入行：外光环为主；亮边保留不随焦点退场） */
+.ant-input:focus,
+.ant-input:focus-visible,
+.ant-input-affix-wrapper-focused,
+.ant-input-affix-wrapper:focus-within,
+.ant-input-number-focused,
+.ant-select-focused,
+.ant-select:focus-within,
+.ant-picker-focused {
+  outline: none; /* 光环即键盘可见焦点指示（3.2 焦点可访问性适配） */
+  border-color: var(--glass-edge);
+  box-shadow: var(--glass-elev-inset), 0 0 0 2px var(--accent, #00d4ff);
+}
+/* 禁用：影调压平 + opacity 0.55（3.2 禁用行，形制值不动） */
+.ant-input:disabled,
+.ant-input-disabled,
+.ant-input-affix-wrapper-disabled,
+.ant-input-number-disabled,
+.ant-select-disabled,
+.ant-picker-disabled {
+  box-shadow: none;
+  opacity: 0.55;
+}
+
+/* ---------- 8.4 Segmented：玻璃凸起面（适用面不动；胶囊 999px 档——GIF/v4 分段控件全圆；选中项 accent 语义色由组件 token 承担） ---------- */
+/* Segmented 无 border 槽：发丝亮边以 inset 1px 环落位（零布局影响） */
+.ant-segmented {
+  background-color: transparent;
+  background-image: var(--glass-bg-control);
+  backdrop-filter: var(--glass-filter);
+  -webkit-backdrop-filter: var(--glass-filter);
+  border-radius: 999px;
+  box-shadow: var(--glass-elev-control), inset 0 0 0 1px var(--glass-edge);
+}
+
+/* ---------- 8.5 卡片/统计卡：L1 玻璃面板（适用面「统计卡」不动；面板 24px 档——v4 直取） ---------- */
+.ant-card {
+  background-color: transparent;
+  background-image: var(--glass-bg-panel);
+  backdrop-filter: var(--glass-filter);
+  -webkit-backdrop-filter: var(--glass-filter);
+  border-color: var(--glass-edge); /* 发丝亮边（原 transparent 换值） */
+  border-radius: 24px; /* 面板档：v4「面板 24px」直取 */
+  box-shadow: var(--glass-elev-raised);
+}
+/* 悬停增辉（五态同构；transform 抬升行为为既有行为，留在 tech.css 3 段原处不动） */
+.ant-card-hoverable:hover,
+.ant-card:hover {
+  box-shadow: var(--glass-elev-up);
+}
+
+/* ---------- 8.6 抽屉/弹窗壳面材（单元② B 案：浮层壳 = 高不透明玻璃档 .8 面 + blur + 玻璃形制件；
+   下拉/Popover/Popconfirm 文字密集小件沿实色 token 不动——浮层口径裁定点，用户 2026-11-15 B） ---------- */
+/* 承面类注：antd v6 Popover/Popconfirm DOM 为 .ant-popover-container > .ant-popover-content（实测 Popconfirm 无 inner 类），
+   影挂 .ant-popover-content 单层施加，普通 Popover 的内层 .ant-popover-inner 同壳不重复上影 */
+/* 承面锚抬 (0,2,0)（3 段权重注）：壳面材压过 antd contentBg/colorBgElevated 同属性声明。
+   承面真名实测（2026-11-15 浏览器 DOM 探测）：antd v6 Modal = .ant-modal-container（无 .ant-modal-content）·
+   Drawer = .ant-drawer-section（无 .ant-drawer-content，底色挂 section、影挂 wrapper）——旧名选择器从未命中，随本单元重挂 */
+.ant-modal .ant-modal-container,
+.ant-drawer .ant-drawer-section {
+  background-color: transparent;
+  background-image: var(--glass-bg-overlay);
+  backdrop-filter: var(--glass-filter);
+  -webkit-backdrop-filter: var(--glass-filter);
+  border: 1px solid var(--glass-edge);
+  box-shadow: var(--glass-elev-raised);
+}
+/* Modal 浮面板 = 面板档 24px（v4「面板 24px」）；Drawer = 贴边墙片不倒角（形制判断：墙片倒角露缝） */
+.ant-modal .ant-modal-container {
+  border-radius: 24px;
+}
+/* Popover/Popconfirm：实色 token 面 + 玻璃影（文字密集小件沿实色，B 案边界） */
+.ant-popover-content {
+  border-radius: 24px; /* 面板档同卡片（v4「面板 24px」） */
+  box-shadow: var(--glass-elev-raised);
+}
+
+/* ---------- 8.7 Checkbox / Radio / Switch 残余件（逐件对表：玻璃 inset 勾选面 / 玻璃凸起开关 / 焦点光环同构） ----------
+   形制值出处同 8.1–8.6 逐值不动；勾选面凹陷语义换 --glass-elev-inset（8.3 同构）·
+   开关凸起语义换 --glass-elev-raised（8.1 同构）· 五态/焦点/禁用同 8.2/8.3 玻璃译法。
+   选中/开启 = accent 渐变面 + accent 辉光档（8.1 primary 决策同构：勾/点仍走 antd 白值压在 accent 面上）。
+   权重注/动效注：同 3 段总注。 */
+
+/* Checkbox / Radio：玻璃 inset 勾选面（面材全程 inset 语义；勾/点 = antd 白值压在面上） */
+.ant-checkbox-wrapper > .ant-checkbox,
+.ant-radio-wrapper > .ant-radio {
+  background-color: transparent;
+  background-image: var(--glass-bg-control);
+  backdrop-filter: var(--glass-filter);
+  -webkit-backdrop-filter: var(--glass-filter);
+  border-color: var(--glass-edge);
+  box-shadow: var(--glass-elev-inset);
+}
+/* 勾选框圆角 = antd borderRadiusSM 同值（6px）——保留方形语义，与单选正圆区分（形制值不动） */
+.ant-checkbox-wrapper > .ant-checkbox {
+  border-radius: 6px;
+}
+/* 单选正圆（形制值不动） */
+.ant-radio-wrapper > .ant-radio {
+  border-radius: 50%;
+}
+/* 勾选/选中：面材换 accent 渐变（8.1 primary 决策同构）；勾/点仍走 antd 白值；inset 栈无外晕不涉辉光换档 */
+.ant-checkbox-wrapper > .ant-checkbox-checked,
+.ant-radio-wrapper > .ant-radio-checked {
+  background-image: var(--gradient-primary); /* 值直取 index.css --gradient-primary（语义色不动） */
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none; /* 实色渐变面下 blur 采样不可见——摘除（性能） */
+}
+/* 焦点：:focus-visible 主题色光环 2px（8.2 同构；antd 自带 focus 轮廓被本条压过） */
+.ant-checkbox-wrapper > .ant-checkbox:has(.ant-checkbox-input:focus-visible),
+.ant-radio-wrapper > .ant-radio:has(.ant-radio-input:focus-visible) {
+  outline: 2px solid var(--accent, #00d4ff);
+  outline-offset: 2px;
+}
+/* 禁用：影调压平 + opacity 0.55（3.2 禁用行） */
+.ant-checkbox-wrapper > .ant-checkbox-disabled,
+.ant-radio-wrapper > .ant-radio-disabled {
+  box-shadow: none;
+  opacity: 0.55;
+}
+
+/* Radio.Button（组合钮）：面材钮同构（8.1 玻璃基态 + 8.2 五态逐行）；胶囊 49px 逐钮（形制值不动） */
+.ant-radio-group .ant-radio-button-wrapper {
+  background-color: transparent;
+  background-image: var(--glass-bg-control);
+  backdrop-filter: var(--glass-filter);
+  -webkit-backdrop-filter: var(--glass-filter);
+  border-color: var(--glass-edge);
+  border-radius: 49px;
+  color: var(--neu-text); /* 文字色不动（灰面族；选中白字由下方选中行覆盖） */
+  box-shadow: var(--glass-elev-control);
+}
+/* 选中 = accent 渐变面 + accent 辉光档（8.1 primary 决策同构），白字 = antd colorTextLightSolid 同值 */
+.ant-radio-group .ant-radio-button-wrapper-checked:not(.ant-radio-button-wrapper-disabled) {
+  --glass-glow: var(--glass-glow-accent);
+  background-image: var(--gradient-primary);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none; /* 实色渐变面下 blur 采样不可见——摘除（性能） */
+  color: #fff;
+}
+/* 悬停微升：辉光升档 0 0 18px（8.2 同构） */
+.ant-radio-group .ant-radio-button-wrapper:not(.ant-radio-button-wrapper-disabled):hover {
+  box-shadow: var(--glass-elev-up);
+}
+/* 按压微陷：顶部内影压入 + translateY(1px)（8.2 同构） */
+.ant-radio-group .ant-radio-button-wrapper:not(.ant-radio-button-wrapper-disabled):active {
+  box-shadow: var(--glass-elev-press);
+  transform: translateY(1px);
+}
+/* 焦点：:focus-visible 主题色光环 2px（状态表焦点行） */
+.ant-radio-group .ant-radio-button-wrapper:has(:focus-visible) {
+  outline: 2px solid var(--accent, #00d4ff);
+  outline-offset: 2px;
+}
+/* 禁用：影调压平 + opacity 0.55（状态表禁用行） */
+.ant-radio-group .ant-radio-button-wrapper-disabled {
+  box-shadow: none;
+  opacity: 0.55;
+}
+
+/* Switch：玻璃凸起开关（8.1 同构；元素+类锚 button.ant-switch 压过 antd background 简写）；
+   Switch 无 border 槽（滑块走轨道内），发丝亮边以 inset 1px 环落位（零布局影响，不挤滑块） */
+button.ant-switch {
+  background-color: transparent;
+  background-image: var(--glass-bg-control);
+  backdrop-filter: var(--glass-filter);
+  -webkit-backdrop-filter: var(--glass-filter);
+  box-shadow: var(--glass-elev-raised), inset 0 0 0 1px var(--glass-edge);
+}
+/* 开启 = accent 渐变面 + accent 辉光档（8.1 primary 决策同构；antd switchColor 实色被渐变面盖住） */
+button.ant-switch:not(.ant-switch-loading).ant-switch-checked {
+  --glass-glow: var(--glass-glow-accent);
+  background-image: var(--gradient-primary);
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none; /* 实色渐变面下 blur 采样不可见——摘除（性能） */
+}
+/* 悬停微升（两态各守面材——antd hover 用 background 简写压掉渐变面，本条同权以上重铺） */
+button.ant-switch:not(.ant-switch-disabled):not(.ant-switch-loading):not(.ant-switch-checked):hover,
+button.ant-switch:not(.ant-switch-disabled):not(.ant-switch-loading).ant-switch-checked:hover {
+  box-shadow: var(--glass-elev-up), inset 0 0 0 1px var(--glass-edge);
+}
+button.ant-switch:not(.ant-switch-disabled):not(.ant-switch-loading):not(.ant-switch-checked):hover {
+  background-image: var(--glass-bg-control);
+}
+button.ant-switch:not(.ant-switch-disabled):not(.ant-switch-loading).ant-switch-checked:hover {
+  background-image: var(--gradient-primary);
+}
+/* 按压微陷：顶部内影压入 + translateY(1px)（8.2 同构；antd 滑块内缩行为不动） */
+button.ant-switch:not(.ant-switch-disabled):not(.ant-switch-loading):active {
+  box-shadow: var(--glass-elev-press), inset 0 0 0 1px var(--glass-edge);
+  transform: translateY(1px);
+}
+/* 焦点：:focus-visible 主题色光环 2px（8.2 同构） */
+button.ant-switch:not(.ant-switch-disabled):focus-visible {
+  outline: 2px solid var(--accent, #00d4ff);
+  outline-offset: 2px;
+}
+/* 禁用：影调压平 + opacity 0.55（3.2 禁用行） */
+button.ant-switch.ant-switch-disabled {
+  box-shadow: none;
+  opacity: 0.55;
+}
+
+/* ---------- 8.8 Tabs 选项卡（单元②）：导航条 = 控件档玻璃面（inset 1px 环落亮边，8.4 同法）；
+   选中项 = 玻璃凸起胶囊（overlay 面 + --glass-elev-control + accent 文字色，文字由 Tabs itemSelectedColor 承）；
+   hover 微升 --glass-elev-up（瞬态；选中识别由 accent 文字 + 常驻胶囊承担）；ink-bar 隐藏（胶囊即选中指示）；
+   焦点光环同 8.2。动效注：同 3 段总注（零 transition/animation）。 ---------- */
+.ant-tabs .ant-tabs-nav-list {
+  background-color: transparent;
+  background-image: var(--glass-bg-control);
+  backdrop-filter: var(--glass-filter);
+  -webkit-backdrop-filter: var(--glass-filter);
+  border-radius: 999px;
+  padding: 4px;
+  box-shadow: var(--glass-elev-control), inset 0 0 0 1px var(--glass-edge);
+}
+/* 白线呼吸位（用户 2026-11-15 反馈「底线太近」）：v6 默认 nav::before 底线贴胶囊底零距——nav 留 12px 底距把线下放 */
+.ant-tabs .ant-tabs-nav {
+  padding-bottom: 12px;
+}
+/* 裁切盒内扩（用户同报「左端圆角处直角框」）：v6 nav-wrap 裁切盒恰等胶囊盒——胶囊/选中丸的辉光落影（外扩 ≤18px）
+   在盒边被直边切断，左端圆角帽旁出现直角切面（两切线相交成框）；wrap padding 18px + 负 margin 归位——胶囊零漂移、布局零影响。
+   扩盒段不吃命中（pointer-events）——防负 margin 区盖住邻侧行的命中面；命中交还 wrap 直子项。
+   边界记档：hover 档 --glass-drop（0 10px 30px）下缘余量在 18px 外仍有瞬态软切，观感可接受（静态辉光/落影全量渲染）。 */
+.ant-tabs .ant-tabs-nav-wrap {
+  padding: 18px;
+  margin: -18px;
+  pointer-events: none;
+}
+.ant-tabs .ant-tabs-nav-wrap > * {
+  pointer-events: auto;
+}
+.ant-tabs .ant-tabs-tab {
+  border-radius: 999px; /* 胶囊形制（v4 全圆档） */
+  padding: 8px 16px;
+}
+/* 选中项 = 玻璃凸起胶囊（保留玻璃面 + accent 文字；不入 accent 渐变面） */
+.ant-tabs .ant-tabs-tab.ant-tabs-tab-active {
+  background-color: transparent;
+  background-image: var(--glass-bg-overlay);
+  box-shadow: var(--glass-elev-control);
+}
+/* hover 微升：选中/未选同构（hover 为瞬态预览，选中识别由 accent 文字 + 常驻胶囊承担） */
+.ant-tabs .ant-tabs-tab:not(.ant-tabs-tab-disabled):hover {
+  background-color: transparent;
+  background-image: var(--glass-bg-overlay);
+  box-shadow: var(--glass-elev-up);
+}
+/* ink-bar 隐藏（胶囊即选中指示） */
+.ant-tabs .ant-tabs-ink-bar {
+  display: none;
+}
+/* 焦点：:focus-visible 主题色光环 2px（8.2 同构） */
+.ant-tabs .ant-tabs-tab:has(.ant-tabs-tab-btn:focus-visible) {
+  outline: 2px solid var(--accent, #00d4ff);
+  outline-offset: 2px;
+}
+/* 禁用：影调压平 + opacity 0.55（3.2 禁用行） */
+.ant-tabs .ant-tabs-tab-disabled {
+  box-shadow: none;
+  opacity: 0.55;
+}
+
+/* ---------- 8.9 表头（单元②）：半透明底 + 高光线模拟（inset 顶光 1.5px + 发丝亮边）——
+   不挂 backdrop-filter（性能红线：表格滚动区豁免 blur）；表身 = 容器 .8 白 token 面（三件对快照保留②，随全局 colorBgContainer）；
+   headerBg token 随值同步（main.tsx Table.headerBg）。 ---------- */
+.ant-table .ant-table-thead > tr > th {
+  box-shadow: inset 0 1.5px 0 var(--glass-sheen);
+  border-bottom: 1px solid var(--glass-edge);
+}
+
+/* ---------- 8.10 危险钮（#25 乙案：语义红底面 + 玻璃影栈，五态同构 8.2，用户 2026-11-15 裁定） ----------
+   面 = --glass-danger-face（白字对红底 ≥4.5:1 判据）+ 影 = --glass-elev-control 玻璃影栈复用；面槽同值双停（8.1 同法，antd hover/active 背景色沉面下）；
+   实色面摘 blur（性能）；文字/链接/幽灵危险钮不承面（8.1 同排除，文字级语义色由 antd danger 文字档承担）。 */
+.ant-btn-dangerous:not(.ant-btn-text):not(.ant-btn-link):not(.ant-btn-variant-text):not(.ant-btn-variant-link):not(.ant-btn-background-ghost) {
+  background-color: transparent;
+  background-image: linear-gradient(var(--glass-danger-face), var(--glass-danger-face));
+  backdrop-filter: none;
+  -webkit-backdrop-filter: none;
+  border-color: var(--glass-edge);
+  color: #fff;
+  box-shadow: var(--glass-elev-control);
+}
+/* 五态（8.2 同构）：悬停/焦点增辉 · 按压微陷 · 禁用影调压平 + opacity 0.55（8.2 通则 (0,2,0) 压不过本段基态，本段自压平） */
+.ant-btn-dangerous:not(.ant-btn-text):not(.ant-btn-link):not(.ant-btn-variant-text):not(.ant-btn-variant-link):not(.ant-btn-background-ghost):not(:disabled):not(.ant-btn-disabled):hover {
+  box-shadow: var(--glass-elev-up);
+}
+.ant-btn-dangerous:not(.ant-btn-text):not(.ant-btn-link):not(.ant-btn-variant-text):not(.ant-btn-variant-link):not(.ant-btn-background-ghost):not(:disabled):not(.ant-btn-disabled):active {
+  box-shadow: var(--glass-elev-press);
+  transform: translateY(1px);
+}
+.ant-btn-dangerous:not(.ant-btn-text):not(.ant-btn-link):not(.ant-btn-variant-text):not(.ant-btn-variant-link):not(.ant-btn-background-ghost):focus-visible {
+  outline: 2px solid var(--accent, #00d4ff);
+  outline-offset: 2px;
+  box-shadow: var(--glass-elev-up);
+}
+.ant-btn-dangerous:not(.ant-btn-text):not(.ant-btn-link):not(.ant-btn-variant-text):not(.ant-btn-variant-link):not(.ant-btn-background-ghost):is(:disabled, .ant-btn-disabled) {
+  box-shadow: none;
+  opacity: 0.55;
+}

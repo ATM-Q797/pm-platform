@@ -31,10 +31,12 @@ export function buildColumns(options: {
       title: '★',
       width: 50,
       align: 'center',
+      // 星标色 token 化（neu.css 1b 语义档值直取 + 出处）：点亮 = --neu-warning 警告金（原 #fadb14 星标金——1b 金档唯一同族）
+      // · 未点亮 = --text-tertiary 弱文字（原 #d9d9d9）；对比度随 1b「图标同值」纪律归线
       render: (_, r) => (
         <a
           onClick={(e) => { e.stopPropagation(); toggleFavorite(r) }}
-          style={{ fontSize: 16, color: r.is_favorite ? '#fadb14' : '#d9d9d9' }}
+          style={{ fontSize: 16, color: r.is_favorite ? 'var(--neu-warning)' : 'var(--text-tertiary)' }}
           title={r.is_favorite ? '取消关注' : '关注'}
         >
           {r.is_favorite ? <StarFilled /> : <StarOutlined />}

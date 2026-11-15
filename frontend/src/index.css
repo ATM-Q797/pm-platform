@@ -15,12 +15,23 @@
 
   --bg-layout: #eef2f8;
   --bg-secondary: #fafafa;
+  /* L0 极光地面（UI批4 ①材质基座）：v4 样张地面实证——线性微渐变衬底 + 三枚大面积径向光斑
+     （样张 blur(70px) 以大半径径向渐变替代——任务书口径）。光斑色值/alpha = v4 样张实证值直取；
+     光斑位势/半径 = 派生（样张档未留存位势参数，按左上蓝/右上紫/下中青三角散布）；
+     --ground-base 第二停点 = --bg-layout #eef2f8 微降明度（微渐变衬底派生） */
+  --ground-base: linear-gradient(180deg, #eef2f8, #e2e9f5);
+  --ground-glow-a: radial-gradient(1200px 700px at 18% 8%, rgba(59, 111, 214, 0.22), transparent 70%);
+  --ground-glow-b: radial-gradient(1000px 700px at 82% 12%, rgba(123, 97, 255, 0.18), transparent 70%);
+  --ground-glow-c: radial-gradient(1200px 800px at 50% 100%, rgba(0, 180, 216, 0.14), transparent 70%);
   --card-shadow: 0 1px 2px rgba(15, 23, 42, 0.04), 0 1px 6px rgba(15, 23, 42, 0.06);
   --card-shadow-hover: 0 6px 16px rgba(15, 23, 42, 0.1), var(--glow);
   --card-border: var(--glass-border);
   --text-primary: #0f172a;
   --text-secondary: #475569;
-  --text-tertiary: #94a3b8;
+  /* 对比度收口（台账 #22）：弱文字档须压过 4.5:1 纪律线（docs/UI_TECH_STYLE.md 1.2 对比度纪律）——
+     取 1.2「文字 Secondary」浅值（唯一权威表值直取），对拟态卡面最深角 #cacaca 4.68:1 · 浮层实底 #ffffff 7.67:1
+     （原 #94a3b8 仅 2.6:1；浅色拟态面把弱文字档压到与 Secondary 同档才能全线过线，档位差由此收窄） */
+  --text-tertiary: #475569;
   --border-light: #e2e8f0;
   --header-hover: rgba(15, 23, 42, 0.06);
   /* 登录输入框 autofill 背景（浅色模式，覆盖浏览器自动填充白底） */
@@ -86,12 +97,20 @@
 
   --bg-layout: #0a0e1a;
   --bg-secondary: #182034;
+  /* L0 极光地面（深色档）：三斑色值/alpha = v4 样张深色实证值直取（蓝/紫/青同构换深色档）；
+     位势/半径同浅色档；--ground-base 第二停点 = --bg-layout #0a0e1a 微降明度（派生同浅色档） */
+  --ground-base: linear-gradient(180deg, #0a0e1a, #060913);
+  --ground-glow-a: radial-gradient(1200px 700px at 18% 8%, rgba(0, 120, 212, 0.22), transparent 70%);
+  --ground-glow-b: radial-gradient(1000px 700px at 82% 12%, rgba(110, 80, 255, 0.18), transparent 70%);
+  --ground-glow-c: radial-gradient(1200px 800px at 50% 100%, rgba(0, 212, 255, 0.1), transparent 70%);
   --card-shadow: 0 1px 2px rgba(0, 0, 0, 0.4), 0 1px 6px rgba(0, 0, 0, 0.3);
   --card-shadow-hover: 0 6px 16px rgba(0, 0, 0, 0.5), var(--glow);
   --card-border: var(--glass-border);
   --text-primary: #e8ecf8;
   --text-secondary: #9aa3b8;
-  --text-tertiary: #5f6b85;
+  /* 对比度收口（台账 #22）：取 1.2「文字 Secondary」深值（唯一权威表值直取）——
+     对拟态卡面最深角 #2e3339 5.04:1 · 浮层实底 #141b2d 6.78:1（原 #5f6b85 仅 3.2:1） */
+  --text-tertiary: #9aa3b8;
   --border-light: rgba(120, 180, 255, 0.15);
   --header-hover: rgba(255, 255, 255, 0.12);
   /* 登录输入框 autofill 背景（深色模式，覆盖浏览器自动填充白底） */
@@ -152,22 +171,20 @@ body,
     Arial, 'PingFang SC', 'Microsoft YaHei', sans-serif;
 }
 
+/* L0 极光地面铺 html 画布层（UI批4 ①）：三枚光斑叠线性衬底之上，fixed 不随内容滚动。
+   落 html 画布层的原因：tech.css 1 段 body 网格纹理占 body 背景图槽（tech.css 禁动）——
+   地面落画布层后两者层叠合成：网格纹理的透明缝隙透出极光衬底（body 透明即透）。 */
+html {
+  background-color: var(--bg-layout);
+  background-image: var(--ground-glow-a), var(--ground-glow-b), var(--ground-glow-c), var(--ground-base);
+  background-attachment: fixed;
+}
 body {
-  background: var(--bg-layout);
+  /* 地面上移 html 画布层后 body 透明：透出极光 + tech.css 网格纹理两层合成（原 --bg-layout 实色地面由画布层承） */
+  background: transparent;
 }
 
 /* ---------- 全局 UI 优化（2026-08-25） ---------- */
-
-/* 卡片统一阴影，弱化边框（看板/列表/详情一致） */
-.ant-card {
-  box-shadow: var(--card-shadow);
-  border-color: var(--card-border);
-}
-
-/* 看板卡片 hover 轻抬升 */
-.ant-card-hoverable:hover {
-  box-shadow: var(--card-shadow-hover);
-}
 
 /* 顶栏用户区 hover 背景 */
 .header-user:hover {
@@ -187,14 +204,14 @@ body {
   /* 动画名由颜色类覆盖：pm-breathe-red / pm-breathe-yellow */
 }  
 .pm-alert-overdue {  
-  background: #e05a3a;  
-  box-shadow: 0 0 0 0 rgba(224, 90, 58, 0.5);  
+  background: var(--glass-danger-face); /* 语义红实色面（原 #e05a3a；白字 4.7:1——#25 B 案同理，面沿实色） */  
+  box-shadow: 0 0 0 0 color-mix(in srgb, var(--glass-danger-face) 50%, transparent);  
   animation-name: pm-breathe-red;  
 }  
 .pm-alert-due-soon {  
-  background: #e08a1a;  
+  background: var(--glass-warning-face); /* 语义警示实色面（原 #e08a1a；白字 5.0:1） */  
   color: #fff;  
-  box-shadow: 0 0 0 0 rgba(224, 138, 26, 0.5);  
+  box-shadow: 0 0 0 0 color-mix(in srgb, var(--glass-warning-face) 50%, transparent);  
   animation-name: pm-breathe-yellow;  
 }  
 @keyframes pm-breathe-red {  

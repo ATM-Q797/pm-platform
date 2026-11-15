@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react'
-import { Card, Table, Tag, Spin, Alert, Row, Col, Statistic, Tooltip } from 'antd'
+import { Card, Table, Tag, Spin, Alert, Row, Col, Statistic, Tooltip, Segmented } from 'antd'
 import { listTeamEfficiency, type TeamEfficiency, type PersonMetrics } from '../api/teamEfficiency'
 
 const windowOptions = [
@@ -62,24 +62,9 @@ export default function TeamEfficiencyPage() {
         style={{ marginBottom: 16 }}
       />
 
-      {/* 时间窗切换 */}
-      <div style={{ marginBottom: 16, display: 'flex', gap: 8 }}>
-        {windowOptions.map((o) => (
-          <a
-            key={o.value}
-            onClick={() => setDays(o.value)}
-            style={{
-              padding: '4px 14px',
-              borderRadius: 6,
-              border: '1px solid',
-              borderColor: days === o.value ? '#1677ff' : '#d9d9d9',
-              color: days === o.value ? '#1677ff' : '#666',
-              background: days === o.value ? '#e6f4ff' : 'transparent',
-            }}
-          >
-            {o.label}
-          </a>
-        ))}
+      {/* 时间窗切换（Segmented 置换：吃 8.4 玻璃化，行为等价、回调不变） */}
+      <div style={{ marginBottom: 16 }}>
+        <Segmented options={windowOptions} value={days} onChange={(v) => setDays(v as number)} />
       </div>
 
       {error && <Alert message={error} type="error" showIcon style={{ marginBottom: 16 }} />}

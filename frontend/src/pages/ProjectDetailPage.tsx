@@ -194,7 +194,7 @@ export default function ProjectDetailPage() {
                     message.error('操作失败：' + (e as Error).message)
                   })
                 }}
-                style={{ fontSize: 18, color: favorited ? '#fadb14' : '#d9d9d9' }}
+                style={{ fontSize: 18, color: favorited ? 'var(--neu-warning)' : 'var(--text-tertiary)' }} /* 星标色对齐 columns.tsx 先例（原 #fadb14/#d9d9d9） */
                 title={favorited ? '取消关注' : '关注（置顶）'}
               >
                 {favorited ? <StarFilled /> : <StarOutlined />}
@@ -228,7 +228,7 @@ export default function ProjectDetailPage() {
           </Descriptions.Item>
           <Descriptions.Item label="关键路径工期">
             {criticalDuration !== null ? (
-              <span style={{ color: '#ff4d4f', fontWeight: 600, whiteSpace: 'nowrap' }}>{criticalDuration} 天</span>
+              <span style={{ color: 'var(--neu-danger)' /* 原 #ff4d4f */, fontWeight: 600, whiteSpace: 'nowrap' }}>{criticalDuration} 天</span>
             ) : (
               <span style={{ color: 'var(--text-tertiary)', whiteSpace: 'nowrap' }}>—</span>
             )}
@@ -265,7 +265,7 @@ export default function ProjectDetailPage() {
               marginTop: 12,
               padding: '8px 12px',
               borderRadius: 6,
-              background: 'rgba(255,255,255,.03)',
+              background: 'var(--glass-bg-subtle)' /* 淡档面材 token（原 rgba(255,255,255,.03) 写死） */,
             }}
           >
             <HealthFactList health={health} />

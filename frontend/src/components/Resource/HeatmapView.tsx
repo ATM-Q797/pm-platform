@@ -162,7 +162,7 @@ export default function HeatmapView({ conflictVersion = 0 }: {
           {/* 空闲区（可折叠，设计 §3.2） */}
           {data.idle_people.length > 0 && (
             <div className="hm-idle">
-              <button type="button" className="hm-idle-toggle" onClick={() => setIdleExpanded((v) => !v)}>
+              <button type="button" className="pill hm-idle-toggle" onClick={() => setIdleExpanded((v) => !v)}>
                 {idleExpanded ? '▾' : '▸'} 空闲人员（{data.idle_people.length}）— 窗口内零负载
               </button>
               {idleExpanded && (

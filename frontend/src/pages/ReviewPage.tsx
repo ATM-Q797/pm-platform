@@ -284,7 +284,7 @@ export default function ReviewPage({ userRole = 'admin' }: { userRole?: string }
         )
         return (
           <Popover content={content} title="变更详情" trigger="hover">
-            <span style={{ cursor: 'pointer', color: '#1677ff' }}>{summary}</span>
+            <span style={{ cursor: 'pointer', color: 'var(--primary)' /* 原 #1677ff，语义主色对齐 main.tsx colorLink 同值 */ }}>{summary}</span>
           </Popover>
         )
       },

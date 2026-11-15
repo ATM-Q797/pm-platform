@@ -186,8 +186,15 @@ export default function App() {
         <Header className="pm-header" style={{ display: 'flex', alignItems: 'center', justifyContent: 'space-between' }}>
           <Space>
             <div style={{ color: 'var(--text-primary)', fontSize: 17, fontWeight: 600, marginRight: 32, letterSpacing: 0.5, display: 'flex', alignItems: 'center', gap: 8 }}>
-              <span className="pm-logo-badge"><ProjectOutlined /></span>
-              <span className="pm-logo-text">研发项目管理平台</span>
+              <span className="pm-logo-badge">
+                {/* 自绘标记（用户 2026-11-14 ②重设计）：三柱递升 + 顶点——项目进度意象，白档随渐变底发光 */}
+                <svg width="16" height="16" viewBox="0 0 16 16" fill="none" aria-hidden="true">
+                  <rect x="1.5" y="9" width="3" height="5.5" rx="1.5" fill="#fff" fillOpacity="0.85" />
+                  <rect x="6.5" y="5.5" width="3" height="9" rx="1.5" fill="#fff" />
+                  <rect x="11.5" y="2" width="3" height="12.5" rx="1.5" fill="#fff" fillOpacity="0.92" />
+                </svg>
+              </span>
+              <span className="pm-logo-text">项目管理中心</span>
             </div>
             <Menu
               theme={mode === 'dark' ? 'dark' : 'light'}

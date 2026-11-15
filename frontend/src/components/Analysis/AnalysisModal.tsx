@@ -164,7 +164,7 @@ function TrendChart(p: TrendChartProps) {
   })
 
   return (
-    <div style={{ border: '1px solid var(--border-color, #eee)', borderRadius: 8, padding: '12px 12px 4px' }}>
+    <div style={{ border: '1px solid var(--border-light)' /* 修 var 缺陷：原 --border-color 未定义走 #eee 兜底 */, borderRadius: 8, padding: '12px 12px 4px' }}>
       <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 4, color: 'var(--text-primary, #333)' }}>
         {p.title}
       </div>
@@ -266,7 +266,7 @@ export default function AnalysisModal({ open, onClose }: Props) {
         { label: '资源冲突对数', value: latest?.metrics.conflict_pairs, caliberKey: 'conflict_pairs' },
       ].map((it) => (
         <div key={it.label}
-             style={{ flex: 1, border: '1px solid var(--border-color, #eee)', borderRadius: 8, padding: '10px 12px' }}>
+             style={{ flex: 1, border: '1px solid var(--border-light)' /* 修 var 缺陷：原 --border-color 未定义走 #eee 兜底 */, borderRadius: 8, padding: '10px 12px' }}>
           <div style={{ fontSize: 12, color: 'var(--text-secondary, #888)' }}>
             {it.label}
             <Tooltip title={GLOSSARY[it.caliberKey]}>
@@ -414,7 +414,7 @@ const tabItems = [
     <Modal
       title={
         <span>
-          <FundOutlined style={{ color: '#1677ff', marginRight: 8 }} />
+          <FundOutlined style={{ color: 'var(--primary)' /* 原 #1677ff */, marginRight: 8 }} />
           项目分析
         </span>
       }

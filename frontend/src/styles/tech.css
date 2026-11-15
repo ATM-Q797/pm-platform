@@ -1,24 +1,11 @@
 /* ============================================================
    科技感视觉层 —「深空驾驶舱」(docs/UI_TECH_STYLE.md)
    在 index.css 之后加载；变量全部来自 :root / [data-theme='dark']
-   性能红线：backdrop-filter 仅用于 Header/卡片/登录卡/Modal
+    性能红线：backdrop-filter 随 UI批4 玻璃面材扩至面板/控件/登录卡；滚动容器卡仍豁免（4.5），accent 实色渐变面摘除采样
    ============================================================ */
 
-/* ---------- 1. body 网格纹理（32px 极淡网格 + 顶部径向紫晕） ---------- */
-body {
-  background-image:
-    linear-gradient(rgba(8, 145, 178, 0.05) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(8, 145, 178, 0.05) 1px, transparent 1px),
-    radial-gradient(ellipse at 20% 0%, rgba(109, 90, 224, 0.08), transparent 50%);
-  background-size: 32px 32px, 32px 32px, 100% 100%;
-  background-attachment: fixed;
-}
-[data-theme='dark'] body {
-  background-image:
-    linear-gradient(rgba(0, 212, 255, 0.04) 1px, transparent 1px),
-    linear-gradient(90deg, rgba(0, 212, 255, 0.04) 1px, transparent 1px),
-    radial-gradient(ellipse at 20% 0%, rgba(123, 97, 255, 0.12), transparent 50%);
-}
+/* body 网格纹理+顶部紫晕已随 UI批4 快照对表退场（用户 2026-11-14「对照快照」——快照地面为干净渐变+极光，无网格）；
+   地面基调由 index.css html 极光渐变层承担（--ground-* token）。 */
 
 /* ---------- 2. 全局过渡（仅 background-color/border-color/box-shadow/color，0.25s，性能红线） ---------- */
 /* 属性集含 color（文字色）：主题切换后各表面/文字/影调同步淡变、无瞬切（3.3 用户裁定 2026-11-13） */
@@ -34,33 +21,14 @@ body {
     transform 0.25s;
 }
 
-/* ---------- 3. 卡片玻璃拟态 + hover 抬升发光 ---------- */
-.ant-card {
-  background: var(--glass-bg);
-  backdrop-filter: blur(12px);
-  -webkit-backdrop-filter: blur(12px);
-  border: 1px solid var(--glass-border);
-  box-shadow: var(--glass-highlight), var(--card-shadow);
-}
+/* ---------- 3. 卡片 hover 抬升（卡片材质已归拟态：neu.css 8.5 凸起面；玻璃拟态随用户裁定注记 1 退场） ----------
+   transform 抬升为既有行为保留（悬停升起的幅度随 3.3 交互细则批再议）；hover 影调取增凸档在 neu.css 8.5。 */
 .ant-card .ant-card-head {
-  border-bottom-color: var(--glass-border);
+  border-bottom-color: var(--glass-border); /* 卡头分隔线（非材质，保留） */
 }
 .ant-card-hoverable:hover,
 .ant-card:hover {
   transform: translateY(-3px);
-  box-shadow: var(--glass-highlight), var(--card-shadow-hover);
-}
-
-/* ---------- 4. 主按钮渐变 + 发光 ---------- */
-.ant-btn-primary {
-  background: var(--gradient-primary);
-  border: none;
-  box-shadow: var(--glow);
-}
-.ant-btn-primary:not(:disabled):not(.ant-btn-disabled):hover {
-  background: var(--gradient-primary);
-  box-shadow: var(--glow-strong);
-  filter: brightness(1.08);
 }
 
 /* ---------- 4.5 滚动容器卡片豁免 blur（性能红线）
@@ -82,15 +50,18 @@ body {
 }
 
 /* ---------- 5. Header 玻璃条（配合 Layout headerBg: transparent） ---------- */
+/* 恒深玻璃条 blur(16px) 专属口径不动（docs/UI_TECH_STYLE.md 1.1 导航壳）；旧 --glass-bg/--glass-border/--glass-highlight 代际换新：
+   高不透明 .8 档面 = --glass-bg-overlay（旧 --glass-bg 容器 .8 同义）· 底边 = 发丝亮边 --glass-edge · 顶光 = --glass-sheen · 底缘 accent 线 = --glass-glow-accent */
 .pm-header {
   position: sticky;
   top: 0;
   z-index: 100;
   backdrop-filter: blur(16px);
   -webkit-backdrop-filter: blur(16px);
-  background: var(--glass-bg);
-  border-bottom: 1px solid var(--glass-border);
-  box-shadow: 0 1px 0 rgba(0, 212, 255, 0.15), var(--glass-highlight);
+  background-color: transparent;
+  background-image: var(--glass-bg-overlay);
+  border-bottom: 1px solid var(--glass-edge);
+  box-shadow: 0 1px 0 var(--glass-glow-accent), inset 0 1.5px 0 var(--glass-sheen);
 }
 /* Logo 渐变方块 + 发光 */
 .pm-logo-badge {
@@ -105,12 +76,14 @@ body {
   font-size: 15px;
   box-shadow: var(--glow);
 }
-/* Logo 标题渐变字 */
+/* Logo 标题渐变字（字体与登录页标题同款——用户 2026-11-14 ②） */
 .pm-logo-text {
   background: var(--gradient-primary);
   -webkit-background-clip: text;
   background-clip: text;
   -webkit-text-fill-color: transparent;
+  font-family:
+    'PingFang SC', 'HarmonyOS Sans SC', 'Microsoft YaHei UI', 'Segoe UI', system-ui, sans-serif;
   font-weight: 700;
 }
 /* 头像渐变底 */
@@ -119,45 +92,21 @@ body {
   box-shadow: var(--glow);
 }
 
-/* ---------- 6. 看板统计卡：顶部 3px 渐变条 + 渐变数字 ---------- */
+/* ---------- 6. 看板统计卡：语义圆点 + 语义色数字（v4 快照对表降噪：渐变顶条/色块图标/渐变数字三语退场——用户 2026-11-14「对照快照」） ---------- */
 .pm-stat-card {
   position: relative;
-  overflow: hidden;
-}
-.pm-stat-card::before {
-  content: '';
-  position: absolute;
-  top: 0;
-  left: 0;
-  right: 0;
-  height: 3px;
-  background: var(--stat-bar, var(--gradient-primary));
 }
 .pm-stat-value {
-  font-size: 32px;
-  font-weight: 700;
+  font-size: 26px;
+  font-weight: 650;
   line-height: 1.2;
   font-variant-numeric: tabular-nums;
-  background: var(--stat-bar, var(--gradient-primary));
-  -webkit-background-clip: text;
-  background-clip: text;
-  -webkit-text-fill-color: transparent;
+  color: var(--stat-color, var(--text-primary)); /* 语义色数字（快照 .card .num 形制） */
 }
-/* 浅色模式渐变数字对比度保护：改用实色主色文字 */
-:root:not([data-theme='dark']) .pm-stat-value {
-  background: none;
-  -webkit-text-fill-color: currentColor;
-  color: var(--text-primary);
-}
-:root:not([data-theme='dark']) .pm-stat-value.pm-stat-danger {
-  color: var(--stat-color, var(--neu-danger)); /* 兜底值改语义 token 直取（neu.css 1b；原 #e11d48 写死） */
+.pm-stat-value.pm-stat-danger {
+  color: var(--neu-danger);
 }
 
-/* ---------- 7. 「今日聚焦」左侧电青竖线 ---------- */
-.pm-focus-card {
-  border-left: 3px solid var(--accent-cyan) !important;
-  box-shadow: var(--glass-highlight), var(--card-shadow), -4px 0 12px rgba(0, 212, 255, 0.12);
-}
 
 /* ---------- 8. 动画 ---------- */
 /* 关键路径呼吸（2s）/ 资源冲突呼吸（1.4s） */
@@ -207,15 +156,18 @@ body {
   background: rgba(0, 212, 255, 0.4);
 }
 
-/* ---------- P2.1 列表筛选栏玻璃容器 ---------- */
+/* ---------- P2.1 列表筛选栏玻璃容器（面材对表：--glass-bg-panel 档全套玻璃材质，形制不变） ---------- */
 .pm-toolbar {
-  background: var(--glass-bg);
-  border: 1px solid var(--glass-border);
+  background-color: transparent;
+  background-image: var(--glass-bg-panel);
+  backdrop-filter: var(--glass-filter);
+  -webkit-backdrop-filter: var(--glass-filter);
+  border: 1px solid var(--glass-edge);
   /* 间距/圆角 token 直取（neu.css 1c 间距节奏/圆角；原 12px/16px 写死，值不变） */
   border-radius: var(--neu-radius-lg);
   padding: var(--neu-space-3) var(--neu-space-4);
   margin-bottom: var(--neu-space-4);
-  box-shadow: var(--glass-highlight);
+  box-shadow: var(--glass-elev-raised);
 }
 
 /* ---------- P2.1 状态 Tag 胶囊微光（currentColor 同色微光，浅色降透明度） ---------- */

@@ -86,7 +86,7 @@ export function useImportExcel(onImported: () => void) {
               </p>
               {report.pending_link_phases.length > 0 && (
                 <div style={{ background: 'var(--alert-info-bg)', padding: '8px 12px', borderRadius: 6, marginBottom: 8 }}>
-                  <b style={{ color: '#d48806', fontSize: 13 }}>
+                  <b style={{ color: 'var(--neu-warning)' /* 原 #d48806 */, fontSize: 13 }}>
                     ⚠️ 新增阶段待关联依赖（{report.pending_link_phases.length} 个）：
                   </b>
                   <p style={{ margin: '4px 0', fontSize: 12, color: 'var(--text-secondary)' }}>
@@ -198,7 +198,7 @@ export function ImportExcelModal(props: {
             <>
               {/* 合并差异：新增 / 更新 / 保留 */}
               <div style={{ background: 'var(--alert-ok-bg)', padding: '12px 16px', borderRadius: 6, marginBottom: 12 }}>
-                <p style={{ margin: 0, color: '#389e0d', fontWeight: 600 }}>
+                <p style={{ margin: 0, color: 'var(--neu-success)' /* 原 #389e0d */, fontWeight: 600 }}>
                   📥 新增 {importPreview.created_projects.length} 个项目 / 📝 更新{' '}
                   {importPreview.updated_projects.length} 个项目 / 🔒 保留{' '}
                   {importPreview.kept_count} 个项目（不在文件中，不做改动）
@@ -242,7 +242,7 @@ export function ImportExcelModal(props: {
               {/* 新增阶段待关联依赖提示 */}
               {importPreview.pending_link_phases.length > 0 && (
                 <div style={{ background: 'var(--alert-info-bg)', padding: '8px 12px', borderRadius: 6, marginBottom: 12 }}>
-                  <b style={{ color: '#d48806', fontSize: 13 }}>
+                  <b style={{ color: 'var(--neu-warning)' /* 原 #d48806 */, fontSize: 13 }}>
                     ⚠️ 新增阶段将提示待关联依赖（{importPreview.pending_link_phases.length} 个）：
                   </b>
                   <p style={{ margin: '4px 0', fontSize: 12, color: 'var(--text-secondary)' }}>
@@ -255,11 +255,11 @@ export function ImportExcelModal(props: {
             <>
               {/* 替换模式：红色警示 */}
               <div style={{ background: 'var(--alert-warn-bg)', padding: '12px 16px', borderRadius: 6, marginBottom: 12 }}>
-                <p style={{ margin: 0, color: '#fa8c16', fontWeight: 600 }}>
+                <p style={{ margin: 0, color: 'var(--neu-orange)' /* 原 #fa8c16 */, fontWeight: 600 }}>
                   ⚠️ 本次导入将【清空现有 {importPreview.existing.projects} 个项目
                   （{importPreview.existing.phases} 个阶段 / {importPreview.existing.resources} 个人员）】
                 </p>
-                <p style={{ margin: '4px 0 0', color: '#389e0d', fontWeight: 600 }}>
+                <p style={{ margin: '4px 0 0', color: 'var(--neu-success)' /* 原 #389e0d */, fontWeight: 600 }}>
                   ✅ 文件包含 {importPreview.incoming.projects} 个项目 / {importPreview.incoming.phases} 个阶段
                 </p>
               </div>
@@ -271,7 +271,7 @@ export function ImportExcelModal(props: {
                   {importPreview.match.missing} 个现有项目不在文件中
                 </Tag>
                 {importPreview.match.missing > 0 && (
-                  <span style={{ color: '#ff4d4f', fontSize: 12, marginLeft: 4 }}>
+                  <span style={{ color: 'var(--neu-danger)' /* 原 #ff4d4f */, fontSize: 12, marginLeft: 4 }}>
                     （文件可能不完整，请确认）
                   </span>
                 )}
@@ -295,8 +295,8 @@ export function ImportExcelModal(props: {
           {/* 错误（存在则禁用确认） */}
           {importPreview.errors.length > 0 && (
             <div style={{ marginBottom: 12 }}>
-              <b style={{ color: '#ff4d4f', fontSize: 13 }}>❌ 错误 {importPreview.errors.length} 条（请修正后重新上传）：</b>
-              <ul style={{ maxHeight: 120, overflow: 'auto', fontSize: 12, color: '#ff4d4f', margin: '4px 0 0', paddingLeft: 20 }}>
+              <b style={{ color: 'var(--neu-danger)' /* 原 #ff4d4f */, fontSize: 13 }}>❌ 错误 {importPreview.errors.length} 条（请修正后重新上传）：</b>
+              <ul style={{ maxHeight: 120, overflow: 'auto', fontSize: 12, color: 'var(--neu-danger)' /* 原 #ff4d4f */, margin: '4px 0 0', paddingLeft: 20 }}>
                 {importPreview.errors.map((e, i) => (
                   <li key={i}>[{e.sheet} R{e.row}] {e.message}</li>
                 ))}
@@ -308,7 +308,7 @@ export function ImportExcelModal(props: {
           {importPreview.warnings.length > 0 && (
             <div>
               <b style={{ fontSize: 13 }}>⚠️ 警告 {importPreview.warnings.length} 条：</b>
-              <ul style={{ maxHeight: 120, overflow: 'auto', fontSize: 12, color: '#faad14', margin: '4px 0 0', paddingLeft: 20 }}>
+              <ul style={{ maxHeight: 120, overflow: 'auto', fontSize: 12, color: 'var(--neu-warning)' /* 原 #faad14 */, margin: '4px 0 0', paddingLeft: 20 }}>
                 {importPreview.warnings.map((w, i) => (
                   <li key={i}>[{w.sheet} R{w.row}] {w.message}</li>
                 ))}

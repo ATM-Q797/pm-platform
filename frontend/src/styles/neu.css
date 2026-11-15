@@ -7,6 +7,12 @@
    在 tech.css 之后加载；深浅切换机制（html data-theme）零改动。
    ============================================================ */
 
+/* 液态玻璃材质层（UI批4 ①拆分）：玻璃 token 系 + .glass/.pill 基材类 + 共享控件玻璃映射
+   （原本文件 8.x 拟态影段迁出重挂，段号沿用 8.x 便于对账）。经本行 @import 挂载在 tech.css 之后、
+   本文件正文之前——对 tech.css 同权声明保持后载优势（拆前后载入序等价）；main.tsx 零改动。
+   注：@import 必须位于全部规则之前（CSS 规范），故置于文件头。 */
+@import './glass.css';
+
 /* ---------- 1. 拟态 token（双模式：渐变面 + 外双影） ---------- */
 :root,
 [data-theme='light'] {
@@ -26,6 +32,19 @@
   --neu-text: #d7dce4;
   --neu-text-muted: #8b93a3;
   --accent: #00d4ff;
+}
+/* primary 钮影色随 accent 同构（批 3 §2 关键决策：primary 保留 accent 面、影色随 accent 同构）——
+   双影结构同基态（12px/23px 对），深侧随 accent 调、浅侧同基础 pair 白侧：
+   浅：深侧 rgba(3,105,161,.32)（--glow rgba(3,105,161,.25) 同族上调影对权重档）· 浅侧同 --neu-shadow-light 白值透明档；
+   深：深侧取登录页深色套 rgba(0,0,0,.5)（本档 6 段现值直取）· 浅侧随 accent 同构 rgba(0,212,255,.16)（--accent-cyan 调 alpha）。 */
+:root,
+[data-theme='light'] {
+  --neu-accent-shadow-dark: rgba(3, 105, 161, 0.32);
+  --neu-accent-shadow-light: rgba(255, 255, 255, 0.85);
+}
+[data-theme='dark'] {
+  --neu-accent-shadow-dark: rgba(0, 0, 0, 0.5);
+  --neu-accent-shadow-light: rgba(0, 212, 255, 0.16);
 }
 /* 壁纸上下文（照片背景 → 拟态轻版）：渐变面/影对改半透明 alpha 组，不依赖底色 */
 :root,
@@ -70,14 +89,6 @@
   --neu-warning-bg: color-mix(in srgb, var(--neu-warning) 14%, transparent);
   --neu-orange-bg: color-mix(in srgb, var(--neu-orange) 12%, transparent);
   --neu-violet-bg: color-mix(in srgb, var(--neu-violet) 12%, transparent);
-  /* 统计卡顶部渐变条（每卡不同色相——UI_TECH_STYLE 三·看板 6 卡行）：
-     渐变点缀双模式同值（1.2 辅色口径：点缀不作文字色；值 = 改造前渐变条直取） */
-  --neu-bar-total: linear-gradient(90deg, #00d4ff, #7b61ff);
-  --neu-bar-active: linear-gradient(90deg, #22e58a, #00d4ff);
-  --neu-bar-delayed: linear-gradient(90deg, #ff4d6d, #fa8c16);
-  --neu-bar-due: linear-gradient(90deg, #fbbf24, #fa8c16);
-  --neu-bar-conflict: linear-gradient(90deg, #fa8c16, #ff4d6d);
-  --neu-bar-rework: linear-gradient(90deg, #7b61ff, #00d4ff);
 }
 
 /* ---------- 1c. 间距节奏 / 圆角（内页统一体；双模式同值） ----------
@@ -363,48 +374,6 @@
   outline: 2px solid #00d4ff; /* 恒深色 accent */
   outline-offset: 1px;
 }
-/* 全站表单凹陷态（3.2 适用面；批 2-3 替换） */
-.neu-input {
-  box-sizing: border-box;
-  height: 40px;
-  padding: 0 14px;
-  font-family: inherit;
-  font-size: 15px;
-  color: var(--neu-text);
-  background: linear-gradient(145deg, var(--neu-grad-b), var(--neu-grad-a)); /* 反向渐变 = 凹陷感 */
-  border: 2px solid transparent;
-  border-radius: 12px;
-  box-shadow:
-    inset 6px 6px 12px var(--neu-shadow-dark),
-    inset -6px -6px 12px var(--neu-shadow-light);
-  transition:
-    background 0.25s ease-in-out,
-    box-shadow 0.25s ease-in-out,
-    color 0.25s ease-in-out;
-}
-.neu-input::placeholder {
-  color: var(--neu-text-muted);
-}
-.neu-input:focus {
-  outline: none;
-  /* 外光环（主题色 2px）+ 内影收窄 */
-  box-shadow:
-    inset 2px 2px 6px var(--neu-shadow-dark),
-    inset -2px -2px 6px var(--neu-shadow-light),
-    0 0 0 2px var(--accent, #00d4ff);
-}
-/* autofill：保住凹陷影调（面色换拟态实色防透黄） */
-.neu-input:-webkit-autofill,
-.neu-input:-webkit-autofill:hover,
-.neu-input:-webkit-autofill:focus {
-  -webkit-text-fill-color: var(--neu-text);
-  caret-color: var(--neu-text);
-  -webkit-box-shadow:
-    inset 6px 6px 12px var(--neu-shadow-dark),
-    inset -6px -6px 12px var(--neu-shadow-light),
-    0 0 0 1000px var(--neu-grad-b) inset !important;
-  transition: background-color 9999s ease-out;
-}
 
 /* ---------- 5b. 摇头校验 + 箭头滑入 + 错误浮字（2026-11-13 用户裁定，macOS 同款） ---------- */
 /* 空输入/登录失败：输入框左右摇头（表示需输入/输入错误），不用下方红字 */
@@ -481,3 +450,4 @@
 /* 登录页动效恒动（2026-11-13 用户多条裁定汇总，设计档 3.3 同款）：星空/壁纸缩放/摇头/浮字/涟漪/箭头
    均不在本文件设 reduced-motion 降级——动效即登录页主体视觉与交互反馈，
    用户环境系统级减动效不应吞掉它们；全站（批 2-3 起）降级纪律仍归 UI_TECH_STYLE。 */
+

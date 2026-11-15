@@ -2,12 +2,6 @@ import { useEffect, useState, lazy, Suspense } from 'react'
 import { useNavigate } from 'react-router-dom'
 import { Alert, Button, Card, Col, Row, Space, Tag, Empty, Spin, Tooltip, message, Drawer, List, Modal } from 'antd'
 import {
-  ProjectOutlined,
-  ClockCircleOutlined,
-  WarningOutlined,
-  FieldTimeOutlined,
-  ThunderboltOutlined,
-  ToolOutlined,
   FireOutlined,
   FundOutlined,
   QuestionCircleOutlined,
@@ -27,15 +21,15 @@ const AnalysisModal = lazy(() => import('../components/Analysis/AnalysisModal'))
 // 明细抽屉类型
 type DrawerKey = 'delayed' | 'due' | 'conflict' | 'rework' | null
 
-// 卡片左侧图标块配色（语义色）+ 顶部 3px 渐变条（每卡不同色相，见 tech.css .pm-stat-card）
-// 值一律 token 直取（--neu-* 语义色/淡染底/渐变条；出处 = neu.css 1b 内页语义色 token，值源 docs/UI_TECH_STYLE.md 1.2）
-const CARD_STYLE: Record<string, { bg: string; color: string; bar: string }> = {
-  total: { bg: 'var(--neu-info-bg)', color: 'var(--neu-info)', bar: 'var(--neu-bar-total)' },
-  active: { bg: 'var(--neu-success-bg)', color: 'var(--neu-success)', bar: 'var(--neu-bar-active)' },
-  delayed: { bg: 'var(--neu-danger-bg)', color: 'var(--neu-danger)', bar: 'var(--neu-bar-delayed)' },
-  due: { bg: 'var(--neu-warning-bg)', color: 'var(--neu-warning)', bar: 'var(--neu-bar-due)' },
-  conflict: { bg: 'var(--neu-orange-bg)', color: 'var(--neu-orange)', bar: 'var(--neu-bar-conflict)' },
-  rework: { bg: 'var(--neu-violet-bg)', color: 'var(--neu-violet)', bar: 'var(--neu-bar-rework)' },
+// 统计卡语义色（圆点/数字同色；v4 快照对表：色块底/渐变条退场，语义色只留圆点与数字——用户 2026-11-14「对照快照」）
+// 值一律 token 直取（--neu-* 语义色；出处 = neu.css 1b 内页语义色 token，值源 docs/UI_TECH_STYLE.md 1.2）
+const CARD_STYLE: Record<string, { color: string }> = {
+  total: { color: 'var(--neu-info)' },
+  active: { color: 'var(--neu-success)' },
+  delayed: { color: 'var(--neu-danger)' },
+  due: { color: 'var(--neu-warning)' },
+  conflict: { color: 'var(--neu-orange)' },
+  rework: { color: 'var(--neu-violet)' },
 }
 
 // 口径说明文案（8-1 ③：每卡 Tooltip 内嵌；与 PHASE8_PLAN §一 各指标口径一致）
@@ -148,12 +142,11 @@ export default function DashboardPage() {
   const deltaOf = (k: 'projects_total' | 'active_projects' | 'delayed_projects' | 'due_soon_phases' | 'conflict_pairs' | 'total_rework_count') =>
     stats?.weekly_delta ? stats.weekly_delta[k] ?? null : null
 
-  // 统计卡片渲染：左侧着色图标块 + 右侧数值（8-1：口径 Tooltip + 环比小字）
+  // 统计卡片渲染：语义圆点 + 语义色数值 + 环比小字（v4 快照形制——色块图标/渐变条/渐变数字随对照快照降噪退场，用户 2026-11-14）
   const renderCard = (
     key: string,
     title: string,
     value: number,
-    icon: React.ReactNode,
     onClick: () => void,
     dangerHighlight = false,
     delta?: number | null, // 环比（8-1）：undefined = 该卡不展示环比；null = 无对比基期
@@ -175,40 +168,21 @@ export default function DashboardPage() {
           hoverable
           onClick={onClick}
           className="pm-stat-card"
-          style={{ cursor: 'pointer', flex: 1, '--stat-bar': c.bar, '--stat-color': c.color } as React.CSSProperties}
+          style={{ cursor: 'pointer', flex: 1, '--stat-color': c.color } as React.CSSProperties}
         >
-          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--neu-space-4)' }}>
-            <div
-              style={{
-                width: 44,
-                height: 44,
-                borderRadius: 'var(--neu-radius-md)',
-                background: c.bg,
-                color: c.color,
-                display: 'flex',
-                alignItems: 'center',
-                justifyContent: 'center',
-                fontSize: 22,
-                flexShrink: 0,
-              }}
-            >
-              {icon}
-            </div>
-            <div>
-              <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 'var(--neu-space-0-5)' }}>
-                {title}
-                <Tooltip title={CARD_CALIBER[key]}>
-                  <QuestionCircleOutlined style={{ marginLeft: 'var(--neu-space-1)', fontSize: 11, cursor: 'help' }} />
-                </Tooltip>
-              </div>
-              <div className={isDanger ? 'pm-stat-value pm-stat-danger' : 'pm-stat-value'}>
-                {value}
-              </div>
-              {delta !== undefined && (
-                <div style={{ fontSize: 11, color: deltaColor, marginTop: 'var(--neu-space-0-5)' }}>{deltaText}</div>
-              )}
-            </div>
+          <div style={{ display: 'flex', alignItems: 'center', gap: 'var(--neu-space-1-5)', fontSize: 13, color: 'var(--text-secondary)', marginBottom: 'var(--neu-space-0-5)' }}>
+            <span style={{ width: 7, height: 7, borderRadius: '50%', background: c.color, flexShrink: 0 }} />
+            {title}
+            <Tooltip title={CARD_CALIBER[key]}>
+              <QuestionCircleOutlined style={{ marginLeft: 'var(--neu-space-1)', fontSize: 11, cursor: 'help' }} />
+            </Tooltip>
           </div>
+          <div className={isDanger ? 'pm-stat-value pm-stat-danger' : 'pm-stat-value'}>
+            {value}
+          </div>
+          {delta !== undefined && (
+            <div style={{ fontSize: 11, color: deltaColor, marginTop: 'var(--neu-space-0-5)' }}>{deltaText}</div>
+          )}
         </Card>
       </Col>
     )
@@ -217,8 +191,7 @@ export default function DashboardPage() {
   return (
     <div>
       {/* 头部操作区：数据截至（8-1 ⑤）+ 三按钮（导出 Excel / 风险分析 / 项目分析，用户 2026-11-05 指令 ③ 顺序、2026-11-05 改名）
-          不用 ghost 变体：ghost 文字取主色，在渐变底上对比度不足（用户 2026-10-26：字看不清）——
-          实心主按钮文字为白色，对比稳定 */}
+          三钮同风格 = default 玻璃控件面（用户 2026-11-14 ③：项目分析随同排一致，不再用实心主钮） */}
       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: 'var(--neu-space-2)', flexWrap: 'wrap', gap: 'var(--neu-space-2)' }}>
         <span style={{ fontSize: 13, color: 'var(--text-secondary)' }}>
           <CalendarOutlined style={{ marginRight: 'var(--neu-space-1-5)' }} />
@@ -235,7 +208,7 @@ export default function DashboardPage() {
           >
             风险分析
           </Button>
-          <Button type="primary" icon={<FundOutlined />} onClick={() => setAnalysisOpen(true)}>
+          <Button icon={<FundOutlined />} onClick={() => setAnalysisOpen(true)}>
             项目分析
           </Button>
         </Space>
@@ -257,14 +230,14 @@ export default function DashboardPage() {
           对齐 antd 网格，整行拉伸同高、卡片纵向铺满；环比缺基期或基期缺键时 deltaOf 返 null 占位（显示「较上周 —」不捏造事实，
           与后端「不用 0 冒充无变化」原则同源，snapshot.py build_weekly_delta 注释），高度与真实环比行一致） */}
       <Row gutter={[16, 16]} style={{ marginBottom: 'var(--neu-space-8)', alignItems: 'stretch' }}>
-        {renderCard('total', '项目总数', stats.total_projects, <ProjectOutlined />, () => navigate('/projects'), false, deltaOf('projects_total'))}
-        {renderCard('active', '进行中', stats.active_projects, <ClockCircleOutlined />, () => navigate('/projects'), false, deltaOf('active_projects'))}
-        {renderCard('delayed', '延期项目', stats.delayed_count, <WarningOutlined />, () => openDrawer('delayed'), true, deltaOf('delayed_projects'))}
+        {renderCard('total', '项目总数', stats.total_projects, () => navigate('/projects'), false, deltaOf('projects_total'))}
+        {renderCard('active', '进行中', stats.active_projects, () => navigate('/projects'), false, deltaOf('active_projects'))}
+        {renderCard('delayed', '延期项目', stats.delayed_count, () => openDrawer('delayed'), true, deltaOf('delayed_projects'))}
       </Row>
       <Row gutter={[16, 16]} style={{ alignItems: 'stretch' }}>
-        {renderCard('due', '即将到期', stats.due_soon_count, <FieldTimeOutlined />, () => openDrawer('due'), true, deltaOf('due_soon_phases'))}
-        {renderCard('conflict', '资源冲突', riskQueue.filter((r) => r.type === 'conflict').length, <ThunderboltOutlined />, () => openDrawer('conflict'), true, deltaOf('conflict_pairs'))}
-        {renderCard('rework', '返工次数', stats.total_rework_count, <ToolOutlined />, () => openDrawer('rework'), true, deltaOf('total_rework_count'))}
+        {renderCard('due', '即将到期', stats.due_soon_count, () => openDrawer('due'), true, deltaOf('due_soon_phases'))}
+        {renderCard('conflict', '资源冲突', riskQueue.filter((r) => r.type === 'conflict').length, () => openDrawer('conflict'), true, deltaOf('conflict_pairs'))}
+        {renderCard('rework', '返工次数', stats.total_rework_count, () => openDrawer('rework'), true, deltaOf('total_rework_count'))}
       </Row>
 
       {/* 风险分析弹窗（2026-11-06 合并重设计）：2 分板块（红档·立即处理 / 黄档·需要关注），
@@ -358,7 +331,6 @@ export default function DashboardPage() {
             今日聚焦
           </span>
         }
-        className="pm-focus-card"
         style={{ marginTop: 'var(--neu-space-8)' }}
       >
         <Row gutter={24}>

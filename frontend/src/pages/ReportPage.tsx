@@ -42,7 +42,7 @@ const _readSearch = (): string => {
   try { return sessionStorage.getItem(REPORT_SEARCH_KEY) || '' } catch { return '' }
 }
 
-/** 信息填报页（/report，信息填报一期 §五）：筛选栏 + Tab1 已建项目 + Tab2 我的 + Tab3 待我审批。 */
+/** 信息填报页（/report，信息填报一期 §五）：Tab 行（已建项目/我的/我的申请/待我审批）在上 + 筛选栏在下（2026-11-15 对调，对齐项目列表布局）。 */
 export default function ReportPage({ user }: { user: UserInfo }) {
   const [searchParams, setSearchParams] = useSearchParams()
   const TAB_KEYS = ['projects', 'mine', 'my-requests', 'approvals']
@@ -220,53 +220,58 @@ export default function ReportPage({ user }: { user: UserInfo }) {
   // 列配置两版块共用（项目名称列已内含“我负责/我参与”标记）
   const myColumns: ColumnsType<ReportProjectItem> = columns
 
+  // 筛选栏（用户 2026-10-30：与项目列表页同款、逻辑一致——搜索/状态/市场/类目+重置，进出保留）。
+  // 2026-11-15 对调（用户）：置于 Tab 行之下、面板内容之上——对齐项目列表页「视图行在上、筛选栏在下」的节奏；
+  // 四面板顶共用同一份 JSX，筛选状态仍在页面级共享（各 Tab 可见性与对调前一致）。
+  const filterBar = (
+    <div className="pm-toolbar" style={{ marginBottom: 12 }}>
+      <Space size="middle" wrap>
+        <Input.Search
+          placeholder="搜索项目名称"
+          allowClear
+          style={{ width: 240 }}
+          value={searchText}
+          onChange={(e) => updateSearchText(e.target.value)}
+        />
+        <Select
+          placeholder="状态"
+          style={{ width: 120 }}
+          value={filters.status}
+          onChange={(v) => updateFilters({ ...filters, status: v })}
+          options={[
+            { value: '', label: '全部' },
+            { value: '进行中', label: '进行中' },
+            { value: '已完成', label: '已完成' },
+            { value: '未开始', label: '未开始' },
+            { value: '搁置', label: '搁置' },
+          ]}
+        />
+        <Select
+          placeholder="市场"
+          style={{ width: 120 }}
+          value={filters.market}
+          onChange={(v) => updateFilters({ ...filters, market: v })}
+          options={[{ value: '', label: '全部' }, ...MARKET_OPTION_ITEMS]}
+        />
+        <Select
+          placeholder="类目"
+          style={{ width: 120 }}
+          value={filters.category}
+          onChange={(v) => updateFilters({ ...filters, category: v })}
+          options={[
+            { value: '', label: '全部' },
+            { value: '新需求', label: '新需求' },
+            { value: '量产升级', label: '量产升级' },
+            { value: '改造', label: '改造' },
+          ]}
+        />
+        <Button icon={<ClearOutlined />} onClick={resetFilters}>重置</Button>
+      </Space>
+    </div>
+  )
+
   return (
     <div>
-      {/* 筛选栏（用户 2026-10-30：与项目列表页同款、逻辑一致——搜索/状态/市场/类目+重置，进出保留） */}
-      <div className="pm-toolbar" style={{ marginBottom: 4 }}>
-        <Space size="middle" wrap>
-          <Input.Search
-            placeholder="搜索项目名称"
-            allowClear
-            style={{ width: 240 }}
-            value={searchText}
-            onChange={(e) => updateSearchText(e.target.value)}
-          />
-          <Select
-            placeholder="状态"
-            style={{ width: 120 }}
-            value={filters.status}
-            onChange={(v) => updateFilters({ ...filters, status: v })}
-            options={[
-              { value: '', label: '全部' },
-              { value: '进行中', label: '进行中' },
-              { value: '已完成', label: '已完成' },
-              { value: '未开始', label: '未开始' },
-              { value: '搁置', label: '搁置' },
-            ]}
-          />
-          <Select
-            placeholder="市场"
-            style={{ width: 120 }}
-            value={filters.market}
-            onChange={(v) => updateFilters({ ...filters, market: v })}
-            options={[{ value: '', label: '全部' }, ...MARKET_OPTION_ITEMS]}
-          />
-          <Select
-            placeholder="类目"
-            style={{ width: 120 }}
-            value={filters.category}
-            onChange={(v) => updateFilters({ ...filters, category: v })}
-            options={[
-              { value: '', label: '全部' },
-              { value: '新需求', label: '新需求' },
-              { value: '量产升级', label: '量产升级' },
-              { value: '改造', label: '改造' },
-            ]}
-          />
-          <Button icon={<ClearOutlined />} onClick={resetFilters}>重置</Button>
-        </Space>
-      </div>
       <Tabs
         activeKey={activeTab}
         tabBarExtraContent={{
@@ -309,15 +314,16 @@ export default function ReportPage({ user }: { user: UserInfo }) {
             label: '已建项目',
             children: (
               <div>
+                {filterBar}
                 <div style={{ marginBottom: 12, display: 'flex', justifyContent: 'space-between' }}>
                   <Text type="secondary">
                     点项目行展开阶段明细；列表按项目计划开始时间排序。项目负责人可改项目级字段与阶段计划时间，
                     阶段负责人可填实际进展。
                   </Text>
                   <div style={{ display: 'flex', gap: 8, alignItems: 'center' }}>
-                    <button className="ant-btn ant-btn-primary" onClick={() => setCreateOpen(true)}>
-                      <PlusOutlined /> 新建项目
-                    </button>
+                    <Button type="primary" icon={<PlusOutlined />} onClick={() => setCreateOpen(true)}>
+                      新建项目
+                    </Button>
                   </div>
                 </div>
                 <Table<ReportProjectItem>
@@ -350,6 +356,7 @@ export default function ReportPage({ user }: { user: UserInfo }) {
             label: '我的',
             children: (
               <div>
+                {filterBar}
                 <div style={{ marginBottom: 12 }}>
                   <Text type="secondary">
                     我创建、负责或参与的项目（按项目计划开始时间排序）。点项目行展开阶段明细。
@@ -387,7 +394,12 @@ export default function ReportPage({ user }: { user: UserInfo }) {
                 <span>我的申请</span>
               </Badge>
             ),
-            children: <MyRequestsTab reloadToken={tabTokens.mine} />,
+            children: (
+              <>
+                {filterBar}
+                <MyRequestsTab reloadToken={tabTokens.mine} />
+              </>
+            ),
           },
           {
             key: 'approvals',
@@ -397,7 +409,10 @@ export default function ReportPage({ user }: { user: UserInfo }) {
               </Badge>
             ),
             children: (
-              <ApprovalTab onChanged={refreshBadgesOnly} reloadToken={tabTokens.approvals} />
+              <>
+                {filterBar}
+                <ApprovalTab onChanged={refreshBadgesOnly} reloadToken={tabTokens.approvals} />
+              </>
             ),
           },
         ]}

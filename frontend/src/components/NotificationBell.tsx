@@ -129,7 +129,7 @@ export default function NotificationBell() {
               }}
             >
               <div style={{ display: 'flex', gap: 6, alignItems: 'baseline' }}>
-                {!n.read_at && <span style={{ color: '#1677ff', fontSize: 10 }}>●</span>}
+                {!n.read_at && <span style={{ color: 'var(--primary)' /* 原 #1677ff */, fontSize: 10 }}>●</span>}
                 <Text strong={!n.read_at} style={{ fontSize: 13 }}>{n.title}</Text>
               </div>
               {n.body && (

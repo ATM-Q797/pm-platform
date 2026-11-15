@@ -26,13 +26,15 @@
   color: var(--text-tertiary);
 }
 
-/* 滚动容器：列多时横向滚动；行多时纵向滚动（表头 sticky） */
+/* 滚动容器：列多时横向滚动；行多时纵向滚动（表头 sticky）。
+   容器面材对表：容器 .8 白 token 面档（--glass-bg-overlay，8.9 表身同档先例）+ 发丝亮边；滚动容器零 blur（性能红线） */
 .hm-scroll {
   overflow: auto;
   max-height: 70vh;
-  border: 1px solid var(--border-light);
+  border: 1px solid var(--glass-edge);
   border-radius: 6px;
-  background: var(--gantt-bg);
+  background-color: transparent;
+  background-image: var(--glass-bg-overlay);
 }
 
 /* 矩阵主体：首列人员 200px + N 个周期列 + 行尾负载列 */
@@ -47,7 +49,7 @@
   min-width: 0;
 }
 
-/* 表头 */
+/* 表头（面材对表：高不透明玻璃面 + 高光线模拟 8.9 同构，滚动区零 blur） */
 .hm-corner {
   position: sticky;
   left: 0;
@@ -56,8 +58,9 @@
   padding: 6px 8px;
   font-weight: 600;
   color: var(--gantt-text-secondary);
-  background: var(--gantt-head-bg);
-  border-bottom: 1px solid var(--border-light);
+  background: var(--glass-bg-overlay);
+  border-bottom: 1px solid var(--glass-edge);
+  box-shadow: inset 0 1.5px 0 var(--glass-sheen);
 }
 
 .hm-col-head {
@@ -67,8 +70,9 @@
   padding: 6px 2px;
   text-align: center;
   color: var(--gantt-text-secondary);
-  background: var(--gantt-head-bg);
-  border-bottom: 1px solid var(--border-light);
+  background: var(--glass-bg-overlay);
+  border-bottom: 1px solid var(--glass-edge);
+  box-shadow: inset 0 1.5px 0 var(--glass-sheen);
   border-left: 1px solid var(--gantt-grid-line);
 }
 
@@ -246,8 +250,7 @@
 }
 
 .hm-idle-toggle {
-  background: none;
-  border: none;
+  /* 自绘钮取 .pill 基材（材质由 glass.css .pill 承载，此处仅布局/文字；原 background:none/border:none 重置已撒） */
   cursor: pointer;
   font-size: 12px;
   color: var(--text-tertiary);
@@ -297,7 +300,7 @@
   margin-top: 2px;
 }
 
-/* Drawer 阶段列表 */
+/* Drawer 阶段列表（列表件面材对表：淡档面材 + 发丝亮边；hover 态不动） */
 .hm-drawer-empty {
   color: var(--text-tertiary);
   padding: 16px 0;
@@ -312,7 +315,8 @@
 
 .hm-drawer-item {
   padding: 8px 10px;
-  border: 1px solid var(--border-light);
+  background: var(--glass-bg-subtle);
+  border: 1px solid var(--glass-edge);
   border-radius: 6px;
   cursor: pointer;
   transition: border-color 0.15s ease, box-shadow 0.15s ease;

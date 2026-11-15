@@ -107,14 +107,8 @@ export default function MyTasksPage() {
         ].map((s) => (
           <div
             key={s.label}
-            style={{
-              flex: 1,
-              background: 'var(--glass-bg)',
-              border: '1px solid var(--glass-border)',
-              borderRadius: 12,
-              padding: '16px 20px',
-              boxShadow: 'var(--card-shadow)',
-            }}
+            className="glass" /* 取 .glass 基材 24px（8.5 统计卡口径；原旧 token 裸 div） */
+            style={{ flex: 1, padding: '16px 20px' }}
           >
             <div style={{ fontSize: 13, color: 'var(--text-secondary)', marginBottom: 2 }}>{s.label}</div>
             <div className="pm-stat-value" style={{ fontSize: 28, fontWeight: 600 }}>{s.value}</div>

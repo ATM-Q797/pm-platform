@@ -1,7 +1,10 @@
 /* 甘特图主题样式（全部走 CSS 变量，深浅模式见 index.css :root / [data-theme]） */
 
 .pm-gantt-container {
-  border: 1px solid var(--border-light);
+  /* 网格容器面材对表：容器 .8 白 token 面档（--glass-bg-overlay，8.9 表身同档先例）+ 发丝亮边；滚动区零 blur（性能红线） */
+  background-color: transparent;
+  background-image: var(--glass-bg-overlay);
+  border: 1px solid var(--glass-edge);
   border-radius: 8px;
   overflow: hidden;
 }
@@ -64,9 +67,11 @@
   color: var(--gantt-bar-text);
 }
 
-/* 网格表头底色 */
+/* 网格表头底色（面材对表：高不透明玻璃面 + 高光线模拟 8.9 同构，滚动区零 blur；
+   底缘亮边经 inset shadow 落位——深色块 border-color !important 链不动，零主题冲突） */
 .gantt_grid_head_cell {
-  background: var(--gantt-head-bg) !important;
+  background: var(--glass-bg-overlay) !important;
+  box-shadow: inset 0 1.5px 0 var(--glass-sheen), inset 0 -1px 0 var(--glass-edge);
 }
 
 /* 滚动条控制：
@@ -158,7 +163,7 @@
   border-radius: 6px;
   padding: 1px 7px;
   transform: translateX(-50%);
-  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.15);
+  box-shadow: var(--glass-drop-sm); /* 面材影栈 token 化（原 0 2px 8px rgba(0,0,0,.15) 写死；语义 face/border 不动） */
   backdrop-filter: none; /* 与弹层定位问题同源，一律不用 backdrop-filter */
 }
 /* 向下小倒三角：指向时间标尺的今日刻度 */

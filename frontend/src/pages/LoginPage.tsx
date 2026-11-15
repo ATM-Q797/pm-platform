@@ -203,7 +203,7 @@ export default function LoginPage({ onLogin }: Props) {
         </Form>
       </div>
 
-      <div className="neu-login__footer">© 2026 研发项目管理平台</div>
+      <div className="neu-login__footer">© 2026 项目管理中心</div>
     </div>
   )
 }

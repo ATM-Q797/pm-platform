@@ -36,15 +36,15 @@ function computeBadge(p: Project): Badge | null {
   if (p.plan_end) {
     const end = dayjs(p.plan_end)
     if (end.isBefore(today)) {
-      return { key: 'overdue', text: `🔴 延期 ${today.diff(end, 'day')} 天`, color: '#ff4d4f' }
+      return { key: 'overdue', text: `🔴 延期 ${today.diff(end, 'day')} 天`, color: 'var(--neu-danger)' /* 原 #ff4d4f */ }
     }
     const daysLeft = end.diff(today, 'day')
     if (daysLeft <= 7) {
-      return { key: 'due', text: daysLeft === 0 ? '🟡 今天到期' : `🟡 ${daysLeft} 天后到期`, color: '#faad14' }
+      return { key: 'due', text: daysLeft === 0 ? '🟡 今天到期' : `🟡 ${daysLeft} 天后到期`, color: 'var(--neu-warning)' /* 原 #faad14 */ }
     }
   }
   if (!p.phases || p.phases.length === 0) {
-    return { key: 'nophase', text: '⚠️ 无阶段', color: '#fa8c16' }
+    return { key: 'nophase', text: '⚠️ 无阶段', color: 'var(--neu-warning)' /* 原 #fa8c16 */ }
   }
   return null
 }
@@ -225,7 +225,7 @@ export default function SpecialProjectsPage() {
           <p>错误 {(report.errors || []).length} 条，警告 {(report.warnings || []).length} 条</p>
           {(report.errors || []).length > 0 && (
             <>
-              <b style={{ color: '#ff4d4f' }}>错误：</b>
+              <b style={{ color: 'var(--neu-danger)' /* 原 #ff4d4f */ }}>错误：</b>
               <ul style={{ maxHeight: 120, overflow: 'auto', fontSize: 12 }}>
                 {report.errors.map((e, i) => (
                   <li key={i}>
@@ -492,7 +492,7 @@ export default function SpecialProjectsPage() {
             )}
             {importPreview.errors.length > 0 && (
               <div>
-                <b style={{ color: '#ff4d4f', fontSize: 13 }}>
+                <b style={{ color: 'var(--neu-danger)' /* 原 #ff4d4f */, fontSize: 13 }}>
                   ❌ 错误 {importPreview.errors.length} 条（请修正后重新上传）：
                 </b>
                 <ul style={{ maxHeight: 120, overflow: 'auto', fontSize: 12, margin: '4px 0 0', paddingLeft: 20 }}>

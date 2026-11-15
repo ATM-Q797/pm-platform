@@ -4,12 +4,21 @@
 // 口径唯一来源 backend health_score.py——前端零计算只展示（批次 §2 决策 4）。
 import type { HealthStatus, HealthFact } from '../../types'
 
-// 档位 → 展示色（与 antd 语义色对齐）
+// 档位 → 展示色（neu.css 1b 文字级语义 token 值直取：小字过线为准、图标同值；原值 → 各行出处注释）
 export const BAND_COLOR: Record<string, string> = {
-  green: '#52c41a',
-  yellow: '#faad14',
-  red: '#ff4d4f',
-  gray: '#8c8c8c',
+  green: 'var(--neu-success)', // 原 #52c41a
+  yellow: 'var(--neu-warning)', // 原 #faad14
+  red: 'var(--neu-danger)', // 原 #ff4d4f
+  gray: 'var(--text-tertiary)', // 原 #8c8c8c（未评估中性——1b 无灰语义档，取 index.css 弱文字 token）
+}
+
+// 档位 → 徽章淡染底（原 = BAND_COLOR + '22' 十六进制 alpha 拼接，token 化后 var() 不可拼接——
+// 语义三档改 1b 图标块淡染底 token 值直取；灰档/兜底 = 同 13% 淡染从 --text-tertiary 派生（原 '22' = 13%））
+const BAND_BG: Record<string, string> = {
+  green: 'var(--neu-success-bg)',
+  yellow: 'var(--neu-warning-bg)',
+  red: 'var(--neu-danger-bg)',
+  gray: 'color-mix(in srgb, var(--text-tertiary) 13%, transparent)',
 }
 
 // 档位 → 徽章词（详情页/弹窗分板块用）
@@ -52,8 +61,8 @@ export function HealthFactList({ health }: { health: HealthStatus }) {
           fontSize: 13,
           fontWeight: 600,
           whiteSpace: 'nowrap',
-          background: (BAND_COLOR[health.band] || '#8c8c8c') + '22',
-          color: BAND_COLOR[health.band] || '#8c8c8c',
+          background: BAND_BG[health.band] || BAND_BG.gray,
+          color: BAND_COLOR[health.band] || 'var(--text-tertiary)',
         }}
       >
         {health.band === 'green' ? '🟢' : health.band === 'yellow' ? '🟡' : health.band === 'red' ? '🔴' : '⚪'}{' '}
