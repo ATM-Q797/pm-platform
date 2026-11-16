@@ -9,6 +9,7 @@
  * - 导出 PDF 已移除（用户 2026-10-27 裁定：实际作用不大）
  */
 import { useCallback, useEffect, useRef, useState } from 'react'
+import prefersReducedMotion from '../../hooks/prefersReducedMotion'
 import { Alert, Button, Empty, Modal, Segmented, Spin, Tabs, Tooltip, message } from 'antd'
 import { CloseOutlined, FundOutlined, QuestionCircleOutlined, SyncOutlined } from '@ant-design/icons'
 import { getAnalysisTrend, runSnapshot } from '../../api/analysis'
@@ -430,8 +431,9 @@ const tabItems = [
         </span>
       }
       width={1280}
-      open={open}
-      onCancel={onClose}
+       open={open}
+       transitionName={prefersReducedMotion() ? '' : 'pm-modal'}
+       onCancel={onClose}
       footer={[
         <Button key="close" icon={<CloseOutlined />} onClick={onClose}>关闭</Button>,
       ]}

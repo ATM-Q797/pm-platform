@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from 'react'
+import prefersReducedMotion from '../../hooks/prefersReducedMotion'
 import { Button, Empty, Input, Modal, Space, Table, Tag, Typography, message } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import type { ReportChangeRequestItem } from '../../types'
@@ -105,8 +106,9 @@ export default function ApprovalTab({
       )}
       <Modal
         title={`驳回改期申请 — ${rejectTarget?.phase_name ?? ''}`}
-        open={rejectTarget !== null}
-        onCancel={() => setRejectTarget(null)}
+         open={rejectTarget !== null}
+         transitionName={prefersReducedMotion() ? '' : 'pm-modal'}
+         onCancel={() => setRejectTarget(null)}
         onOk={async () => {
           if (!rejectReason.trim()) {
             message.warning('请填写驳回原因')

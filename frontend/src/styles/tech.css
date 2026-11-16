@@ -273,16 +273,8 @@
   .hm-drawer-item {
     transition: none !important;
   }
-  /* 弹窗开合直接开合（零时长动画会挂死 rc-motion——走 motion={null} 分支，此处置空兜底） */
-  .ant-zoom-appear,
-  .ant-zoom-enter,
-  .ant-zoom-appear-active,
-  .ant-zoom-enter-active,
-  .ant-zoom-leave,
-  .ant-zoom-leave-active {
-    animation: none !important;
-    transition: none !important;
-  }
+  /* 弹窗开合不经 CSS 降级——全站 Modal 挂名走 transitionName 空名短路（§12）；本段曾置空 .ant-zoom-*，
+     零完成事件会挂死 rc-motion（Modal 无 deadline 兜底），2026-11-16 删除。 */
 }
 
 /* ---------- 11. header-user hover 过渡（App 内联归一入档；降级随 10 段停） ---------- */
@@ -294,7 +286,7 @@
    自有命名族（2026-11-16 修复）：旧口径覆盖 .ant-zoom-* + animation:none!important 压原生 zoom 改走 transition——
    antd v6 cssinjs 的 .ant-zoom-* 状态规则优先级更高（hash 类 0,2,0），transition 拿不到值变化、零完成事件，
    rc-motion 永久等待 ⇒ 弹窗停死 opacity:0（@rc-component/motion CSSMotion.js：仅空 motionName 短路，事件不来即永远等）。
-   pm-modal-* 与 antd 生成面类名隔离、初值/终值同族自洽，transition 真实触发；未挂名 Modal（ImportExcelModal 等）走原生 zoom 零触碰。
+   pm-modal-* 与 antd 生成面类名隔离、初值/终值同族自洽，transition 真实触发；全站 Modal 统一挂名（含静态 Modal.info/confirm）。
    reduced-motion = transitionName 空名短路（isSupportTransition 对空名 false），不经 CSS 降级（零时长挂死教训见降级注）。 */
 .pm-modal-appear,
 .pm-modal-appear-prepare,

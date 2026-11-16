@@ -6,7 +6,7 @@ import { listProjects, createProject, deleteProject, applyTemplate, setFavorite 
 import ProjectEditModal from '../components/ProjectEditModal'
 import { buildColumns, buildFavoriteColumns } from '../components/ProjectList/columns'
 import { ImportExcelButton, ImportExcelModal, useImportExcel } from '../components/ProjectList/ImportExcelModal'
-import prefersReducedMotion from '../hooks/usePrefersReducedMotion'
+import prefersReducedMotion from '../hooks/prefersReducedMotion'
 import { listTemplates } from '../api/templates'
 import { listUsers } from '../api/users'
 import { requestDeleteProject } from '../api/audit'
@@ -377,8 +377,9 @@ export default function ProjectListPage() {
       {/* 删除申请（manager） */}
       <Modal
         title="申请删除项目"
-        open={!!deleteReasonOpen}
-        onOk={handleDeleteRequest}
+         open={!!deleteReasonOpen}
+         transitionName={prefersReducedMotion() ? '' : 'pm-modal'}
+         onOk={handleDeleteRequest}
         onCancel={() => { setDeleteReasonOpen(null); setDeleteReason('') }}
         okText="提交申请"
         okType="danger"

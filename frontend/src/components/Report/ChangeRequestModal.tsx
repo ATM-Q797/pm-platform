@@ -3,7 +3,7 @@ import { DatePicker, Form, Modal, Select, Typography, message } from 'antd'
 import dayjs, { type Dayjs } from 'dayjs'
 import type { ReportChangeProposal, ReportMeta, ReportPhaseRow } from '../../types'
 import { createReportChangeRequest } from '../../api/report'
-import prefersReducedMotion from '../../hooks/usePrefersReducedMotion'
+import prefersReducedMotion from '../../hooks/prefersReducedMotion'
 
 const { Text } = Typography
 

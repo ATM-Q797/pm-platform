@@ -3,7 +3,7 @@ import { Modal, Form, Input, Select, DatePicker, message } from 'antd'
 import dayjs from 'dayjs'
 import { updateProject } from '../api/projects'
 import { MARKET_OPTION_ITEMS } from '../types'
-import prefersReducedMotion from '../hooks/usePrefersReducedMotion'
+import prefersReducedMotion from '../hooks/prefersReducedMotion'
 import type { Project } from '../types'
 
 /**

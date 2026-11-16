@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from 'react'
+import prefersReducedMotion from '../../hooks/prefersReducedMotion'
 import {
   Drawer,
   Form,
@@ -277,6 +278,7 @@ export default function PhaseEditor({ phaseId, projectId, defaultSequence, reado
     if (!phase) return
     let reason = ''
     Modal.confirm({
+      transitionName: prefersReducedMotion() ? '' : 'pm-modal',
       title: '阶段返工',
       content: (
         <div style={{ paddingTop: 8 }}>
@@ -303,6 +305,7 @@ export default function PhaseEditor({ phaseId, projectId, defaultSequence, reado
   const handleDelete = () => {
     if (!phase) return
     Modal.confirm({
+      transitionName: prefersReducedMotion() ? '' : 'pm-modal',
       title: '删除阶段',
       content: `确定删除阶段「${phase.name}」？此操作不可恢复。`,
       okText: '删除',

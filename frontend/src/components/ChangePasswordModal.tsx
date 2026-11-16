@@ -1,7 +1,7 @@
 import { useState } from 'react'
 import { Modal, Form, Input, message } from 'antd'
 import { changePassword } from '../api/auth'
-import prefersReducedMotion from '../hooks/usePrefersReducedMotion'
+import prefersReducedMotion from '../hooks/prefersReducedMotion'
 
 interface Props {
   open: boolean

@@ -16,7 +16,7 @@ import type {
   UserInfo,
 } from '../../types'
 import { createReportProject, getReportMeta } from '../../api/report'
-import prefersReducedMotion from '../../hooks/usePrefersReducedMotion'
+import prefersReducedMotion from '../../hooks/prefersReducedMotion'
 
 interface PhaseRow {
   key: number

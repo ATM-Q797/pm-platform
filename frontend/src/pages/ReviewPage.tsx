@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import prefersReducedMotion from '../hooks/prefersReducedMotion'
 import { Card, Table, Tag, Button, Space, Tabs, Modal, Input, message, Popconfirm, Popover } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import { listDeleteRequests, reviewDeleteRequest, listOperationLogs, listPhaseChangeRequests, reviewPhaseChangeRequest } from '../api/audit'
@@ -384,8 +385,9 @@ export default function ReviewPage({ userRole = 'admin' }: { userRole?: string }
 
       <Modal
         title="拒绝删除申请"
-        open={!!rejectModal}
-        onOk={handleRejectConfirm}
+         open={!!rejectModal}
+         transitionName={prefersReducedMotion() ? '' : 'pm-modal'}
+         onOk={handleRejectConfirm}
         onCancel={() => { setRejectModal(null); setRejectComment('') }}
         okText="确认拒绝"
       >
@@ -400,8 +402,9 @@ export default function ReviewPage({ userRole = 'admin' }: { userRole?: string }
 
       <Modal
         title="拒绝阶段变更"
-        open={!!phaseRejectId}
-        onOk={handlePhaseRejectConfirm}
+         open={!!phaseRejectId}
+         transitionName={prefersReducedMotion() ? '' : 'pm-modal'}
+         onOk={handlePhaseRejectConfirm}
         onCancel={() => { setPhaseRejectId(null); setPhaseRejectComment('') }}
         okText="确认拒绝"
       >

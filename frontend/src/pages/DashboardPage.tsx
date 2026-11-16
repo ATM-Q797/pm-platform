@@ -1,4 +1,5 @@
 import { useEffect, useState, lazy, Suspense } from 'react'
+import prefersReducedMotion from '../hooks/prefersReducedMotion'
 import { useNavigate } from 'react-router-dom'
 import { Alert, Button, Card, Col, Row, Space, Tag, Empty, Spin, Tooltip, message, Drawer, List, Modal } from 'antd'
 import {
@@ -256,8 +257,9 @@ export default function DashboardPage() {
             </Tooltip>
           </span>
         }
-        open={riskOpen}
-        onCancel={() => setRiskOpen(false)}
+         open={riskOpen}
+         transitionName={prefersReducedMotion() ? '' : 'pm-modal'}
+         onCancel={() => setRiskOpen(false)}
         footer={null}
         width={720}
       >

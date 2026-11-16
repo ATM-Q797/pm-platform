@@ -1,4 +1,5 @@
 import { useEffect, useState, useCallback } from 'react'
+import prefersReducedMotion from '../hooks/prefersReducedMotion'
 import { useParams, useNavigate } from 'react-router-dom'
 import { Card, Descriptions, Tag, Button, Space, Segmented, Spin, message, Switch, Result, Modal, Timeline, Empty } from 'antd'
 import { ArrowLeftOutlined, PlusOutlined, StarFilled, StarOutlined, EditOutlined, HistoryOutlined, LineChartOutlined } from '@ant-design/icons'
@@ -278,8 +279,9 @@ export default function ProjectDetailPage() {
           专项 403 / 加载失败 → TrendSection 自隐藏（弹窗空内容；瞬时故障无提示属已知取舍，与健康度区块同模式） */}
       <Modal
         title="进度趋势"
-        open={trendOpen}
-        onCancel={() => setTrendOpen(false)}
+         open={trendOpen}
+         transitionName={prefersReducedMotion() ? '' : 'pm-modal'}
+         onCancel={() => setTrendOpen(false)}
         footer={null}
         width={820}
         destroyOnHidden
@@ -290,8 +292,9 @@ export default function ProjectDetailPage() {
       {/* 变更情况弹窗（P1）：字段级审计历史，数据同时作为分析板块数据源 */}
       <Modal
         title="变更情况（最近 7 天）"
-        open={timelineOpen}
-        onCancel={() => setTimelineOpen(false)}
+         open={timelineOpen}
+         transitionName={prefersReducedMotion() ? '' : 'pm-modal'}
+         onCancel={() => setTimelineOpen(false)}
         footer={null}
         width={640}
       >

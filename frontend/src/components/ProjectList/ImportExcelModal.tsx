@@ -2,6 +2,7 @@
 // 第一步选文件只解析出差异报告（预检，不落库）；第二步确认后按合并/替换模式真正导入，成功后回调刷新列表。
 // 工具栏按钮与预检弹窗共用同一份预检状态（本组件同时渲染两处，状态不外泄到页面）。
 import { useState } from 'react'
+import prefersReducedMotion from '../../hooks/prefersReducedMotion'
 import { Modal, Radio, Tag, Upload, Button, message } from 'antd'
 import { DownloadOutlined } from '@ant-design/icons'
 import type { ImportPreview, ImportReport } from '../../types'
@@ -67,6 +68,7 @@ export function useImportExcel(onImported: () => void) {
   const showImportResult = (report: ImportReport) => {
     const isMerge = report.projects_created > 0 || report.projects_updated > 0
     Modal.info({
+      transitionName: prefersReducedMotion() ? '' : 'pm-modal',
       title: isMerge ? '导入完成（合并）' : '导入完成（替换）',
       width: 640,
       content: (
@@ -173,8 +175,9 @@ export function ImportExcelModal(props: {
   return (
     <Modal
       title="导入确认 — 差异报告"
-      open={!!importPreview}
-      onCancel={props.onCancel}
+       open={!!importPreview}
+       transitionName={prefersReducedMotion() ? '' : 'pm-modal'}
+       onCancel={props.onCancel}
       onOk={props.onConfirm}
       okText={importMode === 'merge' ? '确认合并导入' : '确认替换导入并清空现有数据'}
       okType={importMode === 'merge' ? 'primary' : 'danger'}

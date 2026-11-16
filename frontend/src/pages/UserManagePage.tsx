@@ -25,7 +25,7 @@ import {
   type UserCreatePayload,
 } from '../api/users'
 import { listResources } from '../api/resources'
-import prefersReducedMotion from '../hooks/usePrefersReducedMotion'
+import prefersReducedMotion from '../hooks/prefersReducedMotion'
 import type { UserInfo, Resource } from '../types'
 
 const ROLE_COLOR: Record<string, string> = {
@@ -319,8 +319,9 @@ export default function UserManagePage() {
 
       {/* 强制删除确认（用户 2026-10-29 指令）：第 4 次删除失败后弹出——墓碑式，日志保留 */}
       <Modal
-        open={!!forceTarget}
-        title={`强制删除用户 ${forceTarget?.name ?? ''}？`}
+         open={!!forceTarget}
+         transitionName={prefersReducedMotion() ? '' : 'pm-modal'}
+         title={`强制删除用户 ${forceTarget?.name ?? ''}？`}
         onOk={handleForceDelete}
         onCancel={() => setForceTarget(null)}
         okText="确认强制删除"

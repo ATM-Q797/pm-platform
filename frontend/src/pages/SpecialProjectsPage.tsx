@@ -11,7 +11,7 @@ import { importSpecial, specialImportPreview } from '../api/imports'
 import { listUsers } from '../api/users'
 import { getMe } from '../api/auth'
 import { MARKET_OPTION_ITEMS, MARKET_OPTIONS } from '../types'
-import prefersReducedMotion from '../hooks/usePrefersReducedMotion'
+import prefersReducedMotion from '../hooks/prefersReducedMotion'
 import type { ImportPreview, ImportReport, Project, UserInfo } from '../types'
 
 // 状态 → Tag 颜色（与项目列表页一致；旧值「已搁置」兼容已移除——2026-08-28）
@@ -215,6 +215,7 @@ export default function SpecialProjectsPage() {
 
   const showSpecialImportResult = (report: ImportReport) => {
     Modal.info({
+      transitionName: prefersReducedMotion() ? '' : 'pm-modal',
       title: '专项导入完成',
       width: 640,
       content: (
@@ -459,8 +460,9 @@ export default function SpecialProjectsPage() {
       {/* 专项导入预览（§五·B：全量替换专项域，仅 admin/manager 可见本页） */}
       <Modal
         title="专项导入预览"
-        open={!!importPreview}
-        onCancel={() => { setImportPreview(null); setPendingImportFile(null) }}
+         open={!!importPreview}
+         transitionName={prefersReducedMotion() ? '' : 'pm-modal'}
+         onCancel={() => { setImportPreview(null); setPendingImportFile(null) }}
         onOk={confirmSpecialImport}
         okText="确认导入并替换全部专项项目"
         okType="danger"

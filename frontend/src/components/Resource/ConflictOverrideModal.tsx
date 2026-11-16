@@ -1,4 +1,5 @@
 import { useEffect, useState } from 'react'
+import prefersReducedMotion from '../../hooks/prefersReducedMotion'
 import { Button, Input, Modal, Spin, message } from 'antd'
 import { createConflictOverride } from '../../api/resources'
 
@@ -70,8 +71,9 @@ export default function ConflictOverrideModal({
 
   return (
     <Modal
-      open={open}
-      title="消除冲突"
+       open={open}
+       transitionName={prefersReducedMotion() ? '' : 'pm-modal'}
+       title="消除冲突"
       okText="消除"
       cancelText="取消"
       confirmLoading={submitting}

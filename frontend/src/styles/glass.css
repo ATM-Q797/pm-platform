@@ -266,8 +266,9 @@
   box-shadow: var(--glass-elev-up);
 }
 
-/* ---------- 8.6 抽屉/弹窗壳面材（单元② B 案：浮层壳 = 高不透明玻璃档 .8 面 + blur + 玻璃形制件；
-   下拉/Popover/Popconfirm 文字密集小件沿实色 token 不动——浮层口径裁定点，用户 2026-11-15 B） ---------- */
+/* ---------- 8.6 抽屉/弹窗壳面材（单元② B 案：浮层壳 = 高不透明玻璃档 + blur + 玻璃形制件；
+   壳面档 = --glass-bg-shell .92（毛玻璃不透底字，用户 2026-11-16）；下拉/Popover/Popconfirm 文字密集小件沿实色 token 不动
+   ——浮层口径裁定点，用户 2026-11-15 B） ---------- */
 /* 承面类注：antd v6 Popover/Popconfirm DOM 为 .ant-popover-container > .ant-popover-content（实测 Popconfirm 无 inner 类），
    影挂 .ant-popover-content 单层施加，普通 Popover 的内层 .ant-popover-inner 同壳不重复上影 */
 /* 承面锚抬 (0,2,0)（3 段权重注）：壳面材压过 antd contentBg/colorBgElevated 同属性声明。
