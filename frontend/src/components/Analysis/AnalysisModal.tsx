@@ -8,8 +8,8 @@
  * - 比率/差分在前端按需计算（后端只存原子计数；weekly.delta 已由后端算好）
  * - 导出 PDF 已移除（用户 2026-10-27 裁定：实际作用不大）
  */
-import { useEffect, useRef, useState } from 'react'
-import { Button, Empty, Modal, Segmented, Spin, Tabs, Tooltip, message } from 'antd'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { Alert, Button, Empty, Modal, Segmented, Spin, Tabs, Tooltip, message } from 'antd'
 import { CloseOutlined, FundOutlined, QuestionCircleOutlined, SyncOutlined } from '@ant-design/icons'
 import { getAnalysisTrend, runSnapshot } from '../../api/analysis'
 import { useTheme } from '../../theme'
@@ -135,15 +135,20 @@ function TrendChart(p: TrendChartProps) {
   const divRef = useRef<HTMLDivElement>(null)
   const chartRef = useRef<EChartsType | null>(null)
 
-  // 初始化/主题切换：动态加载后 init；暗色用内置 dark 主题
+  // 初始化/主题切换：动态加载后 init；暗色用内置 dark 主题；re-init 后入场淡化（换肤淡入 0.25s）
   useEffect(() => {
     let cancelled = false
     loadECharts().then((core) => {
       if (cancelled || !divRef.current) return
+      const el = divRef.current
+      // ECharts 换肤淡入：re-init 后 opacity 0→1（CSS transition 0.25s，reduced-motion 跳过）
+      const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+      if (!reduce) el.style.opacity = '0'
       chartRef.current?.dispose()
-      const chart = core.init(divRef.current, p.mode === 'dark' ? 'dark' : undefined)
+      const chart = core.init(el, p.mode === 'dark' ? 'dark' : undefined)
       chart.setOption(buildOption(p))
       chartRef.current = chart
+      if (!reduce) requestAnimationFrame(() => { el.style.opacity = '1' })
     })
     // 尺寸自适应：窗口缩放 + Tab 切换（隐藏容器宽度 0 → 显示后 resize）
     const ro = new ResizeObserver(() => chartRef.current?.resize())
@@ -168,7 +173,7 @@ function TrendChart(p: TrendChartProps) {
       <div style={{ fontSize: 13, fontWeight: 600, marginBottom: 4, color: 'var(--text-primary, #333)' }}>
         {p.title}
       </div>
-      <div ref={divRef} style={{ height: p.height ?? 250 }} />
+      <div ref={divRef} className="pm-chart-fade" style={{ height: p.height ?? 250 }} />
     </div>
   )
 }
@@ -210,17 +215,23 @@ export default function AnalysisModal({ open, onClose }: Props) {
   const [trend, setTrend] = useState<AnalysisTrend | null>(null)
   const [loading, setLoading] = useState(false)
   const [refreshing, setRefreshing] = useState(false)
+  const [loadError, setLoadError] = useState(false) // 加载失败显式错误态 + 重试（3.3 ⑥-b/⑥-c）
+
+  const fetchData = useCallback(() => {
+    let stale = false
+    setLoading(true)
+    setLoadError(false)
+    getAnalysisTrend(days)
+      .then((data) => { if (!stale) setTrend(data) })
+      .catch(() => { if (!stale) setLoadError(true) })
+      .finally(() => { if (!stale) setLoading(false) })
+    return () => { stale = true }
+  }, [days])
 
   useEffect(() => {
     if (!open) return
-    let stale = false
-    setLoading(true)
-    getAnalysisTrend(days)
-      .then((data) => { if (!stale) setTrend(data) })
-      .catch((e) => { if (!stale) message.error('趋势数据加载失败：' + (e as Error).message) })
-      .finally(() => { if (!stale) setLoading(false) })
-    return () => { stale = true }
-  }, [open, days])
+    return fetchData()
+  }, [open, fetchData])
 
   const daily = trend?.daily ?? []
   const weekly = trend?.weekly ?? []
@@ -462,6 +473,14 @@ const tabItems = [
         </div>
         {loading ? (
           <Spin size="large" style={{ display: 'block', margin: '60px auto' }} />
+        ) : loadError ? (
+          <Alert
+            type="error"
+            showIcon
+            message="加载失败，请重试"
+            action={<Button size="small" onClick={fetchData}>重试</Button>}
+            style={{ margin: '48px 0' }}
+          />
         ) : hasData ? (
           <Tabs items={tabItems} />
         ) : (

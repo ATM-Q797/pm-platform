@@ -180,7 +180,7 @@ Token 与按钮基准实现：
 | 按压 | 压入：翻转内双影 6px/12px + translateY(1px) |
 | 焦点 | :focus-visible 主题色光环 2px + 影调变化 |
 | 禁用 | 影调压平 + opacity 0.55 |
-| 危险件 danger（分型，2026-11-15 乙裁定） | 五态同构上表；面材 = 语义红底面 `--glass-danger-face`（值唯一权威 = docs/UI_TECH_STYLE.md 1.4）+ 玻璃影栈（`--glass-elev-control` 同构）——红底突出危险语义，删除/驳回等 14 用点全适用 |
+| 危险件 danger（分型，2026-11-15 乙裁定） | 五态同构上表；面材 = 语义红底面 `--glass-danger-face`（值唯一权威 = docs/UI_TECH_STYLE.md 1.4）+ 玻璃影栈（`--glass-elev-control` 同构）；文字 = 白（白字对红面 4.70:1——红面上随 token 的文字色不达线，白字为该分型规格值）——红底突出危险语义，删除/驳回等危险动作用点全适用 |
 
 **适用面**：
 

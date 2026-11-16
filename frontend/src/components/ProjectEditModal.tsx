@@ -3,6 +3,7 @@ import { Modal, Form, Input, Select, DatePicker, message } from 'antd'
 import dayjs from 'dayjs'
 import { updateProject } from '../api/projects'
 import { MARKET_OPTION_ITEMS } from '../types'
+import prefersReducedMotion from '../hooks/usePrefersReducedMotion'
 import type { Project } from '../types'
 
 /**
@@ -64,6 +65,7 @@ export default function ProjectEditModal({ project, open, onClose, onSaved }: {
     <Modal
       title="编辑项目"
       open={open}
+      transitionName={prefersReducedMotion() ? '' : 'pm-modal'}
       onOk={handleOk}
       onCancel={onClose}
       afterOpenChange={(o) => o && handleValues()}
@@ -72,7 +74,7 @@ export default function ProjectEditModal({ project, open, onClose, onSaved }: {
       okText="保存"
       destroyOnHidden
     >
-      <Form form={form} layout="vertical" style={{ marginTop: 16, paddingRight: 8 }} preserve={false}>
+      <Form form={form} layout="vertical" style={{ marginTop: 16, paddingRight: 8 }} preserve={false} onFinish={handleOk} onKeyDown={(e) => { if (e.key === 'Enter' && e.target instanceof HTMLInputElement && !e.target.readOnly && !e.target.closest('.ant-select, .ant-picker')) { e.preventDefault(); form.submit(); } }}>
         <Form.Item name="name" label="项目名称" rules={[{ required: true }]}>
           <Input placeholder="项目全称" />
         </Form.Item>

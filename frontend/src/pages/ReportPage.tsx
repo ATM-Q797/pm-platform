@@ -124,7 +124,7 @@ export default function ReportPage({ user }: { user: UserInfo }) {
     setReloadKey((k) => k + 1)
     setTabTokens((t) => ({ approvals: t.approvals + 1, mine: t.mine + 1 }))
     const ok = await refreshBadges({ manual: true })
-    if (!ok) message.error('角标刷新失败，请重试')
+    if (!ok) message.error('加载失败，请重试')
   }
 
   const columns: ColumnsType<ReportProjectItem> = [

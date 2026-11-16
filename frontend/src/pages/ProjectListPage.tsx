@@ -6,6 +6,7 @@ import { listProjects, createProject, deleteProject, applyTemplate, setFavorite 
 import ProjectEditModal from '../components/ProjectEditModal'
 import { buildColumns, buildFavoriteColumns } from '../components/ProjectList/columns'
 import { ImportExcelButton, ImportExcelModal, useImportExcel } from '../components/ProjectList/ImportExcelModal'
+import prefersReducedMotion from '../hooks/usePrefersReducedMotion'
 import { listTemplates } from '../api/templates'
 import { listUsers } from '../api/users'
 import { requestDeleteProject } from '../api/audit'
@@ -319,13 +320,14 @@ export default function ProjectListPage() {
       <Modal
         title="新建项目"
         open={createOpen}
+        transitionName={prefersReducedMotion() ? '' : 'pm-modal'}
         onOk={handleCreate}
         onCancel={() => setCreateOpen(false)}
         confirmLoading={creating}
         width={520}
         okText="创建"
       >
-        <Form form={form} layout="vertical" style={{ marginTop: 'var(--neu-space-4)' }} /* 上距 token 直取（neu.css 1c；原 16 写死） */
+        <Form form={form} layout="vertical" style={{ marginTop: 'var(--neu-space-4)' }} onFinish={handleCreate} onKeyDown={(e) => { if (e.key === 'Enter' && e.target instanceof HTMLInputElement && !e.target.readOnly && !e.target.closest('.ant-select, .ant-picker')) { e.preventDefault(); form.submit(); } }}
           initialValues={{ category: '新需求', market: MARKET_OPTIONS[0], status: '未开始' }}>
           <Form.Item name="name" label="项目名称" rules={[{ required: true, message: '请输入项目名称' }]}>
             <Input placeholder="项目全称" />

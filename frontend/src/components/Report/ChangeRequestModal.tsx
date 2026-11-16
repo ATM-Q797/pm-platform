@@ -3,6 +3,7 @@ import { DatePicker, Form, Modal, Select, Typography, message } from 'antd'
 import dayjs, { type Dayjs } from 'dayjs'
 import type { ReportChangeProposal, ReportMeta, ReportPhaseRow } from '../../types'
 import { createReportChangeRequest } from '../../api/report'
+import prefersReducedMotion from '../../hooks/usePrefersReducedMotion'
 
 const { Text } = Typography
 
@@ -69,6 +70,7 @@ export default function ChangeRequestModal({
     <Modal
       title={`变更申请 — ${target?.name ?? ''}`}
       open={target !== null}
+      transitionName={prefersReducedMotion() ? '' : 'pm-modal'}
       onCancel={onClose}
       onOk={handleOk}
       okText="提交申请"
@@ -81,7 +83,7 @@ export default function ChangeRequestModal({
           该阶段已有待审批的变更申请，再次提交请先等待审批结果。
         </Text>
       )}
-      <Form form={form} layout="vertical">
+      <Form form={form} layout="vertical" onFinish={handleOk} onKeyDown={(e) => { if (e.key === 'Enter' && e.target instanceof HTMLInputElement && !e.target.readOnly && !e.target.closest('.ant-select, .ant-picker')) { e.preventDefault(); form.submit(); } }}>
         <Form.Item name="assignee_ids" label="阶段负责人">
           <Select
             mode="multiple"

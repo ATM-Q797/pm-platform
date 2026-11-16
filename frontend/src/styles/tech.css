@@ -7,14 +7,24 @@
 /* body 网格纹理+顶部紫晕已随 UI批4 快照对表退场（用户 2026-11-14「对照快照」——快照地面为干净渐变+极光，无网格）；
    地面基调由 index.css html 极光渐变层承担（--ground-* token）。 */
 
-/* ---------- 2. 全局过渡（仅 background-color/border-color/box-shadow/color，0.25s，性能红线） ---------- */
-/* 属性集含 color（文字色）：主题切换后各表面/文字/影调同步淡变、无瞬切（3.3 用户裁定 2026-11-13） */
+/* ---------- 2. 全局过渡（换肤过渡集五属性 0.25s，性能红线逐属性列写；与组件状态过渡分挂两组） ---------- */
+/* 属性集（换肤五属性）：background（简写含 background-color）· border-color · box-shadow · color · transform；
+   主题切换后各表面/文字/影调同步淡变、无瞬切（3.3 用户裁定 2026-11-13；动效批扩面 2026-11-16） */
 .ant-card,
 .ant-btn,
 .ant-menu .ant-menu-item,
-.ant-menu .ant-menu-submenu-title {
+.ant-menu .ant-menu-submenu-title,
+.pm-toolbar,
+.pm-header,
+.pm-stat-card,
+.ant-tag,
+.ant-table .ant-table-thead > tr > th,
+.ant-modal .ant-modal-container,
+.ant-drawer .ant-drawer-section,
+.ant-popover-content,
+.ant-empty {
   transition:
-    background-color 0.25s,
+    background 0.25s,
     border-color 0.25s,
     box-shadow 0.25s,
     color 0.25s,
@@ -22,13 +32,13 @@
 }
 
 /* ---------- 3. 卡片 hover 抬升（卡片材质已归拟态：neu.css 8.5 凸起面；玻璃拟态随用户裁定注记 1 退场） ----------
-   transform 抬升为既有行为保留（悬停升起的幅度随 3.3 交互细则批再议）；hover 影调取增凸档在 neu.css 8.5。 */
+   transform 抬升幅度 = 1px（3.3 原文；用户 2026-11-16 裁定统一 1px）；hover 影调取增凸档在 neu.css 8.5。 */
 .ant-card .ant-card-head {
   border-bottom-color: var(--glass-border); /* 卡头分隔线（非材质，保留） */
 }
 .ant-card-hoverable:hover,
 .ant-card:hover {
-  transform: translateY(-3px);
+  transform: translateY(-1px);
 }
 
 /* ---------- 4.5 滚动容器卡片豁免 blur（性能红线）
@@ -212,16 +222,150 @@
    注意：不要用 `*` 全局覆盖 animation-duration！
    antd rc-motion 检测到非零动画时长会等待 animationend，0.01ms 动画的事件
    可能不触发 → Dropdown popup 永久卡在 -1000vw 离屏位（2026-08-26 实测）。
-   只禁用本项目自有动画类。 */
+   只禁用本项目自有动画类。
+   权威口径「关闭全部动画（登录页除外）」——pm-pulse/pm-breathe/角标呼吸等业务提示动效同停
+   （用户 2026-11-16 裁定：业务提示动效随降级同停，登录页恒动为唯一例外）。 */
 @media (prefers-reduced-motion: reduce) {
-  /* 仅禁用页面入场等装饰动画；甘特呼吸（关键路径/冲突）是业务提示，保留 */
-  /* 登录页网格 Canvas 在组件内部检测 reduced-motion，只画静态一帧 */
+  /* 页面入场装饰动画 */
   .pm-fade-slide-up {
     animation: none !important;
   }
+  /* 业务提示呼吸：pm-pulse（甘特关键路径/冲突 + 资源冲突角标）· pm-breathe（填报逾期/即将到期） */
+  .gantt_task_line.gantt-task-critical,
+  .gantt_task_line.gantt-task-conflict,
+  .resource-view .gantt_task_line.gantt-task-conflict::after,
+  .pm-alert-tag {
+    animation: none !important;
+  }
+  /* 卡片 hover 抬升 */
   .ant-card-hoverable:hover,
   .ant-card:hover {
     transform: none;
+  }
+  /* 全站过渡集 + 组件状态过渡同停（含 glass.css 五态段） */
+  .ant-card,
+  .ant-btn,
+  .ant-menu .ant-menu-item,
+  .ant-menu .ant-menu-submenu-title,
+  .pm-toolbar,
+  .pm-header,
+  .pm-stat-card,
+  .ant-tag,
+  .ant-table .ant-table-thead > tr > th,
+  .ant-modal .ant-modal-container,
+  .ant-drawer .ant-drawer-section,
+  .ant-popover-content,
+  .ant-empty,
+  .ant-input,
+  .ant-input-affix-wrapper,
+  .ant-input-number,
+  .ant-select,
+  .ant-picker,
+  .ant-segmented,
+  .ant-checkbox-wrapper > .ant-checkbox,
+  .ant-radio-wrapper > .ant-radio,
+  .ant-radio-group .ant-radio-button-wrapper,
+  button.ant-switch,
+  .ant-tabs .ant-tabs-nav-list,
+  .ant-tabs .ant-tabs-tab,
+  .header-user,
+  .hm-cell,
+  .hm-drawer-item {
+    transition: none !important;
+  }
+  /* 弹窗开合直接开合（零时长动画会挂死 rc-motion——走 motion={null} 分支，此处置空兜底） */
+  .ant-zoom-appear,
+  .ant-zoom-enter,
+  .ant-zoom-appear-active,
+  .ant-zoom-enter-active,
+  .ant-zoom-leave,
+  .ant-zoom-leave-active {
+    animation: none !important;
+    transition: none !important;
+  }
+}
+
+/* ---------- 11. header-user hover 过渡（App 内联归一入档；降级随 10 段停） ---------- */
+.header-user {
+  transition: background 0.25s;
+}
+
+/* ---------- 12. Modal 滑入+fade 0.2s（动效批；transitionName='pm-modal' 自有 motion 名） ----------
+   自有命名族（2026-11-16 修复）：旧口径覆盖 .ant-zoom-* + animation:none!important 压原生 zoom 改走 transition——
+   antd v6 cssinjs 的 .ant-zoom-* 状态规则优先级更高（hash 类 0,2,0），transition 拿不到值变化、零完成事件，
+   rc-motion 永久等待 ⇒ 弹窗停死 opacity:0（@rc-component/motion CSSMotion.js：仅空 motionName 短路，事件不来即永远等）。
+   pm-modal-* 与 antd 生成面类名隔离、初值/终值同族自洽，transition 真实触发；未挂名 Modal（ImportExcelModal 等）走原生 zoom 零触碰。
+   reduced-motion = transitionName 空名短路（isSupportTransition 对空名 false），不经 CSS 降级（零时长挂死教训见降级注）。 */
+.pm-modal-appear,
+.pm-modal-appear-prepare,
+.pm-modal-enter,
+.pm-modal-enter-prepare {
+  opacity: 0;
+  transform: translateY(-24px);
+}
+.pm-modal-appear-active,
+.pm-modal-enter-active {
+  opacity: 1;
+  transform: none;
+  transition: opacity 0.2s ease-out, transform 0.2s ease-out;
+}
+.pm-modal-leave {
+  opacity: 1;
+  transform: none;
+}
+.pm-modal-leave-active {
+  opacity: 0;
+  transform: translateY(-24px);
+  transition: opacity 0.2s ease-in, transform 0.2s ease-in;
+}
+
+/* ---------- 12b. Drawer 滑入 0.2s（机制表行 5：Modal/Drawer 同档定制；antd 默认 0.3s → 0.2s） ----------
+   rc-motion 类名 = ant-drawer-mask-motion / ant-drawer-panel-motion-{left,right,top,bottom} + 状态后缀；
+   motionDeadline 500 在册（reduced-motion 下 transition:none 立即到位，deadline 收尾无挂死）。 */
+.ant-drawer-mask-motion-appear-active,
+.ant-drawer-mask-motion-enter-active,
+.ant-drawer-mask-motion-leave-active,
+.ant-drawer-panel-motion-left-appear-active,
+.ant-drawer-panel-motion-left-enter-active,
+.ant-drawer-panel-motion-left-leave-active,
+.ant-drawer-panel-motion-right-appear-active,
+.ant-drawer-panel-motion-right-enter-active,
+.ant-drawer-panel-motion-right-leave-active,
+.ant-drawer-panel-motion-top-appear-active,
+.ant-drawer-panel-motion-top-enter-active,
+.ant-drawer-panel-motion-top-leave-active,
+.ant-drawer-panel-motion-bottom-appear-active,
+.ant-drawer-panel-motion-bottom-enter-active,
+.ant-drawer-panel-motion-bottom-leave-active {
+  transition: opacity 0.2s ease-out, transform 0.2s ease-out !important;
+}
+@media (prefers-reduced-motion: reduce) {
+  .ant-drawer-mask-motion-appear-active,
+  .ant-drawer-mask-motion-enter-active,
+  .ant-drawer-mask-motion-leave-active,
+  .ant-drawer-panel-motion-left-appear-active,
+  .ant-drawer-panel-motion-left-enter-active,
+  .ant-drawer-panel-motion-left-leave-active,
+  .ant-drawer-panel-motion-right-appear-active,
+  .ant-drawer-panel-motion-right-enter-active,
+  .ant-drawer-panel-motion-right-leave-active,
+  .ant-drawer-panel-motion-top-appear-active,
+  .ant-drawer-panel-motion-top-enter-active,
+  .ant-drawer-panel-motion-top-leave-active,
+  .ant-drawer-panel-motion-bottom-appear-active,
+  .ant-drawer-panel-motion-bottom-enter-active,
+  .ant-drawer-panel-motion-bottom-leave-active {
+    transition: none !important;
+  }
+}
+
+/* ---------- 13. ECharts 换肤淡入（容器 opacity 0.25s；reduced-motion 同停） ---------- */
+.pm-chart-fade {
+  transition: opacity 0.25s ease-out;
+}
+@media (prefers-reduced-motion: reduce) {
+  .pm-chart-fade {
+    transition: none !important;
   }
 }
 

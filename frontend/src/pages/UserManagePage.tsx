@@ -25,6 +25,7 @@ import {
   type UserCreatePayload,
 } from '../api/users'
 import { listResources } from '../api/resources'
+import prefersReducedMotion from '../hooks/usePrefersReducedMotion'
 import type { UserInfo, Resource } from '../types'
 
 const ROLE_COLOR: Record<string, string> = {
@@ -254,12 +255,13 @@ export default function UserManagePage() {
       <Modal
         title={editing ? '编辑用户' : '新建用户'}
         open={modalOpen}
+        transitionName={prefersReducedMotion() ? '' : 'pm-modal'}
         onOk={handleSubmit}
         onCancel={() => setModalOpen(false)}
         width={460}
         okText={editing ? '保存' : '创建'}
       >
-        <Form form={form} layout="vertical" style={{ marginTop: 16 }}>
+        <Form form={form} layout="vertical" style={{ marginTop: 16 }} onFinish={handleSubmit} onKeyDown={(e) => { if (e.key === 'Enter' && e.target instanceof HTMLInputElement && !e.target.readOnly && !e.target.closest('.ant-select, .ant-picker')) { e.preventDefault(); form.submit(); } }}>
           {!editing && (
             <Form.Item name="username" label="用户名" rules={[{ required: true }]}>
               <Input placeholder="登录用户名" />

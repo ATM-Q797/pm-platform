@@ -45,8 +45,8 @@ export default function ReviewPage({ userRole = 'admin' }: { userRole?: string }
       setRequests(results[0])
       setPhaseChanges(results[1])
       setLogs(results[2])
-    } catch (e) {
-      message.error((e as Error).message)
+    } catch {
+      message.error('加载失败，请重试')
     } finally {
       setLoading(false)
     }

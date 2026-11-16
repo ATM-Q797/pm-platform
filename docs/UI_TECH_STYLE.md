@@ -3,6 +3,7 @@
 > **版本**: v1.1 | **日期**: 2026-08-26（2026-11-13 增补用户裁定注记） | **状态**: 已评审处置（2026-08-26 评审处置 + 2026-11-13 批 1 注记落档）
 > **方案基础**: 五模型会诊（GLM/MiniMax/DeepSeek/Mimo/Kimi），**以 Kimi K3 方案为主**，融合共识要素
 > **实施模型**: eng-coder 使用 `kimi:kimi-k3`
+> **查证记录**: 一手来源 = 用户裁定与对照快照（各行出处列明）；公开来源未查证——材质参数为快照直取与既有 token 系推导，无外部规格面需核。
 
 ---
 
@@ -34,7 +35,7 @@
 | 主色 Primary | `#00d4ff`（电青） | `#0369a1`（深青，正文级对比 ≥4.5:1） |
 | 辅色 Accent | `#7b61ff`（星云紫） | `#6d5ae0`（仅作渐变点缀，不作文字色） |
 | 成功 Success | `#22e58a` | `#16a34a` |
-| 警告 Warning | `#fbbf24` | `#b45309`（作文字 4.9:1） |
+| 警告 Warning | `#fbbf24` | `#b45309`（对 .8 白容器面作文字 4.9:1；警示文字落容器面——落浅色 Layout 底仅 4.47:1，不作页面底色文字用） |
 | 危险 Error | `#ff4d6d` | `#e11d48` |
 | 背景 Layout | `#0a0e1a` | `#eef2f8` |
 | 背景 Secondary（填报页项目字段栏） | `#182034` | `#fafafa` |
@@ -43,7 +44,7 @@
 | 文字 Primary | `#e8ecf8` | `#0f172a` |
 | 文字 Secondary | `#9aa3b8` | `#475569` |
 
-> 对比度纪律：浅色模式任何**文字色**（含 Menu 选中、链接、Tag 文字）对比度 ≥ 4.5:1；**浮层壳 = 高不透明玻璃档**（Modal/Drawer 壳面材 `--glass-bg-overlay` .8 档 + blur + 玻璃形制件，用户 2026-11-15 B 案），**下拉/Popover/Popconfirm 等文字密集小件沿实色 token**（见 §二）。
+> 对比度纪律：浅色模式任何**文字色**（含 Menu 选中、链接、Tag 文字）对比度 ≥ 4.5:1；**浮层壳 = 高不透明玻璃档**（Modal/Drawer 壳面材 `--glass-bg-shell` .92 档 + blur + 玻璃形制件，用户 2026-11-15 B 案、2026-11-16 不透字裁定），**下拉/Popover/Popconfirm 等文字密集小件沿实色 token**（见 §二）。
 
 ### 1.3 极光地面（L0 · html 画布层）
 
@@ -60,12 +61,21 @@
 
 ### 1.4 液态玻璃材质（L1 面板 / L2 控件 · glass.css）
 
-材质基准 = 用户 2026-11-14 对照快照裁定（v4 快照 + 桌面「参考控件.gif」Apple 玻璃控件 HDR 光泽态）。token 住 `frontend/src/styles/glass.css`（新名三问：none found——旧 --glass-bg/--glass-border/--glass-highlight 为上代玻璃拟态面/边，材质代际不同不复用；--glass-glow-accent 值直取 index.css --glow 发光色；press 顶暗影值直取 neu.css --neu-soft-dark）：
+材质基准 = 用户 2026-11-14 对照快照裁定（v4 快照 + 桌面「参考控件.gif」Apple 玻璃控件 HDR 光泽态）。token 住 `frontend/src/styles/glass.css`。新名三问逐名如下：
+
+- 旧 --glass-bg/--glass-border/--glass-highlight：none found——上代玻璃拟态面/边，材质代际不同不复用。
+- --glass-glow-accent：值直取 index.css --glow 发光色。
+- press 顶暗影：值直取 neu.css --neu-soft-dark。
+- pm-alert（danger-face 行所引徽标）：existing——frontend/src/index.css pm-alert 徽标段（UI批2 在册），本批仅换面值不改名。
+- --glass-bg-shell：none found——浮层壳档与玻璃小面（--glass-bg-overlay，Tabs 胶囊面）分家成独立值（用户 2026-11-16 不透字裁定）；定义位 frontend/src/styles/glass.css 1 段；值唯一权威 = 本档 1.4 token 表。
+
+token 面：
 
 | token | 浅 | 深 | 出处 |
 |---|---|---|---|
 | `--glass-bg-panel` / `--glass-bg-control` | 白玻璃 .32 / .36 | 深空面材 rgba(20,27,45,.36/.4) | 快照「透明度 36–40%」档；浅色微调 .32/.36（大视口密度适配——玻璃透底更深，深色直取快照） |
-| `--glass-bg-overlay`（浮层壳高不透明档） | 白玻璃 .8 | 深空面材 rgba(20,27,45,.8) | B 案裁定（用户 2026-11-15）——.8 面保行文可读（同表格大面 .8 白 token 面先例，非全透）；落 glass.css 1 段 |
+| `--glass-bg-shell`（浮层壳档） | 白玻璃 .92 | 深空面材 rgba(20,27,45,.92) | 用户 2026-11-16 裁定（毛玻璃不透底字）——B 案浮层壳口径档值；落 glass.css 1 段 |
+| `--glass-bg-overlay`（玻璃小面 .8 档） | 白玻璃 .8 | 深空面材 rgba(20,27,45,.8) | Tabs 选中/hover 胶囊面（8.8 用点）；同表格大面 .8 白 token 面先例；落 glass.css 1 段 |
 | `--glass-filter` | blur(30px) saturate(1.9) | 同 | 快照直取 |
 | `--glass-edge`（发丝亮边） | rgba(255,255,255,.8) | rgba(255,255,255,.24) | 快照白边取 .8 白档——纯白咬深字（对快照轮保留） |
 | `--glass-sheen` / `--glass-thick` / `--glass-ring` | 顶光 rgba(255,255,255,.85) / 底缘透光 rgba(255,255,255,.35) / 内亮环 rgba(255,255,255,.35) | 顶光 .30 / 底缘透光 rgba(120,160,255,.10) / 内亮环 .10 | 快照影栈逐值直取——底缘为**透光**（玻璃底缘发亮，非暗影） |
@@ -111,7 +121,7 @@ components: {
   Tag: { borderRadiusSM: 4 },
   Segmented: { itemSelectedBg: isDark ? 'rgba(0,212,255,.15)' : 'rgba(3,105,161,.12)' },
   Tabs: { itemSelectedColor: isDark ? '#00d4ff' : '#0369a1' }, /* 8.8 玻璃凸起胶囊的 accent 文字色 */
-  // 浮层壳 = 高不透明玻璃档（B 案，用户 2026-11-15）：Modal/Drawer 壳面材 .8 档（blur/亮边/顶光由 glass.css 8.6 承）；
+  // 浮层壳 = 高不透明玻璃档（B 案，用户 2026-11-15；.92 不透底字 2026-11-16）：Modal/Drawer 壳面材 .92 档 --glass-bg-shell（blur/亮边/顶光由 glass.css 8.6 承）；
   // 下拉/Popover/Popconfirm 文字密集小件沿实色 token（Select/Dropdown 面板实色钉值）
   Modal:   { contentBg: isDark ? 'rgba(20,27,45,.8)' : 'rgba(255,255,255,.8)' },
   Drawer:  { colorBgElevated: isDark ? 'rgba(20,27,45,.8)' : 'rgba(255,255,255,.8)' },
@@ -130,7 +140,7 @@ components: {
 | 页面 | 文件 | 关键改动 |
 |------|------|----------|
 | **导航壳** | `App.tsx` + tech.css | Header 玻璃条（`headerBg: transparent` + CSS `backdrop-filter: blur(16px)` + 底部 1px 青色边 + sticky）；Logo 徽标 = 渐变方块底 + 自绘三柱递升 SVG 内芯（承载面 `App.tsx` 页头 `pm-logo-badge`）+ 发光；品牌字「项目管理中心」（用户 2026-11-14 ②+品牌统一裁定；字族同登录页标题档 = 'PingFang SC','HarmonyOS Sans SC','Microsoft YaHei UI','Segoe UI',system-ui，直取 `neu.css` 登录标题字族，系统栈零新增依赖）；Menu 选中渐变下划线（activeBarHeight 3 + CSS）+ hover/selected 浅深归一（§二 Menu token）；Avatar 加青色 glow |
-| **看板** | `DashboardPage.tsx` | 6 卡语义圆点（7px）+ 语义色数字（26px/650 + tabular-nums）+ 环比小字（红绿语义）；「今日聚焦」玻璃面板；卡片 hover `translateY(-3px)` + 增辉 |
+| **看板** | `DashboardPage.tsx` | 6 卡语义圆点（7px）+ 语义色数字（26px/650 + tabular-nums）+ 环比小字（红绿语义）；「今日聚焦」玻璃面板；卡片 hover `translateY(-1px)` + 增辉 |
 | **项目列表** | `ProjectListPage.tsx` | 表格 headerBg 玻璃化、行 hover 青色光晕；状态 Tag 加 `box-shadow: 0 0 6px currentColor` 微光；筛选栏包玻璃容器 |
 | **详情+甘特** | `ProjectDetailPage.tsx` + `gantt.css` | 甘特只改变量值：`--gantt-active` 系改青蓝渐变（`linear-gradient(180deg,#00d4ff,#0090c8)`）；关键路径红框发光加强 + 2s 呼吸动画；今日线加 glow；依赖连线青色 |
 | **资源负载** | `ResourcePage.tsx` + `resourceView.css` | 复用变量；冲突 ⚠ 黄框发光动画 |
@@ -146,7 +156,7 @@ components: {
 | 场景 | 实现 |
 |------|------|
 | 全局过渡 | 换肤过渡属性集以 docs/UI_REORG_PLAN.md 3.3「换肤过渡集」为准（0.25s；不全量 transition） |
-| 卡片 hover | `translateY(-3px)` + 发光阴影 |
+| 卡片 hover | `translateY(-1px)` + 发光阴影 |
 | 关键路径/冲突 | `@keyframes pulse` 呼吸（2s / 1.4s） |
 | 加载 | Spin 换电青；首屏用 `Skeleton` |
 | 页面切换 | Suspense fallback 渐变进度条 |

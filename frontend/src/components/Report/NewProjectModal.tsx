@@ -16,6 +16,7 @@ import type {
   UserInfo,
 } from '../../types'
 import { createReportProject, getReportMeta } from '../../api/report'
+import prefersReducedMotion from '../../hooks/usePrefersReducedMotion'
 
 interface PhaseRow {
   key: number
@@ -128,6 +129,7 @@ export default function NewProjectModal({
     <Modal
       title="新建项目"
       open={open}
+      transitionName={prefersReducedMotion() ? '' : 'pm-modal'}
       onCancel={onClose}
       onOk={handleSave}
       okText="创建"
@@ -135,7 +137,7 @@ export default function NewProjectModal({
       width={920}
       destroyOnClose
     >
-      <Form form={form} layout="vertical">
+      <Form form={form} layout="vertical" onFinish={handleSave} onKeyDown={(e) => { if (e.key === 'Enter' && e.target instanceof HTMLInputElement && !e.target.readOnly && !e.target.closest('.ant-select, .ant-picker')) { e.preventDefault(); form.submit(); } }}>
         <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr 1fr', gap: 12 }}>
           <Form.Item name="category" label="项目类目" rules={[{ required: true }]}>
             <Select options={(meta?.categories ?? []).map((c) => ({ value: c, label: c }))} />

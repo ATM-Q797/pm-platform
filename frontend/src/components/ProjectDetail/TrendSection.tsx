@@ -12,8 +12,8 @@
  * - 专项项目：端点 403 → 面板整体隐藏（与本页健康度区块同模式）
  * - ECharts 按需引入（AnalysisModal 同款动态 import 单例，不引封装库）
  */
-import { useEffect, useRef, useState } from 'react'
-import { Card, Segmented, Spin } from 'antd'
+import { useCallback, useEffect, useRef, useState } from 'react'
+import { Alert, Button, Card, Segmented, Spin } from 'antd'
 import { getProjectTrend } from '../../api/projects'
 import { useTheme } from '../../theme'
 import type { ProjectTrend, ProjectTrendEvent } from '../../types'
@@ -68,20 +68,30 @@ export default function TrendSection({ projectId }: Props) {
   const [trend, setTrend] = useState<ProjectTrend | null>(null)
   const [loading, setLoading] = useState(false) // 弹窗挂载即请求（用户 2026-11-11 二次裁定：弹窗内直接显示，不再折叠）
   const [hidden, setHidden] = useState(false) // 403（专项）等 → 面板整体隐藏
+  const [loadError, setLoadError] = useState(false) // 网络失败显式错误态 + 重试（3.3 ⑥-b/⑥-c）
   const divRef = useRef<HTMLDivElement>(null)
   const chartRef = useRef<EChartsType | null>(null)
 
-  // 弹窗打开即挂载本组件（ProjectDetailPage Modal destroyOnHidden）——挂载即请求拉最新数据
-  useEffect(() => {
+  const fetchData = useCallback(() => {
     let stale = false
-    setHidden(false) // 项目切换复位：专项 403 残留不连累下一个项目（对齐 health 先例的按次重取）
+    setHidden(false)
     setLoading(true)
+    setLoadError(false)
     getProjectTrend(projectId, days)
       .then((data) => { if (!stale) setTrend(data) })
-      .catch(() => { if (!stale) setHidden(true) }) // 专项 403 / 加载失败 → 隐藏区块（与 health 区块同模式）
+      .catch((e) => {
+        if (stale) return
+        // 403 = 专项项目无权限（已知取舍：无权限非故障，隐藏区块）；其余 = 网络/服务失败 → 错误态重试
+        const status = (e as { response?: { status?: number } })?.response?.status
+        if (status === 403) setHidden(true)
+        else setLoadError(true)
+      })
       .finally(() => { if (!stale) setLoading(false) })
     return () => { stale = true }
   }, [projectId, days])
+
+  // 弹窗打开即挂载本组件（ProjectDetailPage Modal destroyOnHidden）——挂载即请求拉最新数据
+  useEffect(() => { fetchData() }, [fetchData])
 
   const points = trend?.points ?? []
   const events = trend?.events ?? []
@@ -94,8 +104,12 @@ export default function TrendSection({ projectId }: Props) {
     let ro: ResizeObserver | null = null
     loadECharts().then((core) => {
       if (cancelled || !divRef.current) return
+      const el = divRef.current
+      // ECharts 换肤淡入：re-init 后 opacity 0→1（CSS transition 0.25s，reduced-motion 跳过）
+      const reduce = window.matchMedia('(prefers-reduced-motion: reduce)').matches
+      if (!reduce) el.style.opacity = '0'
       chartRef.current?.dispose()
-      const chart = core.init(divRef.current, mode === 'dark' ? 'dark' : undefined)
+      const chart = core.init(el, mode === 'dark' ? 'dark' : undefined)
 
       // 双线：计划 vs 实际（缺口即偏差）；点位 [日期, 值]，null 断线（断开不补零）
       type PointMetrics = ProjectTrend['points'][number]['metrics']
@@ -183,6 +197,7 @@ export default function TrendSection({ projectId }: Props) {
       }
       chart.setOption(option)
       chartRef.current = chart
+      if (!reduce) requestAnimationFrame(() => { el.style.opacity = '1' })
       ro = new ResizeObserver(() => chartRef.current?.resize())
       ro.observe(divRef.current)
     })
@@ -214,6 +229,14 @@ export default function TrendSection({ projectId }: Props) {
     >
       {loading ? (
         <Spin style={{ display: 'block', margin: '48px auto' }} />
+      ) : loadError ? (
+        <Alert
+          type="error"
+          showIcon
+          message="加载失败，请重试"
+          action={<Button size="small" onClick={fetchData}>重试</Button>}
+          style={{ margin: '24px 0' }}
+        />
       ) : !hasData ? (
         <div style={{ textAlign: 'center', color: 'var(--text-tertiary)', padding: '36px 0' }}>
           数据积累中 — 快照每日自动采集（只拍未开始/进行中项目），从上线日起算
@@ -230,7 +253,7 @@ export default function TrendSection({ projectId }: Props) {
               项目已搁置 · 趋势冻结于 {trend.frozen_date ?? '—'}
             </div>
           )}
-          <div ref={divRef} style={{ height: 260 }} />
+          <div ref={divRef} className="pm-chart-fade" style={{ height: 260 }} />
           <div style={{ fontSize: 12, color: 'var(--text-tertiary)', marginTop: 4 }}>
             缺口即偏差（计划 vs 实际）· 停机/未采集日曲线断开不补零
             {events.length > 0 && (

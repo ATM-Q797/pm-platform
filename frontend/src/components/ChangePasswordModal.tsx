@@ -1,6 +1,7 @@
 import { useState } from 'react'
 import { Modal, Form, Input, message } from 'antd'
 import { changePassword } from '../api/auth'
+import prefersReducedMotion from '../hooks/usePrefersReducedMotion'
 
 interface Props {
   open: boolean
@@ -33,6 +34,7 @@ export default function ChangePasswordModal({ open, forceChange, onCancel, onSuc
     <Modal
       title={forceChange ? '首次登录，请修改密码' : '修改密码'}
       open={open}
+      transitionName={prefersReducedMotion() ? '' : 'pm-modal'}
       onCancel={forceChange ? undefined : onCancel}
       closable={!forceChange}
       mask={{ closable: !forceChange }}
@@ -43,7 +45,7 @@ export default function ChangePasswordModal({ open, forceChange, onCancel, onSuc
       cancelButtonProps={{ style: { display: forceChange ? 'none' : undefined } }}
       confirmLoading={loading}
     >
-      <Form form={form} layout="vertical" style={{ marginTop: 16 }}>
+      <Form form={form} layout="vertical" style={{ marginTop: 16 }} onFinish={handleSubmit} onKeyDown={(e) => { if (e.key === 'Enter' && e.target instanceof HTMLInputElement && !e.target.readOnly && !e.target.closest('.ant-select, .ant-picker')) { e.preventDefault(); form.submit(); } }}>
         <Form.Item name="old_password" label="原密码" rules={[{ required: true }]}>
           <Input.Password autoComplete="current-password" />
         </Form.Item>

@@ -11,6 +11,7 @@ import { importSpecial, specialImportPreview } from '../api/imports'
 import { listUsers } from '../api/users'
 import { getMe } from '../api/auth'
 import { MARKET_OPTION_ITEMS, MARKET_OPTIONS } from '../types'
+import prefersReducedMotion from '../hooks/usePrefersReducedMotion'
 import type { ImportPreview, ImportReport, Project, UserInfo } from '../types'
 
 // 状态 → Tag 颜色（与项目列表页一致；旧值「已搁置」兼容已移除——2026-08-28）
@@ -338,13 +339,14 @@ export default function SpecialProjectsPage() {
       <Modal
         title="新建专项项目"
         open={createOpen}
+        transitionName={prefersReducedMotion() ? '' : 'pm-modal'}
         onOk={handleCreate}
         onCancel={() => setCreateOpen(false)}
         confirmLoading={saving}
         width={520}
         okText="创建"
       >
-        <Form form={form} layout="vertical" style={{ marginTop: 16 }}
+        <Form form={form} layout="vertical" style={{ marginTop: 16 }} onFinish={handleCreate} onKeyDown={(e) => { if (e.key === 'Enter' && e.target instanceof HTMLInputElement && !e.target.readOnly && !e.target.closest('.ant-select, .ant-picker')) { e.preventDefault(); form.submit(); } }}
           initialValues={{ category: '新需求', market: MARKET_OPTIONS[0], status: '未开始' }}>
           <Form.Item name="name" label="项目名称" rules={[{ required: true, message: '请输入项目名称' }]}>
             <Input placeholder="项目全称" />
@@ -383,6 +385,7 @@ export default function SpecialProjectsPage() {
       <Modal
         title="编辑专项项目"
         open={editOpen}
+        transitionName={prefersReducedMotion() ? '' : 'pm-modal'}
         onOk={handleEditSubmit}
         onCancel={() => { setEditOpen(false); setEditing(null) }}
         confirmLoading={saving}
@@ -407,7 +410,7 @@ export default function SpecialProjectsPage() {
           </>
         )}
       >
-        <Form form={editForm} layout="vertical" style={{ marginTop: 16 }} preserve={false}>
+        <Form form={editForm} layout="vertical" style={{ marginTop: 16 }} preserve={false} onFinish={handleEditSubmit} onKeyDown={(e) => { if (e.key === 'Enter' && e.target instanceof HTMLInputElement && !e.target.readOnly && !e.target.closest('.ant-select, .ant-picker')) { e.preventDefault(); editForm.submit(); } }}>
           <Form.Item name="name" label="项目名称" rules={[{ required: true, message: '请输入项目名称' }]}>
             <Input placeholder="项目全称" />
           </Form.Item>

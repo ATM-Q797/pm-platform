@@ -53,6 +53,7 @@ export default function DashboardPage() {
   const [drawerKey, setDrawerKey] = useState<DrawerKey>(null)
   const [conflicts, setConflicts] = useState<ResourceConflict[]>([])
   const [conflictsLoading, setConflictsLoading] = useState(false)
+  const [conflictError, setConflictError] = useState(false) // 冲突明细加载失败显式错误态 + 重试（3.3 ⑥-b/⑥-c）
   // 项目分析弹窗开关（裁定 ②：看板按钮 → 弹窗）
   const [analysisOpen, setAnalysisOpen] = useState(false)
   // 风险分析弹窗（合并版）：红/黄档风险项目 2 分板块，行点击跳项目详情
@@ -73,7 +74,8 @@ export default function DashboardPage() {
     const onConflictChanged = () => {
       if (drawerKey === 'conflict') {
         setConflictsLoading(true)
-        getResourceConflicts().then(setConflicts).catch(() => {}).finally(() => setConflictsLoading(false))
+        setConflictError(false)
+        getResourceConflicts().then(setConflicts).catch(() => setConflictError(true)).finally(() => setConflictsLoading(false))
       }
     }
     window.addEventListener('conflict-changed', onConflictChanged)
@@ -102,9 +104,10 @@ export default function DashboardPage() {
     setDrawerKey(key)
     if (key === 'conflict' && conflicts.length === 0) {
       setConflictsLoading(true)
+      setConflictError(false)
       getResourceConflicts()
         .then(setConflicts)
-        .catch((e) => message.error('冲突明细加载失败：' + (e as Error).message))
+        .catch(() => setConflictError(true))
         .finally(() => setConflictsLoading(false))
     }
   }
@@ -459,7 +462,14 @@ export default function DashboardPage() {
 
         {drawerKey === 'conflict' && (
           <Spin spinning={conflictsLoading}>
-            {conflicts.length === 0 && !conflictsLoading ? (
+            {conflictError ? (
+              <Alert
+                type="error"
+                showIcon
+                message="加载失败，请重试"
+                action={<Button size="small" onClick={() => openDrawer('conflict')}>重试</Button>}
+              />
+            ) : conflicts.length === 0 && !conflictsLoading ? (
               <Empty description="暂无资源冲突 🎉" image={Empty.PRESENTED_IMAGE_SIMPLE} />
             ) : (
               conflicts.map((rc) => (
