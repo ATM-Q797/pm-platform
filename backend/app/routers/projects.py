@@ -7,7 +7,7 @@ from __future__ import annotations
 from datetime import date
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import or_, select
+from sqlalchemy import false, or_, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -30,7 +30,7 @@ from app.schemas import (
     ProjectTrend,
     ProjectUpdate,
 )
-from app.services import apply_template, build_gantt
+from app.services import apply_template, build_gantt, build_overview_gantt
 from app.services.change_events import PROJECT_FIELD_COLUMNS, record_field_diffs, snapshot_model
 from app.services.critical_path import compute_critical_path
 from app.services.health_score import assess_projects
@@ -48,6 +48,36 @@ def _validate_trend_days(days: int) -> None:
     """时间窗校验（批次档 §2：30/90/365 三档）。"""
     if days not in _TREND_DAYS:
         raise HTTPException(400, f"days 非法：{days}（仅支持 {'|'.join(map(str, _TREND_DAYS))}）")
+
+
+def _visible_projects_stmt(user: User):
+    """按角色构造项目可见范围查询（项目列表与总览甘特共用同一口径）。
+
+    - admin / viewer：全部项目
+    - manager：自己创建的 + 自己参与的（resource 被分配了阶段的）
+    - engineer：只看自己参与的；未关联 resource → 空集
+    专项项目统一排除（SPECIAL_PROJECT §4.3：仅专项页可见）。
+    """
+    stmt = select(Project).where(Project.is_special.is_(False))
+    if user.role in ("admin", "viewer"):
+        return stmt
+    conditions: list = []
+    if user.role == "manager":
+        # 自己创建的 或 自己参与的
+        conditions.append(Project.created_by == user.id)
+    # 自己参与的：resource 被分配到该项目的某个阶段
+    if user.resource_id:
+        conditions.append(
+            Project.id.in_(
+                select(Phase.project_id).join(
+                    phase_assignee, Phase.id == phase_assignee.c.phase_id
+                ).where(phase_assignee.c.resource_id == user.resource_id)
+            )
+        )
+    if not conditions:
+        # 工程师没关联 resource 时返回空集（false() 恒假条件，SQLAlchemy 2.0 写法）
+        return stmt.where(false())
+    return stmt.where(or_(*conditions))
 
 
 @router.get("/by-code/{code}/trend", response_model=ProjectTrend)
@@ -101,34 +131,8 @@ def list_projects(
     category: str | None = None,
     market: str | None = None,
 ):
-    """项目列表，支持筛选。按角色过滤可见范围：
-    - admin / viewer：看全部项目
-    - manager：看自己创建的项目 + 自己参与的项目（resource 被分配了阶段的）
-    - engineer：只看自己参与的项目
-    """
-    if user.role in ("admin", "viewer"):
-        stmt = select(Project)
-    else:
-        # manager / engineer：过滤可见项目
-        stmt = select(Project)
-        if user.role == "manager":
-            # 自己创建的 或 自己参与的
-            conditions = [Project.created_by == user.id]
-        else:
-            conditions = []
-        # 自己参与的：resource 被分配到该项目的某个阶段
-        if user.resource_id:
-            conditions.append(
-                Project.id.in_(
-                    select(Phase.project_id).join(
-                        phase_assignee, Phase.id == phase_assignee.c.phase_id
-                    ).where(phase_assignee.c.resource_id == user.resource_id)
-                )
-            )
-        if not conditions:
-            # 工程师没关联 resource 时返回空列表
-            return []
-        stmt = stmt.where(or_(*conditions))
+    """项目列表，支持筛选。可见范围按角色（_visible_projects_stmt 同一范围函数）。"""
+    stmt = _visible_projects_stmt(user)
 
     if status_:
         stmt = stmt.where(Project.status == status_)
@@ -136,8 +140,6 @@ def list_projects(
         stmt = stmt.where(Project.category == category)
     if market:
         stmt = stmt.where(Project.market == market)
-    # 专项项目仅专项页可见（SPECIAL_PROJECT §4.3）：普通列表统一排除
-    stmt = stmt.where(Project.is_special.is_(False))
     # 排序：项目计划开始时间升序（无计划日期的排最后，同日期按 id）——
     # 与填报页（services/report_service.visible_projects）同一条排序规则，
     # 保证「项目列表页」与「信息填报页」项目顺序一一对应（用户 2026-10-30 指令）
@@ -226,6 +228,30 @@ def remove_favorite(
         db.delete(exists)
         db.commit()
     return {"favorited": False}
+
+
+# ---------- 项目总览甘特（进行中项目） ----------
+
+@router.get("/overview-gantt", response_model=GanttData)
+def get_overview_gantt(
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    """进行中项目总览甘特（项目总览甘特批 2026-11-19）。
+
+    口径：仅进行中项目（status == '进行中'）；角色可见范围与项目列表共用
+    _visible_projects_stmt；专项项目随范围函数排除；排序同列表
+    （计划开始升序、无日期最后、同日期按 id）。
+    一次请求聚合返回，避免前端逐项目请求（N 接口风暴）。
+    静态路径注册在 /{project_id} 动态路由之前（FastAPI 按声明顺序匹配）。
+    """
+    stmt = (
+        _visible_projects_stmt(user)
+        .where(Project.status == "进行中")
+        .order_by(Project.plan_start.is_(None), Project.plan_start.asc(), Project.id)
+    )
+    projects = list(db.scalars(stmt).all())
+    return build_overview_gantt(db, projects)
 
 
 @router.post("", response_model=ProjectRead, status_code=status.HTTP_201_CREATED)

@@ -1,0 +1,14 @@
+/* 项目总览甘特视图局部样式（项目总览甘特批 2026-11-19）。
+   基座面材/暗色主题由共享 gantt.css（.pm-gantt-container）承担，此处仅总览特有规则。 */
+
+/* 项目行（type=project，负 id）：略高于阶段行，字体加重——总览首眼是项目维度 */
+.overview-gantt .gantt_tree_icon.gantt_folder_open,
+.overview-gantt .gantt_tree_icon.gantt_folder_closed {
+  /* 树形展开图标随默认（dhtmlx 内置 +/-），不覆盖 */
+}
+
+/* 空态提示：库中无进行中项目时甘特区显示兜底文案（组件内 taskCount 判断渲染） */
+.overview-gantt-empty {
+  text-align: center;
+  padding: 16px 0;
+}

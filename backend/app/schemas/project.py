@@ -118,6 +118,11 @@ class GanttTask(BaseModel):
     open: bool = True
     rework_count: int | None = None
     remark: str | None = None  # 阶段备注（甘特悬浮显示，SPECIAL_PROJECT §五）
+    # 总览甘特扩展字段（可选、默认 None——单项目甘特端点不赋值：序列化多出 4 个 null 键，additive 无语义变化）：
+    status: str | None = None  # 阶段状态（总览直接下发供着色；单项目甘特由前端从详情补）
+    owner_name: str | None = None  # 项目行：负责人姓名（总览甘特列显示）
+    assignee_names: str | None = None  # 阶段行：参与人姓名（总览甘特列显示）
+    project_id: int | None = None  # 行归属项目 id（总览甘特点击跳详情用）
 
 
 class GanttLink(BaseModel):

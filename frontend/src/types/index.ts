@@ -241,6 +241,12 @@ export interface GanttTask {
   open?: boolean
   rework_count?: number | null
   remark?: string | null // 阶段备注（甘特悬浮显示，SPECIAL_PROJECT §五）
+  // 总览甘特扩展字段（仅 /projects/overview-gantt 赋值；单项目甘特端点不赋值，
+  // 序列化多出 4 个 null 键，additive 无语义变化——与 backend schemas/project.py 同口径）
+  status?: string | null // 阶段状态（着色依赖）
+  owner_name?: string | null // 项目行：负责人姓名
+  assignee_names?: string | null // 阶段行：参与人姓名
+  project_id?: number | null // 行归属项目 id（点击跳详情用）
 }
 
 export interface GanttLink {

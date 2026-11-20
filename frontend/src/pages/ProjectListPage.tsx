@@ -5,6 +5,7 @@ import { ReloadOutlined, UploadOutlined, PlusOutlined, ClearOutlined } from '@an
 import { listProjects, createProject, deleteProject, applyTemplate, setFavorite } from '../api/projects'
 import ProjectEditModal from '../components/ProjectEditModal'
 import { buildColumns, buildFavoriteColumns } from '../components/ProjectList/columns'
+import OverviewGantt from '../components/ProjectList/OverviewGantt'
 import { ImportExcelButton, ImportExcelModal, useImportExcel } from '../components/ProjectList/ImportExcelModal'
 import prefersReducedMotion from '../hooks/prefersReducedMotion'
 import { listTemplates } from '../api/templates'
@@ -197,13 +198,18 @@ export default function ProjectListPage() {
   // 「我的关注」副板块（用户 2026-11-04 批复）：关注项目独立视图，不显示序号列——
   // 序号 = 全量有序列表位置，只取关注子集会导致编号跳跃，故此视图不显示序号。
   // 视图切换仅前端过滤，不重拉数据；取消关注后若当前行不在关注集则自动移出视图。
-  const [viewMode, setViewMode] = useState<'all' | 'favorites'>(
+  // 「总览甘特」视图（用户 2026-11-19 指令）：进行中项目总览甘特，入口在本视图后；
+  // 该视图不消费表格与筛选栏（甘特数据由 /projects/overview-gantt 独立下发）。
+  const [viewMode, setViewMode] = useState<'all' | 'favorites' | 'gantt'>(
     () => {
       // 存储被禁用时静默回退到全部视图（与文件内其余 sessionStorage 访问同一兜底模式）
-      try { return sessionStorage.getItem(VIEW_KEY) === 'favorites' ? 'favorites' : 'all' }
+      try {
+        const v = sessionStorage.getItem(VIEW_KEY)
+        return v === 'favorites' || v === 'gantt' ? v : 'all'
+      }
       catch { return 'all' }
     })
-  const changeViewMode = (v: 'all' | 'favorites') => {
+  const changeViewMode = (v: 'all' | 'favorites' | 'gantt') => {
     setViewMode(v)
     try { sessionStorage.setItem(VIEW_KEY, v) } catch { /* 存储满/禁用时静默：视图仍可切换，仅刷新后不记忆 */ }
   }
@@ -223,10 +229,11 @@ export default function ProjectListPage() {
           <span>项目列表</span>
           <Segmented
             value={viewMode}
-            onChange={(v) => changeViewMode(v as 'all' | 'favorites')}
+            onChange={(v) => changeViewMode(v as 'all' | 'favorites' | 'gantt')}
             options={[
               { label: '全部项目', value: 'all' },
               { label: `我的关注 (${favoriteProjects.length})`, value: 'favorites' },
+              { label: '总览甘特', value: 'gantt' },
             ]}
           />
           {viewMode === 'all' && <Tag color="blue">{projects.length} 个项目</Tag>}
@@ -252,7 +259,7 @@ export default function ProjectListPage() {
         </Space>
       }
     >
-      <div className="pm-toolbar">
+      <div className="pm-toolbar" hidden={viewMode === 'gantt'}>
       <Space size="middle" wrap>
         <Input.Search
           placeholder="搜索项目名称"
@@ -298,6 +305,10 @@ export default function ProjectListPage() {
         <Button icon={<ClearOutlined />} onClick={resetFilters}>重置</Button>
       </Space>
       </div>
+      {viewMode === 'gantt' ? (
+        /* 总览甘特视图：进行中项目时间线（用户 2026-11-19 指令）。筛选栏与表格隐藏；点击阶段条跳详情页甘特 */
+        <OverviewGantt onPhaseClick={(projectId) => navigate(`/projects/${projectId}`)} />
+      ) : (
       <Spin spinning={loading}>
         <Table
           rowKey="id"
@@ -314,6 +325,7 @@ export default function ProjectListPage() {
           size="middle"
         />
       </Spin>
+      )}
     </Card>
 
       {/* 新建项目 */}

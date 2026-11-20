@@ -1,5 +1,6 @@
 """业务逻辑层。"""
 from app.services.gantt_service import build_gantt
+from app.services.gantt_service import build_overview_gantt
 from app.services.template_service import apply_template
 from app.services.excel_importer import (
     build_preview,
@@ -13,6 +14,7 @@ from app.services.excel_importer import (
 
 __all__ = [
     "build_gantt",
+    "build_overview_gantt",
     "apply_template",
     "import_excel",
     "import_merged",
