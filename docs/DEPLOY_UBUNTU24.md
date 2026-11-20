@@ -321,7 +321,7 @@ sudo ufw status
 | 查看日志（后端） | `docker compose -f deploy/docker/docker-compose.yml logs -f backend` |
 | 重启服务 | `docker compose -f deploy/docker/docker-compose.yml restart` |
 | 停止服务 | `docker compose -f deploy/docker/docker-compose.yml down` |
-| **备份数据库** | `docker compose -f deploy/docker/docker-compose.yml exec db pg_dump -U pm_user -d pm_platform -F c > backup-$(date +%F).dump` |
+| **备份数据库** | 自动备份体系已覆盖（backup.sh cron + 异机副本 + 恢复演练，操作与恢复见 `docs/OPS_BACKUP.md`）；手动单次：`docker compose -f deploy/docker/docker-compose.yml exec db pg_dump -U pm_user -d pm_platform -F c > backup-$(date +%F).dump` |
 | 恢复备份 | 同 7.3 节步骤（pg_restore --clean） |
 | 更新代码 | `git pull`（或重新上传 zip）→ `./deploy/deploy.sh`（数据卷保留，不丢数据） |
 | 开机自启 | Docker 服务 `sudo systemctl enable docker`；容器已配 `restart: unless-stopped` 自动拉起 |

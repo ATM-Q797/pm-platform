@@ -35,6 +35,7 @@ Desktop.ini
 
 # Deployment secrets
 deploy/.env
+deploy/backup.conf
 *.pem
 *.key
 

@@ -1,0 +1,16 @@
+# ============================================================
+# 异机副本配置 — 从本文件复制为 backup.conf 后按实际填写
+#   cp deploy/backup.conf.example deploy/backup.conf
+# （backup.conf 不入 git：与 .env 同级的机器配置）
+# ============================================================
+
+# 异机目标（rsync over ssh）。填写后 backup.sh 每次备份自动推送。
+# 示例（端口 22）：REMOTE_TARGET="pmbackup@10.53.9.100:/opt/pm-backup"
+REMOTE_TARGET=""
+
+# 异机 ssh 端口（可选；仅当非默认 22 时填写数字，如 "2222"）
+REMOTE_SSH_PORT=""
+
+# rsync 额外参数（可选；按空格分隔的简单参数，如 --bwlimit=5000。
+# 不支持带引号的整体参数——非默认端口请用上面的 REMOTE_SSH_PORT）
+BACKUP_RSYNC_ARGS=""

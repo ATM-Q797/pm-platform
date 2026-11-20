@@ -299,7 +299,7 @@ curl -s http://127.0.0.1:8000/health
 | 更新会丢数据吗？ | **不会**。数据库在 docker `pg_data` 卷里，更新只覆盖 `/opt/pm-platform` 代码目录和 `/var/www/pm-platform` 前端目录 |
 | .env 配置会丢吗？ | 不会。`.env` 不在 zip 里（.gitignore 排除），unzip 不碰它 |
 | venv 依赖会丢吗？ | 不会。`venv/` 不在 zip 里；仅当 `requirements.txt` 变更时才需手动 `pip install -r requirements.txt` |
-| 建议的定期备份 | 每周一次：`docker compose -f deploy/docker/docker-compose.yml --env-file deploy/.env exec -T db pg_dump -U pm_user -d pm_platform -F c > /opt/backup/db-$(date +%F).dump` |
+| 建议的定期备份 | 自动备份体系已建成（每日 02:30 cron + 周备含 `.env` 副本 + 异机副本 + 恢复脚本）——备份/恢复操作一律见 `docs/OPS_BACKUP.md`（备份操作事实源） |
 
 ---
 
