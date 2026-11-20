@@ -121,6 +121,11 @@
   background-color: var(--gantt-project-row);
   border-color: var(--gantt-project-row);
 }
+/* 汇总条进度填充专属 token（覆盖 dhtmlx 皮肤默认 15% 黑叠影——深色档该叠影方向反了，
+   填充比本体更暗而隐形；token 双档：浅色=加深方向（浅色视觉零变化），深色=提亮方向） */
+.gantt_task_line.gantt_project .gantt_task_progress {
+  background-color: var(--gantt-project-progress);
+}
 .gantt_task_line.gantt_project .gantt_task_content {
   color: var(--gantt-project-text);
   font-weight: 600;
@@ -158,7 +163,7 @@
   font-weight: 600;
   letter-spacing: 0.5px;
   color: var(--gantt-today-label-text);
-  background: var(--gantt-today-label-bg);
+  background: var(--gantt-today-label-bg); /* 实底 token（不透明，遮住下层条上文字） */
   border: 1px solid var(--gantt-today-label-border);
   border-radius: 6px;
   padding: 1px 7px;

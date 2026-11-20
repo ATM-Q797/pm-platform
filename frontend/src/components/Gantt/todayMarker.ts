@@ -18,7 +18,7 @@ export function drawTodayMarker(gantt: any, container: HTMLElement) {
 
   const marker = document.createElement('div')
   marker.className = 'pm-today-marker'
-  marker.style.cssText = `position:absolute;left:${x}px;top:2px;z-index:10;pointer-events:none;white-space:nowrap;`
+  marker.style.cssText = `position:absolute;left:${x}px;top:2px;z-index:30;pointer-events:none;white-space:nowrap;`
 
   const label = document.createElement('span')
   label.textContent = '今天'

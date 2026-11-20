@@ -1,6 +1,6 @@
 # 科技感 UI 设计文档 —「深空驾驶舱」(Deep Space Console)
 
-> **版本**: v1.1 | **日期**: 2026-08-26（2026-11-13 增补用户裁定注记） | **状态**: 已评审处置（2026-08-26 评审处置 + 2026-11-13 批 1 注记落档）
+> **版本**: v1.1 | **日期**: 2026-08-26（2026-11-13 / 2026-11-19 增补用户裁定注记） | **状态**: 已评审处置（2026-08-26 评审处置 + 批 1 注记落档 + 2026-11-19 甘特视觉裁定落档）
 > **方案基础**: 五模型会诊（GLM/MiniMax/DeepSeek/Mimo/Kimi），**以 Kimi K3 方案为主**，融合共识要素
 > **实施模型**: eng-coder 使用 `kimi:kimi-k3`
 > **查证记录**: 一手来源 = 用户裁定与对照快照（各行出处列明）；公开来源未查证——材质参数为快照直取与既有 token 系推导，无外部规格面需核。
@@ -143,6 +143,8 @@ components: {
 | **看板** | `DashboardPage.tsx` | 6 卡语义圆点（7px）+ 语义色数字（26px/650 + tabular-nums）+ 环比小字（红绿语义）；「今日聚焦」玻璃面板；卡片 hover `translateY(-1px)` + 增辉 |
 | **项目列表** | `ProjectListPage.tsx` | 表格 headerBg 玻璃化、行 hover 青色光晕；状态 Tag 加 `box-shadow: 0 0 6px currentColor` 微光；筛选栏包玻璃容器 |
 | **详情+甘特** | `ProjectDetailPage.tsx` + `gantt.css` | 甘特只改变量值：`--gantt-active` 系改青蓝渐变（`linear-gradient(180deg,#00d4ff,#0090c8)`）；关键路径红框发光加强 + 2s 呼吸动画；今日线加 glow；依赖连线青色 |
+| **今日标记** | `todayMarker.ts` + `gantt.css` + `index.css` | 「今天」标签实底不透明 + marker z-index 30 置顶（用户 2026-11-19：半透明标签被下层条上文字透过混杂；`--gantt-today-label-bg` 浅 `#fff1f2` / 深 `#2a1620` 实底，红字红边不变；项目甘特/总览/资源负载三视图共用） |
+| **汇总行条色（深色）** | `index.css` + `gantt.css` | `--gantt-project-row` 深色 `#0b1e3a` → `#2f5d9e` 亮藏青蓝（用户 2026-11-19 二轮：一轮 `#1e3a5f` 仍落深底 `#0f1424` 看不清，两档提亮）；进度填充新增专属 token `--gantt-project-progress`（浅 `#0d243f` ≈皮肤 15% 黑叠影等效实色、浅色视觉零变化；深 `#4d7fc0` 比本体再亮一档——用户 2026-11-19：皮肤默认黑叠影在深色下方向反了，填充须比本体亮才可见；`gantt.css` `.gantt_project .gantt_task_progress` 规则覆盖皮肤默认；项目甘特汇总行/总览项目行/资源负载人员行三视图共用同一变量，浅色 `#0f2a4a` 不动） |
 | **资源负载** | `ResourcePage.tsx` + `resourceView.css` | 复用变量；冲突 ⚠ 黄框发光动画 |
 | **周报** | （无页面） | 2026-08-26 已整体移除（用户决定，待重新规划；`.report-markdown` 样式随页面删除，`phase.updated_at` 列保留） |
 | **登录页** | `LoginPage.tsx` | **已由 docs/UI_REORG_PLAN.md 3.1 取代（2026-11-13 登录页旗舰重做）**：终态 = 恒深色星空壁纸 + 150 星恒动 Canvas（frontend/src/components/LoginStarfield.tsx）+ 拟态底栏一行；动效整体恒动豁免降级 |
