@@ -358,11 +358,11 @@ def test_meta_endpoint(client: TestClient, db_session: Session):
 # ---------- 项目总起止自动算（用户 2026-11-23 指示：阶段推导，8 落库点共用助手） ----------
 
 def test_create_project_plan_span_derived(client: TestClient, db_session: Session):
-    """新建即推导：起始=首阶段开始；结束=交付阶段 P9 结束（优先）；无 P9 → 末阶段。"""
+    """新建即推导：起始=首阶段开始；结束=全阶段最晚结束（max 口径，2026-11-24 修订）；全空 → 置 None。"""
     _mk_reporter_with_resource(db_session, "rep_span", "周期人")
     db_session.commit()
     _login(client, "rep_span")
-    # 三行 + P9 交付在末行：结束应取 P9（与末阶段重合，另用 P8 非末行夹逼验证优先级）
+    # 三行 + P9 在末行：结束 = 全阶段最晚结束（max 口径，2026-11-24 修订）
     resp = client.post("/api/report/projects", json={
         "category": "新需求", "name": "周期项目", "market": "拉美区", "status": "未开始",
         "phases": [
@@ -376,8 +376,19 @@ def test_create_project_plan_span_derived(client: TestClient, db_session: Sessio
     db_session.expire_all()
     p_jd = db_session.scalars(select(Project).where(Project.name == "周期项目")).first()
     assert str(p_jd.plan_start) == "2026-12-01"  # 首阶段开始
-    assert str(p_jd.plan_end) == "2026-12-31"    # P9 交付结束
-    # 无 P9（P1+P4 两行）：结束 = 末阶段结束
+    assert str(p_jd.plan_end) == "2026-12-31"    # 末行 P9 即最晚结束
+    # 乱序夹逼：P9 在首行但中间阶段结束更晚 → 结束取更晚的非 P9 阶段（P9 不优先）
+    resp = client.post("/api/report/projects", json={
+        "category": "新需求", "name": "乱序周期项目", "market": "拉美区", "status": "未开始",
+        "phases": [
+            {"phase_type": "P9", "plan_start": "2026-12-01", "plan_end": "2026-12-10"},
+            {"phase_type": "P5", "plan_start": "2027-02-01", "plan_end": "2027-03-15"},
+        ],
+    })
+    assert resp.status_code == 201, resp.text
+    p_oj = db_session.scalars(select(Project).where(Project.name == "乱序周期项目")).first()
+    assert str(p_oj.plan_end) == "2027-03-15"    # max 而非 P9 的 2026-12-10
+    # 无 P9（P1+P4 两行）：结束 = 最晚阶段结束（=末阶段）
     resp = client.post("/api/report/projects", json={
         "category": "新需求", "name": "无交付项目", "market": "拉美区", "status": "未开始",
         "phases": [
@@ -441,14 +452,14 @@ def test_phase_change_recomputes_plan_span(client: TestClient, db_session: Sessi
     db_session.expire_all()
     assert str(db_session.get(Project, pid).plan_end) == "2027-01-15"
 
-    # ③ 加阶段（末尾追加更晚的 P8，其结束晚于 P9）→ 结束仍取 P9 交付行（交付优先，不受末阶段影响）
+    # ③ 加阶段（末尾追加更晚的 P8，其结束晚于现最晚）→ 结束取新最晚（max 口径，不再 P9 优先）
     resp = client.post(f"/api/report/projects/{pid}/phases", json={
         "phase_type": "P8", "plan_start": "2027-02-01", "plan_end": "2027-02-20"})
     assert resp.status_code == 201, resp.text
     db_session.expire_all()
-    assert str(db_session.get(Project, pid).plan_end) == "2027-01-15"
+    assert str(db_session.get(Project, pid).plan_end) == "2027-02-20"
 
-    # ④ 删阶段（删除 P9 行）→ 结束回退末阶段
+    # ④ 删阶段（删除 P9 行）→ 结束 = 剩余阶段最晚结束（仍为 P8 的 2027-02-20）
     ph9 = db_session.scalars(
         select(Phase).where(Phase.project_id == pid, Phase.phase_type == "P9")).first()
     resp = client.delete(f"/api/report/phases/{ph9.id}")
