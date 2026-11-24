@@ -85,8 +85,9 @@ export function buildColumns(options: {
       render: (v: string) => <span style={{ fontVariantNumeric: 'tabular-nums' }}>{v}</span> },
     { title: '计划结束', dataIndex: 'plan_end', width: 120, align: 'center',
       render: (v: string) => <span style={{ fontVariantNumeric: 'tabular-nums' }}>{v}</span> },
-    // 操作列对观察者整体不显示（用户 2026-11-11 权限分级需求 4：无编辑权限，全部数据只读）
-    ...(myRole === 'viewer'
+    // 操作列对观察者/填报人整体不显示（用户 2026-11-11 权限分级需求 4：无编辑权限，全部数据只读；
+    // 2026-11-23 列表预览批：reporter 同 viewer 只读形态，行内编辑/删除不渲染，星标列保留）
+    ...(myRole === 'viewer' || myRole === 'reporter'
       ? []
       : [{
           title: '操作',

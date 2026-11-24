@@ -92,19 +92,51 @@ for r in (auth, users, audit, projects, phases, dependencies, resources, templat
 
 
 # ---------------------------------------------------------------------------
-# reporter（填报人）API 封锁门（信息填报一期 §3.1）
+# reporter（填报人）API 封锁门（信息填报一期 §3.1；2026-11-23 方法级放开项目列表只读预览）
 # 设计预期靠 require_role 白名单默认拒绝，实测既有接口多为仅登录（get_current_user）
 # 或无鉴权（resources/dashboard/templates 只读面），reporter 可穿透——故在应用层
-# 统一设门：reporter 登录态访问 /api/* 一律 403，白名单仅放行 /api/report/* 与
-# /api/auth/*（登录/登出/改密）。旧路由零改动；封锁面由 test_report_auth.py 矩阵核验。
+# 统一设门。2026-11-23 起（用户四点裁定：范围A全量/方法级开门/viewer只读形态/专项隔离）：
+#   1) /api/report、/api/auth 全方法放行（填报页 + 登录/登出/改密）；
+#   2) 只读面（GET/HEAD/OPTIONS）放行项目列表/详情/阶段/资源列表/变更事件——
+#      开门面 = ProjectListPage/ProjectDetailPage 及子组件（GanttChart、PhaseEditor
+#      readonly、变更情况、趋势）实际调用的完整闭包，多一个不开；
+#   3) 收藏星标单点豁免（PUT/DELETE ^/api/projects/\d+/favorite$）——个人视图偏好，
+#      沿 viewer 分级先例（观察者权限分级 2026-11-11）；
+#   4) 其余一切写方法（POST/PUT/PATCH/DELETE）仍 403——建/改/删闭环仍在填报页
+#      （report.py 自有接口 + 应用层范围校验），写面与数据面不受影响。
+# 专项项目隔离不依赖本门：/api/projects/special 挂 require_role(admin,manager)，
+# 详情/甘特等对专项项目挂 check_special_project_access，reporter 直敲亦 403。
+# 旧路由零改动；封锁面由 test_report_auth.py 矩阵核验。
 # ---------------------------------------------------------------------------
 _REPORT_ALLOWED_PREFIXES = ("/api/report", "/api/auth")
+# 只读面前缀：列表页/详情页下钻读（projects/phases 域内 GET 均只读端点，写方法仍拒）
+_REPORT_READ_PREFIXES = ("/api/projects", "/api/phases")
+# 只读面精确路径：资源仅放行列表（heatmap/conflicts/workload 属资源负载页，不在开门面）；
+# 变更事件为详情页「变更情况」时间线
+_REPORT_READ_PATHS = ("/api/resources", "/api/resources/", "/api/data-change-events")
+# 收藏豁免：仅 PUT/DELETE 的 /api/projects/{id}/favorite 精确形状
+_REPORT_FAVORITE_SHAPE = r"^/api/projects/\d+/favorite$"
+_REPORT_READ_METHODS = ("GET", "HEAD", "OPTIONS")
+
+
+def _reporter_allowed(path: str, method: str) -> bool:
+    """reporter 请求是否放行（方法级白名单，2026-11-23 项目列表只读预览批）。"""
+    if any(path.startswith(p) for p in _REPORT_ALLOWED_PREFIXES):
+        return True
+    import re
+    if re.match(_REPORT_FAVORITE_SHAPE, path) and method in ("PUT", "DELETE"):
+        return True  # 收藏星标：个人视图偏好写豁免（viewer 先例）
+    if method in _REPORT_READ_METHODS and (
+        any(path.startswith(p) for p in _REPORT_READ_PREFIXES) or path in _REPORT_READ_PATHS
+    ):
+        return True  # 只读面：列表/详情/阶段/资源列表/变更事件
+    return False
 
 
 @app.middleware("http")
 async def _reporter_lockdown(request, call_next):
     path = request.url.path
-    if path.startswith("/api") and not any(path.startswith(p) for p in _REPORT_ALLOWED_PREFIXES):
+    if path.startswith("/api") and not _reporter_allowed(path, request.method):
         # 仅查登录身份（token 在 Cookie），未登录交给原路由的鉴权逻辑
         from app.core.security import COOKIE_NAME, decode_access_token
         token = request.cookies.get(COOKIE_NAME)

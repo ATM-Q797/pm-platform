@@ -274,6 +274,10 @@ def apply_change_proposal(db: Session, req: PhaseChangeRequest, user: User) -> N
         from app.routers.phases import _normalize_sequence
         _normalize_sequence(db, phase.project_id)
     phase_name = phase.name
+    # 项目总起止自动算（用户 2026-11-23 指令）：批准落库即重推（含 sequence 变更后）
+    project_obj = db.get(Project, req.project_id)
+    if project_obj is not None:
+        sync_project_plan_span(db, project_obj)
     log_operation(
         db, user, "approve_report_phase_change", "phase", req.phase_id, phase_name,
         detail=f"批准改期申请 #{req.id}：{json.dumps(changes, ensure_ascii=False)}",
@@ -318,6 +322,30 @@ def project_overdue_flags(project: Project, phases: list[Phase]) -> tuple[bool, 
     # 两标记独立上报（一个项目可同时有已逾期阶段与 7 天内到期阶段，如埃塞VTM：
     # 10-27 样机/线缆打样未开始已逾期 + 11-03 联调/交付未开始临期）——展示优先级由前端定
     return overdue, due_soon
+
+
+# ---------- 项目总起止自动算（用户 2026-11-23 指令） ----------
+
+def sync_project_plan_span(db: Session, project: Project) -> None:
+    """项目总起止 = 阶段推导，单一来源（填报页/平台详情页/审批批准共用本助手）。
+
+    口径（用户 2026-11-23 原话）：
+    - 起始 = 第一个阶段的开始时间（按 sequence 首个非空——首行未填日期不猜，顺延取下一行）；
+    - 结束 = 交付阶段（phase_type="P9"）的结束时间，无 P9 或其日期未填 → 末阶段（sequence
+      最后一个非空）；全部为空 → 周期置 None（不残留旧值，项目列表显"—"）。
+    调用点约定：在本请求事务内、commit 前调用（只 setattr，不 commit——与
+    _normalize_sequence 同模式）。Excel 导入不走本助手（项目行日期是文件权威值，原样落库）。
+    专项项目不挂本助手（专项周期由专项 Excel/导入自管，调用点已排除 is_special）。
+    """
+    phases = list(db.scalars(
+        select(Phase).where(Phase.project_id == project.id)
+        .order_by(Phase.sequence, Phase.id)
+    ))
+    project.plan_start = next((p.plan_start for p in phases if p.plan_start), None)
+    delivery_end = next((p.plan_end for p in reversed(phases)
+                         if p.phase_type == "P9" and p.plan_end), None)
+    project.plan_end = delivery_end or next(
+        (p.plan_end for p in reversed(phases) if p.plan_end), None)
 
 
 # ---------- 可见范围 ----------

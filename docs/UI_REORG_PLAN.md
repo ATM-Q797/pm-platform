@@ -29,8 +29,8 @@
 |---|---|---|---|
 | 登录 | /login | 全部 | 按角色跳默认页（本方案旗舰改造对象） |
 | 看板 | / | admin/viewer 默认页 | manager/engineer 重定向项目列表 |
-| 项目列表 | /projects | admin/manager/engineer/viewer | viewer 无操作列、无导入导出 |
-| 项目详情 | /projects/:id | 全部登录（专项另限） | 甘特 + 趋势 + 变更时间线 |
+| 项目列表 | /projects | admin/manager/engineer/viewer/reporter | viewer/reporter 无操作列、无导入导出（reporter 2026-11-23 列表预览批开放，只读+收藏） |
+| 项目详情 | /projects/:id | 全部登录（专项另限；reporter 只读 2026-11-23 起） | 甘特 + 趋势 + 变更时间线 |
 | 资源负载 | /resources | admin/manager/engineer | 四视图（热力图/甘特/效率分析/过程审计）；engineer 仅见审计 Tab（2026-11-13 归组，功能优化批） |
 | 团队效率 | 内嵌资源负载第三 Tab | admin/manager | 去壳后维持 Tab（已裁定） |
 | 专项项目 | /special-projects | admin/manager | 卡片网格 |

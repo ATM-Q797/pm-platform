@@ -200,8 +200,8 @@ export default function ProjectDetailPage() {
               >
                 {favorited ? <StarFilled /> : <StarOutlined />}
               </a>
-              {/* 编辑对观察者不显示（用户 2026-11-11 权限分级需求 4：无编辑权限）；变更情况/进度趋势是只读视图，保留 */}
-              {userRole !== 'viewer' && (
+              {/* 编辑对观察者/填报人不显示（用户 2026-11-11 权限分级需求 4；2026-11-23 列表预览批 reporter 同 viewer）；变更情况/进度趋势是只读视图，保留 */}
+              {userRole !== 'viewer' && userRole !== 'reporter' && (
                 <Button size="small" type="link" icon={<EditOutlined />} onClick={() => setEditOpen(true)}>
                   编辑
                 </Button>
@@ -351,7 +351,7 @@ export default function ProjectDetailPage() {
             projectId={projectId}
             scale={ganttScale}
             showCritical={showCritical}
-            readonly={userRole === 'viewer'} // 观察者只读（用户 2026-11-11 权限分级需求 4）：禁用任务拖动与依赖增删
+            readonly={userRole === 'viewer' || userRole === 'reporter'} // 观察者/填报人只读（用户 2026-11-11 需求 4；2026-11-23 列表预览批 reporter 同 viewer）：禁用任务拖动与依赖增删
             onPhaseClick={handlePhaseClick}
             onDepsChanged={() => {
               // 依赖连线增删成功 → 关键路径工期/路径名随依赖刷新（用户 2026-08-28）
@@ -361,7 +361,7 @@ export default function ProjectDetailPage() {
           />
         )}
         <div style={{ marginTop: 8, fontSize: 12, color: 'var(--text-tertiary)' }}>
-          {userRole === 'viewer'
+          {userRole === 'viewer' || userRole === 'reporter'
             ? '提示：只读模式——点击甘特条查看详情（通过编辑面板查看日期）'
             : '提示：悬停任务条两端圆形手柄拖到另一条 = 创建依赖连线 ｜ 右键连线删除 ｜ 点击甘特条编辑阶段详情（通过编辑面板修改日期）'}
         </div>
@@ -372,7 +372,7 @@ export default function ProjectDetailPage() {
         projectId={projectId}
         defaultSequence={(project?.phases?.length ? Math.max(...project.phases.map(p => p.sequence)) + 1 : 1)}
         userRole={userRole}
-        readonly={userRole === 'viewer'}
+        readonly={userRole === 'viewer' || userRole === 'reporter'} // 观察者/填报人只读（2026-11-11 需求 4；2026-11-23 列表预览批 reporter 同 viewer）
         specialProject={!!project.is_special}
         onClose={() => setEditingPhase(undefined)}
         onSaved={handlePhaseSaved}

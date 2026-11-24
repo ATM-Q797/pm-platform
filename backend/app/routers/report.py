@@ -31,6 +31,7 @@ from app.models import (
     User,
 )
 from app.routers.audit import log_operation
+from app.routers.phases import _create_prerequisite_dependencies
 from app.schemas.report import (
     ReportChangeRequestCreate,
     ReportChangeRequestItem,
@@ -169,6 +170,7 @@ def create_report_project(
     )
     db.add(project)
     db.flush()
+    prev_phase = None
     for idx, row in enumerate(payload.phases, start=1):
         phase = Phase(
             project_id=project.id,
@@ -182,7 +184,13 @@ def create_report_project(
         )
         db.add(phase)
         db.flush()
+        # 邻接串接 FS 依赖（行序即链序，用户 2026-11-23 指示）：上一行 flush 出 id 后
+        # 立即建「前一行 → 本行」依赖；单行项目链为空。幂等助手复用平台侧实现（单一来源）。
+        if prev_phase is not None:
+            _create_prerequisite_dependencies(db, project.id, phase.id, [prev_phase.id])
+        prev_phase = phase
         svc.sync_phase_assignees(db, phase, row.assignee_ids)
+    svc.sync_project_plan_span(db, project)
     log_operation(db, user, "create_project", "project", project.id, project.name,
                   detail=f"填报页新建（负责人：{manager.name}，{len(payload.phases)} 个阶段）")
     db.commit()
@@ -377,6 +385,8 @@ def patch_report_phase(
     if "sequence" in data:
         from app.routers.phases import _normalize_sequence
         _normalize_sequence(db, phase.project_id)
+    # 项目总起止自动算（用户 2026-11-23 指令）：阶段时间变更即重推
+    svc.sync_project_plan_span(db, project)
     # 过程事件（P1）：白名单字段 diff 落事件（填报页改，source=report_edit）
     record_field_diffs(
         db, user=user, before=before_snapshot, after=data,
@@ -484,6 +494,8 @@ def create_report_phase(
 
     from app.routers.phases import _normalize_sequence  # 与平台阶段接口同一重排规则
     _normalize_sequence(db, project_id)
+    # 项目总起止自动算（用户 2026-11-23 指令）：加阶段即重推
+    svc.sync_project_plan_span(db, project)
     log_operation(db, user, "create_phase", "phase", phase.id, phase.name,
                   detail=f"填报页新增阶段（项目#{project_id}）")
     db.commit()
@@ -507,6 +519,8 @@ def delete_report_phase(
 
     from app.routers.phases import _normalize_sequence
     _normalize_sequence(db, project_id)
+    # 项目总起止自动算（用户 2026-11-23 指令）：删阶段即重推
+    svc.sync_project_plan_span(db, project)
     log_operation(db, user, "delete_phase", "phase", phase_id, name,
                   detail=f"填报页删除阶段（项目#{project_id}）")
     db.commit()

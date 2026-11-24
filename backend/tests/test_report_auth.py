@@ -39,23 +39,49 @@ def _login(client: TestClient, username: str) -> None:
 # ---------- RT-5：reporter 封锁矩阵 ----------
 
 def test_reporter_lockdown_matrix(client: TestClient, db_session: Session):
-    """reporter 登录 → 既有任意 /api/* 全 403；/api/report/* 与 /api/auth/* 放行。"""
+    """reporter 封锁矩阵（2026-11-23 列表预览批后新态）。
+
+    放行：/api/report、/api/auth 全方法；只读面 GET（projects/phases/resources/
+    data-change-events）；收藏单点 PUT/DELETE。其余写方法与平台页面全 403。
+    """
     _mk_user(db_session, "rep_lock", "reporter", "填报人甲")
     db_session.commit()
     _login(client, "rep_lock")
 
+    # ---- 放行面：只读预览批开门（2026-11-23 用户四点裁定）----
+    assert client.get("/api/projects").status_code == 200          # 列表（范围 A：全部普通项目）
+    assert client.get("/api/projects?keyword=测试").status_code == 200
+    assert client.get("/api/projects/1").status_code == 404        # 详情链路开门（1 不存在 → 404 而非封锁门 403）
+    assert client.get("/api/projects/1/phases").status_code == 404
+    assert client.get("/api/phases/1").status_code == 404
+    assert client.get("/api/projects/1/health").status_code == 404
+    assert client.get("/api/projects/1/trend").status_code == 404
+    assert client.get("/api/projects/1/gantt").status_code == 404
+    assert client.get("/api/projects/1/critical-path").status_code == 404
+    assert client.get("/api/projects/1/dependencies").status_code == 404
+    assert client.get("/api/data-change-events").status_code == 200
+    # 收藏豁免（PUT/DELETE 单点放行；1 不存在 → PUT 404 项目不存在；DELETE 幂等未收藏也 200）
+    assert client.put("/api/projects/1/favorite").status_code == 404
+    assert client.delete("/api/projects/1/favorite").status_code == 200
+    # 收藏 GET 列表（个人偏好读）
+    assert client.get("/api/projects/favorites").status_code == 200
+    # 总览甘特（projects 路由域，读端点走 _visible_projects_stmt 范围函数——reporter 并入后放行）
+    assert client.get("/api/projects/overview-gantt").status_code == 200
+
+    # ---- 封锁面：写方法与平台页面（矩阵核验，一处不落）----
     blocked = [
-        ("get", "/api/projects"),
-        ("get", "/api/projects/1"),
         ("post", "/api/projects"),
-        ("get", "/api/phases/1"),
+        ("put", "/api/projects/999999"),
+        ("delete", "/api/projects/999999"),
+        ("get", "/api/projects/special"),                # 专项列表：require_role(admin,manager) 路由门
+        ("post", "/api/projects/1/favorite"),            # 收藏面仅 PUT/DELETE 豁免，POST 仍封
         ("put", "/api/phases/1"),
-        ("get", "/api/resources"),
-        ("get", "/api/resources/heatmap"),
+        ("post", "/api/projects/1/phases"),
+        ("get", "/api/resources/heatmap"),               # 资源热力图不在只读面
         ("get", "/api/users"),
         ("post", "/api/users"),
         ("get", "/api/dashboard/stats"),
-        ("get", "/api/export/excel"),
+        ("get", "/api/export/excel"),                    # 导出仍封（只读形态）
         ("post", "/api/import/preview"),
         ("get", "/api/phase-change-requests"),
         ("post", "/api/phase-change-requests"),
@@ -84,6 +110,61 @@ def test_non_reporter_not_blocked(client: TestClient, db_session: Session):
     _login(client, "eng_lock")
     assert client.get("/api/projects").status_code == 200
     assert client.get("/api/report/projects").status_code == 200
+
+
+# ---------- 2026-11-23 列表预览批：范围 A + 专项隔离 ----------
+
+def test_reporter_scope_a_sees_all_normal_projects(client: TestClient, db_session: Session):
+    """裁定 1（范围 A）：reporter 列表 = 全部普通项目（与填报页 Tab1 同口径），专项排除。
+
+    两个普通项目 + 一个专项；reporter GET /api/projects 两条全见，专项不在列。
+    """
+    _mk_user(db_session, "rep_scope", "reporter", "填报人乙")
+    p1 = Project(code="9002", category="新需求", name="普通项目一", owner="甲",
+                 market="拉美区", status="进行中")
+    p2 = Project(code="9003", category="新需求", name="普通项目二", owner="乙",
+                 market="欧洲区", status="未开始")
+    sp = Project(code="9100", category="新需求", name="专项项目", owner="丙",
+                 market="拉美区", status="进行中", is_special=True)
+    db_session.add_all([p1, p2, sp])
+    db_session.commit()
+    _login(client, "rep_scope")
+    resp = client.get("/api/projects")
+    assert resp.status_code == 200
+    ids = {r["id"] for r in resp.json()}
+    assert p1.id in ids and p2.id in ids
+    assert sp.id not in ids
+
+
+def test_reporter_special_project_isolated(client: TestClient, db_session: Session):
+    """裁定 4（专项隔离）：reporter 直敲专项详情/甘特/事件过滤三面均拒。
+
+    - 详情/甘特：check_special_project_access → 403
+    - data-change-events 指向专项 → 403；无参列表不漏专项事件
+    """
+    _mk_user(db_session, "rep_iso", "reporter", "填报人丙")
+    _mk_admin = User(username="mgr_iso", name="经理甲", role="manager",
+                     password_hash=hash_password("testpass"), must_change_password=False)
+    sp = Project(code="9101", category="新需求", name="专项隔离项目", owner="丙",
+                 market="拉美区", status="进行中", is_special=True, managed_by=_mk_admin.id)
+    p1 = Project(code="9004", category="新需求", name="普通隔离对照", owner="甲",
+                 market="拉美区", status="进行中")
+    db_session.add_all([_mk_admin, sp, p1])
+    db_session.flush()
+    from app.models import DataChangeEvent
+    db_session.add(DataChangeEvent(
+        project_id=sp.id, field="progress", old_value=None, new_value="99",
+        source="direct_edit", changed_by=_mk_admin.id,
+    ))
+    db_session.commit()
+    _login(client, "rep_iso")
+    assert client.get(f"/api/projects/{sp.id}").status_code == 403          # 详情
+    assert client.get(f"/api/projects/{sp.id}/gantt").status_code == 403    # 甘特
+    assert client.get(f"/api/data-change-events?project_id={sp.id}").status_code == 403  # 事件指向专项
+    # 无参列表：普通项目事件可见，专项事件不漏
+    resp = client.get("/api/data-change-events")
+    assert resp.status_code == 200
+    assert all(r["project_id"] != sp.id for r in resp.json())
 
 
 def test_anonymous_unaffected_by_gate(client: TestClient):

@@ -10,10 +10,10 @@ from __future__ import annotations
 from datetime import date, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query, status
-from sqlalchemy import select
+from sqlalchemy import or_, select
 from sqlalchemy.orm import Session
 
-from app.core.deps import get_current_user, require_role, check_project_access
+from app.core.deps import check_special_project_access, get_current_user, require_role, check_project_access
 from app.database import get_db
 from app.models import DataChangeEvent, OperationLog, Phase, PhaseChangeRequest, Project, ProjectDeleteRequest, User
 from app.services.notification import notify, project_owner_user_ids
@@ -394,9 +394,22 @@ def list_data_change_events(
 
     按 created_at 倒序；field_label 为读取侧中文映射（不入库）。
     只返回最近 days 天的事件（默认 7 天滚动窗口），历史数据永久留存 DB 不删。
+    专项项目事件隔离（2026-11-23 填报人列表预览批开门核验）：reporter 对专项项目
+    （或专项阶段）的事件一律 403——专项仅 admin/manager 可见，其过程事件同域隔离；
+    其他角色不受影响。
     """
     from datetime import datetime, timedelta, timezone
     from app.services.change_events import FIELD_LABELS
+    # 专项隔离（reporter 视角）：定位请求指向的项目，专项项目仅 admin/manager
+    target_project_id = project_id
+    if target_project_id is None and phase_id is not None:
+        _phase = db.get(Phase, phase_id)
+        if _phase is not None:
+            target_project_id = _phase.project_id
+    if target_project_id is not None:
+        _proj = db.get(Project, target_project_id)
+        if _proj is not None:
+            check_special_project_access(_proj, user)
     q = select(DataChangeEvent).order_by(DataChangeEvent.created_at.desc(), DataChangeEvent.id.desc())
     cutoff = datetime.now(timezone.utc) - timedelta(days=days)
     q = q.where(DataChangeEvent.created_at >= cutoff)
@@ -408,6 +421,15 @@ def list_data_change_events(
         q = q.where(DataChangeEvent.field == field)
     if source is not None:
         q = q.where(DataChangeEvent.source == source)
+    if user.role == "reporter":
+        # reporter 开门面只读预览：无 project_id 时过滤掉专项项目的事件（裁定 4：专项隔离）
+        visible_ids = select(Project.id).where(Project.is_special.is_(False))
+        q = q.where(
+            or_(
+                DataChangeEvent.project_id.in_(visible_ids),
+                DataChangeEvent.project_id.is_(None),
+            )
+        )
     rows = db.scalars(q.limit(limit)).all()
     out: list[DataChangeEventRead] = []
     for row in rows:

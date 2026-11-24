@@ -241,13 +241,13 @@ export default function ProjectListPage() {
       }
       extra={
         <Space>
-          {myRole !== 'engineer' && myRole !== 'viewer' && (
+          {myRole !== 'engineer' && myRole !== 'viewer' && myRole !== 'reporter' && (
             <Button type="primary" icon={<PlusOutlined />} onClick={() => { form.resetFields(); setCreateOpen(true) }}>
               新建项目
             </Button>
           )}
-          {/* 导入/导出对观察者不显示（用户 2026-11-11 权限分级需求 3）；新建项目守卫已含 viewer */}
-          {myRole !== 'viewer' && (
+          {/* 导入/导出对观察者/填报人不显示（用户 2026-11-11 权限分级需求 3；2026-11-23 列表预览批 reporter 同 viewer 只读形态）；新建项目守卫已含 viewer/reporter */}
+          {myRole !== 'viewer' && myRole !== 'reporter' && (
             <>
               <ImportExcelButton onImport={excel.handleImport} loading={excel.previewLoading} />
               <Button icon={<UploadOutlined />} onClick={() => window.open('/api/export/excel')}>

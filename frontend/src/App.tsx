@@ -144,7 +144,7 @@ export default function App() {
   }
 
   // 导航项（按角色）
-  // 导航标签：reporter 仅见「信息填报」（用户 2026-10-29 权限分级需求 1）；
+  // 导航标签：reporter 见「信息填报+项目列表」（2026-11-23 列表只读预览批；此前仅填报一项）；
   // viewer 仅见「看板/项目列表」（用户 2026-11-11 权限分级需求 1）；
   // 其余角色显示全部页面标签（页面内权限仍按角色守卫）
   const ALL_NAV_ITEMS = [
@@ -156,7 +156,7 @@ export default function App() {
     { key: 'report', icon: <FormOutlined />, label: '信息填报' },
   ]
   const navItems = user.role === 'reporter'
-    ? ALL_NAV_ITEMS.filter((i) => i.key === 'report')
+    ? ALL_NAV_ITEMS.filter((i) => i.key === 'report' || i.key === 'projects') // 填报 + 列表只读预览（2026-11-23 批，主入口仍填报页）
     : user.role === 'viewer'
     ? ALL_NAV_ITEMS.filter((i) => i.key === 'dashboard' || i.key === 'projects') // 观察者仅见「看板/项目列表」（用户 2026-11-11 权限分级需求 1）
     : ALL_NAV_ITEMS
@@ -247,14 +247,11 @@ export default function App() {
                   ? <Navigate to="/projects" replace />
                   : <DashboardPage />
               } />
-              {/* reporter 角色隔离（§3.1）：平台页面全部回填报页（各路由独立守卫，不可用通配——
-                  react-router 按特异性匹配，通配会被具体路由压过，实测 /projects 穿透） */}
-              <Route path="/projects" element={
-                user.role === 'reporter' ? <Navigate to="/report" replace /> : <ProjectListPage />
-              } />
-              <Route path="/projects/:id" element={
-                user.role === 'reporter' ? <Navigate to="/report" replace /> : <ProjectDetailPage />
-              } />
+              {/* 项目列表/详情（2026-11-23 填报人列表只读预览批）：reporter 放行——
+                  只读形态由页面内 viewer 同款条件驱动（新建/导入/导出/编辑/删除全隐藏）；
+                  此前 reporter 隔离回填报页（§3.1 旧态，路由层面已放开） */}
+              <Route path="/projects" element={<ProjectListPage />} />
+              <Route path="/projects/:id" element={<ProjectDetailPage />} />
               {/* 专项项目：仅 admin/manager 可见（与审核中心同模式） */}
               <Route path="/special-projects" element={
                 user.role === 'admin' || user.role === 'manager'

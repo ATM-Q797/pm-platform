@@ -6,8 +6,11 @@
 from __future__ import annotations
 
 from datetime import date, timedelta
+from io import BytesIO
 
+import openpyxl
 from fastapi.testclient import TestClient
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from app.core.security import hash_password
@@ -77,6 +80,24 @@ def test_create_project_reporter_defaults(client: TestClient, db_session: Sessio
     # 列表出现新项目
     ids = [p["id"] for p in client.get("/api/report/projects").json()]
     assert body["id"] in ids
+    # 相邻阶段自动串接 FS 依赖（用户 2026-11-23 指示：行序即链序）：
+    # 依赖落库（/dependencies 端点字段名 from/to/type/lag_days）+ 甘特 links 下发（连线即由此渲染）
+    deps = client.get(f"/api/projects/{body['id']}/dependencies").json()
+    assert deps == [{
+        "from_phase_id": body["phases"][0]["id"],
+        "to_phase_id": body["phases"][1]["id"],
+        "type": "FS",
+        "lag_days": 0,
+        "id": deps[0]["id"],  # 自增 id 仅作回读，不预设
+    }]
+    gantt = client.get(f"/api/projects/{body['id']}/gantt").json()
+    assert gantt["links"] == [{
+        "id": deps[0]["id"],
+        "source": body["phases"][0]["id"],
+        "target": body["phases"][1]["id"],
+        "type": "0",
+        "lag": 0,
+    }]
 
 
 def test_create_project_invalid_category_and_dates(client: TestClient, db_session: Session):
@@ -116,6 +137,36 @@ def test_create_project_invalid_phase_type_and_managed_by_type(client: TestClien
     resp = client.patch(f"/api/report/projects/{p.id}", json={"managed_by": "abc"})
     assert resp.status_code == 400
     assert "类型非法" in resp.json()["detail"]
+
+
+def test_create_project_dependency_chain(client: TestClient, db_session: Session):
+    """依赖链边界（用户 2026-11-23 指示）：链序=行序（不按日期排）；单阶段无链。"""
+    u, _r = _mk_reporter_with_resource(db_session, "rep_chain", "链条人")
+    db_session.commit()
+    _login(client, "rep_chain")
+    # 三行、日期故意乱序：链序仍按行序 P1→P2→P3（行序即链序，非日期序）
+    resp = client.post("/api/report/projects", json={
+        "category": "新需求", "name": "依赖链项目", "market": "拉美区", "status": "未开始",
+        "phases": [
+            {"phase_type": "P1", "plan_start": "2026-12-01", "plan_end": "2026-12-05"},
+            {"phase_type": "P2", "plan_start": "2026-01-01", "plan_end": "2026-01-03"},  # 日期早于上行
+            {"phase_type": "P3", "plan_start": "2026-06-01", "plan_end": "2026-06-10"},
+        ],
+    })
+    assert resp.status_code == 201, resp.text
+    body = resp.json()
+    ph = body["phases"]
+    deps = client.get(f"/api/projects/{body['id']}/dependencies").json()
+    assert len(deps) == 2
+    by_pair = {(d["from_phase_id"], d["to_phase_id"]) for d in deps}
+    assert by_pair == {(ph[0]["id"], ph[1]["id"]), (ph[1]["id"], ph[2]["id"])}
+    assert all(d["type"] == "FS" and d["lag_days"] == 0 for d in deps)
+    # 单阶段项目：无链
+    resp = client.post("/api/report/projects", json={
+        "category": "新需求", "name": "单阶段项目", "market": "拉美区", "status": "未开始",
+        "phases": [{"phase_type": "P1"}]})
+    assert resp.status_code == 201, resp.text
+    assert client.get(f"/api/projects/{resp.json()['id']}/dependencies").json() == []
 
 
 def test_project_progress_mean(client: TestClient, db_session: Session):
@@ -302,3 +353,125 @@ def test_meta_endpoint(client: TestClient, db_session: Session):
     assert meta["phase_statuses"] == ["未开始", "进行中", "已完成", "延期", "搁置"]
     assert isinstance(meta["next_code"], str)
     assert any(u["role"] == "reporter" for u in meta["users"])
+
+
+# ---------- 项目总起止自动算（用户 2026-11-23 指示：阶段推导，8 落库点共用助手） ----------
+
+def test_create_project_plan_span_derived(client: TestClient, db_session: Session):
+    """新建即推导：起始=首阶段开始；结束=交付阶段 P9 结束（优先）；无 P9 → 末阶段。"""
+    _mk_reporter_with_resource(db_session, "rep_span", "周期人")
+    db_session.commit()
+    _login(client, "rep_span")
+    # 三行 + P9 交付在末行：结束应取 P9（与末阶段重合，另用 P8 非末行夹逼验证优先级）
+    resp = client.post("/api/report/projects", json={
+        "category": "新需求", "name": "周期项目", "market": "拉美区", "status": "未开始",
+        "phases": [
+            {"phase_type": "P1", "plan_start": "2026-12-01", "plan_end": "2026-12-05"},
+            {"phase_type": "P8", "plan_start": "2026-12-06", "plan_end": "2026-12-20"},
+            {"phase_type": "P9", "plan_start": "2026-12-21", "plan_end": "2026-12-31"},
+        ],
+    })
+    assert resp.status_code == 201, resp.text
+    # 新建响应 schema 不带 plan_*，周期断言走库读（expire 后取落库值）
+    db_session.expire_all()
+    p_jd = db_session.scalars(select(Project).where(Project.name == "周期项目")).first()
+    assert str(p_jd.plan_start) == "2026-12-01"  # 首阶段开始
+    assert str(p_jd.plan_end) == "2026-12-31"    # P9 交付结束
+    # 无 P9（P1+P4 两行）：结束 = 末阶段结束
+    resp = client.post("/api/report/projects", json={
+        "category": "新需求", "name": "无交付项目", "market": "拉美区", "status": "未开始",
+        "phases": [
+            {"phase_type": "P1", "plan_start": "2027-01-04", "plan_end": "2027-01-08"},
+            {"phase_type": "P4", "plan_start": "2027-01-09", "plan_end": "2027-01-25"},
+        ],
+    })
+    assert resp.status_code == 201, resp.text
+    p_np = db_session.scalars(select(Project).where(Project.name == "无交付项目")).first()
+    assert str(p_np.plan_start) == "2027-01-04"
+    assert str(p_np.plan_end) == "2027-01-25"
+    # 全空日期：周期置 None（不残留）
+    resp = client.post("/api/report/projects", json={
+        "category": "新需求", "name": "空日期项目", "market": "拉美区", "status": "未开始",
+        "phases": [{"phase_type": "P1"}, {"phase_type": "P4"}],
+    })
+    assert resp.status_code == 201, resp.text
+    p_ke = db_session.scalars(select(Project).where(Project.name == "空日期项目")).first()
+    assert p_ke.plan_start is None
+    assert p_ke.plan_end is None
+
+
+def test_phase_change_recomputes_plan_span(client: TestClient, db_session: Session):
+    """改/加/删阶段与审批批准四路径：阶段时间变更后项目周期即时重推。"""
+    owner = _mk_user(db_session, "span_owner", "reporter", "周期负责人")
+    assignee_u, assignee_res = _mk_reporter_with_resource(db_session, "span_assignee", "周期申请员")
+    project = Project(code="9006", category="新需求", name="重推项目", owner="周期负责人",
+                      market="拉美区", status="进行中", managed_by=owner.id)
+    db_session.add(project)
+    db_session.flush()
+    ph1 = Phase(project_id=project.id, phase_type="P1", name="需求评估", sequence=1,
+                plan_start=date(2026, 12, 1), plan_end=date(2026, 12, 10),
+                status="未开始", progress=0)
+    ph2 = Phase(project_id=project.id, phase_type="P9", name="交付", sequence=2,
+                plan_start=date(2026, 12, 11), plan_end=date(2026, 12, 31),
+                status="未开始", progress=0)
+    db_session.add_all([ph1, ph2])
+    db_session.flush()
+    # 阶段负责人关联（变更申请入口要求 is_phase_assignee）
+    db_session.execute(phase_assignee.insert().values(phase_id=ph2.id,
+                                                      resource_id=assignee_res.id))
+    db_session.commit()
+    pid = project.id
+    _login(client, "span_owner")
+
+    # ① 负责人直改首阶段开始 → 起始跟随
+    resp = client.patch(f"/api/report/phases/{ph1.id}", json={"plan_start": "2026-11-20"})
+    assert resp.status_code == 200, resp.text
+    db_session.expire_all()
+    assert str(db_session.get(Project, pid).plan_start) == "2026-11-20"
+
+    # ② 阶段负责人改 P9 结束 → 审批批准 → 结束跟随（审批路径挂点）
+    _login(client, "span_assignee")
+    resp = client.post("/api/report/change-requests", json={
+        "phase_id": ph2.id, "plan_end": "2027-01-15"})
+    assert resp.status_code == 201, resp.text
+    req_id = resp.json()["id"]
+    _login(client, "span_owner")
+    resp = client.post(f"/api/report/change-requests/{req_id}/review", json={"approved": True})
+    assert resp.status_code == 200, resp.text
+    db_session.expire_all()
+    assert str(db_session.get(Project, pid).plan_end) == "2027-01-15"
+
+    # ③ 加阶段（末尾追加更晚的 P8，其结束晚于 P9）→ 结束仍取 P9 交付行（交付优先，不受末阶段影响）
+    resp = client.post(f"/api/report/projects/{pid}/phases", json={
+        "phase_type": "P8", "plan_start": "2027-02-01", "plan_end": "2027-02-20"})
+    assert resp.status_code == 201, resp.text
+    db_session.expire_all()
+    assert str(db_session.get(Project, pid).plan_end) == "2027-01-15"
+
+    # ④ 删阶段（删除 P9 行）→ 结束回退末阶段
+    ph9 = db_session.scalars(
+        select(Phase).where(Phase.project_id == pid, Phase.phase_type == "P9")).first()
+    resp = client.delete(f"/api/report/phases/{ph9.id}")
+    assert resp.status_code == 204
+    db_session.expire_all()
+    assert str(db_session.get(Project, pid).plan_end) == "2027-02-20"
+
+
+def test_export_excel_project_status_column(client: TestClient, db_session: Session):
+    """导出 Excel：项目首行「阶段状态」列位显项目主状态（用户 2026-11-23 指示）。"""
+    _mk_user(db_session, "export_admin", "admin", "导出管理员")
+    p = Project(code="9007", category="新需求", name="导出主状态项目", owner="导出管理员",
+                market="拉美区", status="进行中", managed_by=None)
+    db_session.add(p)
+    db_session.commit()
+    _login(client, "export_admin")
+    resp = client.get("/api/export/excel")
+    assert resp.status_code == 200
+    wb = openpyxl.load_workbook(BytesIO(resp.content), data_only=True)
+    ws = wb.active
+    # L 列（12）= 阶段状态列位：项目行（第 3 行起，首行为该项目）应写 project.status
+    for row in ws.iter_rows(min_row=3):
+        if row[2].value == "导出主状态项目":
+            assert row[11].value == "进行中"
+            return
+    raise AssertionError("导出中未找到目标项目行")

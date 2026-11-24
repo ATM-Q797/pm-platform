@@ -53,7 +53,7 @@ def _write_sheet(ws, projects: list[Project]) -> None:
             "",  # 实际开始
             "",  # 实际结束
             "",  # 阶段负责人
-            "",  # 阶段状态
+            project.status or "",  # 项目主状态（用户 2026-11-23：项目行「阶段状态」列位显主状态）
             "",  # 阶段进度
             project.remark or "",
         ])

@@ -53,13 +53,14 @@ def _validate_trend_days(days: int) -> None:
 def _visible_projects_stmt(user: User):
     """按角色构造项目可见范围查询（项目列表与总览甘特共用同一口径）。
 
-    - admin / viewer：全部项目
+    - admin / viewer / reporter：全部项目（reporter 2026-11-23 并入：列表页只读预览，
+      用户裁定范围 A——与填报页 Tab1 同口径，均为普通项目）
     - manager：自己创建的 + 自己参与的（resource 被分配了阶段的）
     - engineer：只看自己参与的；未关联 resource → 空集
     专项项目统一排除（SPECIAL_PROJECT §4.3：仅专项页可见）。
     """
     stmt = select(Project).where(Project.is_special.is_(False))
-    if user.role in ("admin", "viewer"):
+    if user.role in ("admin", "viewer", "reporter"):
         return stmt
     conditions: list = []
     if user.role == "manager":

@@ -228,6 +228,10 @@ def create_phase(
                 db.add(Dependency(from_phase_id=phase.id, to_phase_id=succ_id, type="FS", lag_days=0))
     # 重排 sequence 保证连续无空洞
     _normalize_sequence(db, project_id)
+    # 项目总起止自动算（用户 2026-11-23 指令）：平台侧加阶段即重推（普通项目，专项不动）
+    if not project.is_special:
+        from app.services.report_service import sync_project_plan_span
+        sync_project_plan_span(db, project)
     db.commit()
     db.refresh(phase)
     return phase
@@ -294,6 +298,10 @@ def update_phase(
                    link="/report?tab=my-requests")
     # 重排 sequence 保证连续无空洞
     _normalize_sequence(db, phase.project_id)
+    # 项目总起止自动算（用户 2026-11-23 指令）：详情页直改阶段日期/顺序即重推
+    if project is not None and not project.is_special:
+        from app.services.report_service import sync_project_plan_span
+        sync_project_plan_span(db, project)
     # 过程事件（P1）：白名单字段 diff 落事件（detail 页直改，source=direct_edit）
     if project is not None:
         from app.services.change_events import record_field_diffs
@@ -361,6 +369,10 @@ def move_phase(
     db.flush()
     # 重排保证连续
     _normalize_sequence(db, phase.project_id)
+    # 项目总起止自动算（用户 2026-11-23 指令）：移动改变行序→首末阶段可能变（普通项目，专项不动）
+    if project is not None and not project.is_special:
+        from app.services.report_service import sync_project_plan_span
+        sync_project_plan_span(db, project)
     db.commit()
     db.refresh(phase)
     return phase
@@ -386,6 +398,10 @@ def delete_phase(
     db.flush()
     # 删除后重排剩余阶段的 sequence
     _normalize_sequence(db, project_id)
+    # 项目总起止自动算（用户 2026-11-23 指令）：删阶段即重推（普通项目，专项不动）
+    if project is not None and not project.is_special:
+        from app.services.report_service import sync_project_plan_span
+        sync_project_plan_span(db, project)
     db.commit()
 
 
