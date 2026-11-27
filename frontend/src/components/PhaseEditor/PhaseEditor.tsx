@@ -491,6 +491,7 @@ export default function PhaseEditor({ phaseId, projectId, defaultSequence, reado
           <Select
             mode="multiple"
             placeholder="选择负责人"
+            optionFilterProp="label"
             options={resources.map((r) => ({ value: r.id, label: r.name + (r.role ? `（${r.role}）` : '') }))}
           />
         </Form.Item>

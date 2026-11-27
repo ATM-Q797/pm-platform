@@ -87,7 +87,8 @@ export default function ChangeRequestModal({
         <Form.Item name="assignee_ids" label="阶段负责人">
           <Select
             mode="multiple"
-            options={(meta?.resources ?? []).map((r) => ({ value: r.id, label: r.name }))}
+            options={(meta?.resources ?? []).map((r) => ({ value: r.id, label: r.name + (r.role ? `（${r.role}）` : '') }))}
+            optionFilterProp="label"
             placeholder="至少保留一人"
           />
         </Form.Item>

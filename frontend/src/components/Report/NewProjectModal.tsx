@@ -79,7 +79,7 @@ export default function NewProjectModal({
     [meta],
   )
   const assigneeOptions = useMemo(
-    () => (meta?.resources ?? []).map((r) => ({ value: r.id, label: r.name })),
+    () => (meta?.resources ?? []).map((r) => ({ value: r.id, label: r.name + (r.role ? `（${r.role}）` : '') })),
     [meta],
   )
 
@@ -214,6 +214,7 @@ export default function NewProjectModal({
                 placeholder="选人（可空）"
                 value={r.assignee_ids}
                 options={assigneeOptions}
+                optionFilterProp="label"
                 onChange={(v: number[]) => updateRow(r.key, { assignee_ids: v })}
                 maxTagCount="responsive"
               />

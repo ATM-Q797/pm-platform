@@ -53,6 +53,7 @@ export default function UserManagePage() {
   const [form] = Form.useForm()
   // 添加人员（资源库）弹窗（用户 2026-11-27 指示）
   const [resModalOpen, setResModalOpen] = useState(false)
+  const [resSaving, setResSaving] = useState(false)
   const [resForm] = Form.useForm()
 
   const load = async () => {
@@ -87,15 +88,21 @@ export default function UserManagePage() {
   }
 
   const handleResSubmit = async () => {
+    if (resSaving) return
     try {
       const values = await resForm.validateFields()
-      await createResource({ name: values.res_name, role: values.res_role || undefined })
-      message.success(`已添加人员「${values.res_name}」，填报页阶段负责人下拉即可选择`)
+      const name = values.res_name.trim()
+      if (!name) { message.error('姓名不能为空白'); return }
+      setResSaving(true)
+      await createResource({ name, role: (values.res_role || '').trim() || undefined })
+      message.success(`已添加人员「${name}」，填报页阶段负责人下拉即可选择`)
       setResModalOpen(false)
       load()
     } catch (e) {
       if ((e as any).errorFields) return
       message.error((e as Error).message)
+    } finally {
+      setResSaving(false)
     }
   }
 
@@ -353,6 +360,7 @@ export default function UserManagePage() {
         onCancel={() => setResModalOpen(false)}
         width={460}
         okText="添加"
+        confirmLoading={resSaving}
       >
         <Form form={resForm} layout="vertical" style={{ marginTop: 16 }} onFinish={handleResSubmit} onKeyDown={(e) => { if (e.key === 'Enter' && e.target instanceof HTMLInputElement && !e.target.readOnly) { e.preventDefault(); resForm.submit(); } }}>
           <Form.Item name="res_name" label="姓名" rules={[{ required: true, message: '请输入姓名' }]}>

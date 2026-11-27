@@ -66,7 +66,7 @@ export default function PhaseDetailTable({
       const [d, m] = await Promise.all([getReportProject(projectId), getReportMeta()])
       setDetail(d)
       setMeta(m)
-      setResourceOptions(m.resources.map((x) => ({ value: x.id, label: x.name })))
+      setResourceOptions(m.resources.map((x) => ({ value: x.id, label: x.name + (x.role ? `（${x.role}）` : '') })))
       setUserOptions(m.users.map((x) => ({ value: x.id, label: x.name })))
     } catch (e) {
       message.error((e as Error).message)
@@ -281,6 +281,7 @@ export default function PhaseDetailTable({
             )}
             value={r.assignee_ids}
             options={resourceOptions}
+            optionFilterProp="label"
             onChange={(ids: number[]) => patchPhase(r, { assignee_ids: ids })}
             placeholder="选择人员"
           />
