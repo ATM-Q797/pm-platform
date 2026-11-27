@@ -24,7 +24,7 @@ import {
   resetPassword,
   type UserCreatePayload,
 } from '../api/users'
-import { listResources } from '../api/resources'
+import { listResources, createResource } from '../api/resources'
 import prefersReducedMotion from '../hooks/prefersReducedMotion'
 import type { UserInfo, Resource } from '../types'
 
@@ -51,6 +51,9 @@ export default function UserManagePage() {
   const [modalOpen, setModalOpen] = useState(false)
   const [editing, setEditing] = useState<UserInfo | null>(null)
   const [form] = Form.useForm()
+  // 添加人员（资源库）弹窗（用户 2026-11-27 指示）
+  const [resModalOpen, setResModalOpen] = useState(false)
+  const [resForm] = Form.useForm()
 
   const load = async () => {
     setLoading(true)
@@ -74,6 +77,26 @@ export default function UserManagePage() {
     form.resetFields()
     form.setFieldsValue({ role: 'engineer' })
     setModalOpen(true)
+  }
+
+  // 添加资源库人员（用户 2026-11-27 指示）：填报页阶段负责人候选来自资源表，
+  // 库里没有就选不到——管理员在用户管理页直接建人，复用既有 POST /api/resources
+  const handleAddResource = () => {
+    resForm.resetFields()
+    setResModalOpen(true)
+  }
+
+  const handleResSubmit = async () => {
+    try {
+      const values = await resForm.validateFields()
+      await createResource({ name: values.res_name, role: values.res_role || undefined })
+      message.success(`已添加人员「${values.res_name}」，填报页阶段负责人下拉即可选择`)
+      setResModalOpen(false)
+      load()
+    } catch (e) {
+      if ((e as any).errorFields) return
+      message.error((e as Error).message)
+    }
   }
 
   const handleEdit = (u: UserInfo) => {
@@ -236,6 +259,9 @@ export default function UserManagePage() {
       }
       extra={
         <Space>
+          <Button icon={<PlusOutlined />} onClick={handleAddResource}>
+            添加人员
+          </Button>
           <Button type="primary" icon={<PlusOutlined />} onClick={handleAdd}>
             新建用户
           </Button>
@@ -314,6 +340,27 @@ export default function UserManagePage() {
               <Switch />
             </Form.Item>
           )}
+        </Form>
+      </Modal>
+
+      {/* 添加人员（资源库，用户 2026-11-27 指示）：姓名必填、重名由后端 400 拦截；
+          职责标签选填，显示在阶段负责人下拉括号内；落资源表后填报页 meta 实时可选 */}
+      <Modal
+        title="添加人员（资源库）"
+        open={resModalOpen}
+        transitionName={prefersReducedMotion() ? '' : 'pm-modal'}
+        onOk={handleResSubmit}
+        onCancel={() => setResModalOpen(false)}
+        width={460}
+        okText="添加"
+      >
+        <Form form={resForm} layout="vertical" style={{ marginTop: 16 }} onFinish={handleResSubmit} onKeyDown={(e) => { if (e.key === 'Enter' && e.target instanceof HTMLInputElement && !e.target.readOnly) { e.preventDefault(); resForm.submit(); } }}>
+          <Form.Item name="res_name" label="姓名" rules={[{ required: true, message: '请输入姓名' }]}>
+            <Input placeholder="人员姓名" />
+          </Form.Item>
+          <Form.Item name="res_role" label="职责标签" extra="选填；显示在阶段负责人下拉的括号里，如「张三（结构设计）」">
+            <Input placeholder="如：结构设计" maxLength={20} />
+          </Form.Item>
         </Form>
       </Modal>
 
