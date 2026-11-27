@@ -79,7 +79,7 @@ export default function NewProjectModal({
     [meta],
   )
   const assigneeOptions = useMemo(
-    () => (meta?.resources ?? []).map((r) => ({ value: r.id, label: r.name + (r.role ? `（${r.role}）` : '') })),
+    () => (meta?.resources ?? []).map((r) => ({ value: r.id, label: r.name })),
     [meta],
   )
 

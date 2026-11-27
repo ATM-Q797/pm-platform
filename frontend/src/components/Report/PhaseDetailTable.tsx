@@ -66,7 +66,7 @@ export default function PhaseDetailTable({
       const [d, m] = await Promise.all([getReportProject(projectId), getReportMeta()])
       setDetail(d)
       setMeta(m)
-      setResourceOptions(m.resources.map((x) => ({ value: x.id, label: x.name + (x.role ? `（${x.role}）` : '') })))
+      setResourceOptions(m.resources.map((x) => ({ value: x.id, label: x.name })))
       setUserOptions(m.users.map((x) => ({ value: x.id, label: x.name })))
     } catch (e) {
       message.error((e as Error).message)

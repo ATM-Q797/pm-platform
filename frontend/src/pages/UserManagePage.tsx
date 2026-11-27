@@ -339,7 +339,7 @@ export default function UserManagePage() {
               placeholder="选择对应的人员（可空）"
               options={resources
                 .filter((r) => !usedResourceIds.has(r.id))
-                .map((r) => ({ value: r.id, label: `${r.name}${r.role ? '（' + r.role + '）' : ''}` }))}
+                .map((r) => ({ value: r.id, label: r.name }))}
             />
           </Form.Item>
           {editing && (
@@ -351,7 +351,7 @@ export default function UserManagePage() {
       </Modal>
 
       {/* 添加人员（资源库，用户 2026-11-27 指示）：姓名必填、重名由后端 400 拦截；
-          职责标签选填，显示在阶段负责人下拉括号内；落资源表后填报页 meta 实时可选 */}
+          职责标签选填，仅作人员数据标注、不在选人下拉显示（用户 2026-11-27 裁定：选人下拉统一纯姓名）；落资源表后填报页 meta 实时可选 */}
       <Modal
         title="添加人员（资源库）"
         open={resModalOpen}
@@ -366,7 +366,7 @@ export default function UserManagePage() {
           <Form.Item name="res_name" label="姓名" rules={[{ required: true, message: '请输入姓名' }]}>
             <Input placeholder="人员姓名" />
           </Form.Item>
-          <Form.Item name="res_role" label="职责标签" extra="选填；显示在阶段负责人下拉的括号里，如「张三（结构设计）」">
+          <Form.Item name="res_role" label="职责标签" extra="选填；仅作人员数据标注，选人下拉统一显示姓名">
             <Input placeholder="如：结构设计" maxLength={20} />
           </Form.Item>
         </Form>
