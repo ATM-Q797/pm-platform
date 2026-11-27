@@ -2,7 +2,7 @@ import { useCallback, useEffect, useState } from 'react'
 import { Empty, Table, Tag, Typography, message } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import type { ReportMyChangeRequestItem } from '../../types'
-import { listMyChangeRequests } from '../../api/report'
+import { getReportMeta, listMyChangeRequests } from '../../api/report'
 import { describeProposal } from './ChangeRequestModal'
 
 const { Text } = Typography
@@ -21,6 +21,8 @@ const STATUS_META: Record<string, { color: string; label: string }> = {
 export default function MyRequestsTab({ reloadToken }: { reloadToken?: number }) {
   const [rows, setRows] = useState<ReportMyChangeRequestItem[]>([])
   const [loading, setLoading] = useState(false)
+  // 提案里 assignee_ids 存资源 id：拉 meta 建 id→姓名映射，展示时翻译成姓名
+  const [nameMap, setNameMap] = useState<Map<number, string>>()
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -38,13 +40,19 @@ export default function MyRequestsTab({ reloadToken }: { reloadToken?: number })
     // 与 ApprovalTab 同理：面板不销毁，靠令牌触发重拉（评审 #11 🟡）
   }, [load, reloadToken])
 
+  useEffect(() => {
+    getReportMeta()
+      .then((m) => setNameMap(new Map(m.resources.map((r) => [r.id, r.name]))))
+      .catch(() => setNameMap(undefined))
+  }, [])
+
   const columns: ColumnsType<ReportMyChangeRequestItem> = [
     { title: '项目', dataIndex: 'project_name', width: 180, ellipsis: true },
     { title: '阶段', dataIndex: 'phase_name', width: 120 },
     {
       title: '变更内容',
       key: 'proposed',
-      render: (_: unknown, r) => <Text>{describeProposal(r)}</Text>,
+      render: (_: unknown, r) => <Text>{describeProposal(r, nameMap)}</Text>,
     },
     {
       title: '提交时间',

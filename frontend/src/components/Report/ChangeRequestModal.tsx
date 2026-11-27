@@ -116,13 +116,23 @@ const FIELD_LABELS: Record<string, string> = {
   assignee_ids: '阶段负责人',
 }
 
-export function describeProposal(item: { proposed: Record<string, ReportChangeProposal> }): string {
+export function describeProposal(
+  item: { proposed: Record<string, ReportChangeProposal> },
+  nameMap?: Map<number, string>,
+): string {
   return Object.entries(item.proposed)
     .map(([field, p]) => {
       const label = FIELD_LABELS[field] ?? field
-      const old = Array.isArray(p.old) ? (p.old as unknown[]).join('、') : (p.old ?? '—')
-      const nw = Array.isArray(p.new) ? (p.new as unknown[]).join('、') : (p.new ?? '—')
-      return `${label}：${old} → ${nw}`
+      // assignee_ids 提案值是资源 id 数组（后端存 id），有映射则翻成姓名展示；
+      // 映射缺失（meta 拉取失败/人员已删）回退显示原 id，不劣化于现状
+      const fmt = (list: unknown) => {
+        if (!Array.isArray(list)) return (list as string | null) ?? '—'
+        const parts = (list as unknown[]).map((v) =>
+          nameMap?.get(v as number) ?? String(v),
+        )
+        return parts.join('、') || '—'
+      }
+      return `${label}：${fmt(p.old)} → ${fmt(p.new)}`
     })
     .join('；')
 }

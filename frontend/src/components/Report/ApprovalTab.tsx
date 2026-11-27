@@ -3,7 +3,7 @@ import prefersReducedMotion from '../../hooks/prefersReducedMotion'
 import { Button, Empty, Input, Modal, Space, Table, Tag, Typography, message } from 'antd'
 import type { ColumnsType } from 'antd/es/table'
 import type { ReportChangeRequestItem } from '../../types'
-import { listReportChangeRequests, reviewReportChangeRequest } from '../../api/report'
+import { listReportChangeRequests, reviewReportChangeRequest, getReportMeta } from '../../api/report'
 import { describeProposal } from './ChangeRequestModal'
 
 const { Text } = Typography
@@ -20,6 +20,14 @@ export default function ApprovalTab({
   const [loading, setLoading] = useState(false)
   const [rejectTarget, setRejectTarget] = useState<ReportChangeRequestItem | null>(null)
   const [rejectReason, setRejectReason] = useState('')
+  // 提案里 assignee_ids 存资源 id：拉 meta 建 id→姓名映射，展示时翻译成姓名
+  const [nameMap, setNameMap] = useState<Map<number, string>>()
+
+  useEffect(() => {
+    getReportMeta()
+      .then((m) => setNameMap(new Map(m.resources.map((r) => [r.id, r.name]))))
+      .catch(() => setNameMap(undefined))
+  }, [])
 
   const load = useCallback(async () => {
     setLoading(true)
@@ -58,7 +66,7 @@ export default function ApprovalTab({
     {
       title: '变更内容',
       key: 'proposed',
-      render: (_: unknown, r) => <Text>{describeProposal(r)}</Text>,
+      render: (_: unknown, r) => <Text>{describeProposal(r, nameMap)}</Text>,
     },
     {
       title: '提交时间',
@@ -124,7 +132,7 @@ export default function ApprovalTab({
         <Space direction="vertical" style={{ width: '100%' }}>
           <Text type="secondary">
             <Tag color="orange">待审</Tag>
-            {rejectTarget ? describeProposal(rejectTarget) : ''}
+            {rejectTarget ? describeProposal(rejectTarget, nameMap) : ''}
           </Text>
           <Input.TextArea
             rows={3}
