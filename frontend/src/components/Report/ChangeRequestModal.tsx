@@ -47,7 +47,7 @@ export default function ChangeRequestModal({
       const payload: Record<string, unknown> = { phase_id: target.id }
       if (planStart) payload.plan_start = planStart.format('YYYY-MM-DD')
       if (planEnd) payload.plan_end = planEnd.format('YYYY-MM-DD')
-      if (Array.isArray(v.assignee_ids) && v.assignee_ids.join() !== target.assignee_ids.join()) {
+      if (Array.isArray(v.assignee_ids) && [...v.assignee_ids].sort((a, b) => a - b).join() !== [...target.assignee_ids].sort((a, b) => a - b).join()) {
         payload.assignee_ids = v.assignee_ids
       }
       if (Object.keys(payload).length === 1) {

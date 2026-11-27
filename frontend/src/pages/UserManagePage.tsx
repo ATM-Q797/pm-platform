@@ -335,6 +335,8 @@ export default function UserManagePage() {
           )}
           <Form.Item name="resource_id" label="关联人员（资源）" extra="关联后可被分配为阶段负责人">
             <Select
+              showSearch
+              optionFilterProp="label"
               allowClear
               placeholder="选择对应的人员（可空）"
               options={resources
@@ -362,7 +364,7 @@ export default function UserManagePage() {
         okText="添加"
         confirmLoading={resSaving}
       >
-        <Form form={resForm} layout="vertical" style={{ marginTop: 16 }} onFinish={handleResSubmit} onKeyDown={(e) => { if (e.key === 'Enter' && e.target instanceof HTMLInputElement && !e.target.readOnly) { e.preventDefault(); resForm.submit(); } }}>
+        <Form form={resForm} layout="vertical" style={{ marginTop: 16 }} onFinish={handleResSubmit} onKeyDown={(e) => { if (e.key === 'Enter' && e.target instanceof HTMLInputElement && !e.target.readOnly && !e.target.closest('.ant-select, .ant-picker')) { e.preventDefault(); resForm.submit(); } }}>
           <Form.Item name="res_name" label="姓名" rules={[{ required: true, message: '请输入姓名' }]}>
             <Input placeholder="人员姓名" />
           </Form.Item>
